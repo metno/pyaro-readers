@@ -27,9 +27,8 @@ dependencies = ["pyaro@git+https://github.com/metno/pyaro"]
 "Homepage" = "https://github.com/metno/pyaro-readers"
 "Bug Tracker" = "https://github.com/metno/pyaro-readers/issues"
 
-
-[project.entry-points."pyaro_readers.reader"]
-AeronetSunTimeseriesReader = "pyaro_readers.aeronetsunreader.AeronetSunTimeseriesReader:AeronetSunTimeseriesReader"
+[project.entry-points."pyaro.timeseries"]
+"aeronetsunreader" = "pyaro_readers.aeronetsunreader:AeronetSunTimeseriesEngine"
 
 [tool.mypy]
 python_version = "3.9"

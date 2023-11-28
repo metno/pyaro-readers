@@ -110,7 +110,7 @@ class AeronetSunTimeseriesEngine(Engine):
         return (
             "filename",
             "columns",
-            "aeronetsunreader_kwargs",
+            "reader_kwargs",
             "variable_units",
             "filters",
         )
@@ -119,7 +119,7 @@ class AeronetSunTimeseriesEngine(Engine):
         return ""
 
     def description(self):
-        return "Simple reader of AeronetSun-files using python AeronetSun-reader"
+        return "Simple reader of AeronetSun-files using the pyaro infrastructure"
 
     def url(self):
-        return "https://github.com/metno/pyaro"
+        return "https://github.com/metno/pyaro-readers"
