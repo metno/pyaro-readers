@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyaro_readers"
+version = "0.0.1"
+authors = [{ name = "MET Norway" }]
+description = "implementations of pyaerocom reading plugings using pyaro as interface'"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+requires-python = ">=3.9"
+dependencies = ["pyaro"]
+
+[project.urls]
+"Homepage" = "https://github.com/metno/pyaro-readers"
+"Bug Tracker" = "https://github.com/metno/pyaro-readers/issues"
+
+
+[project.entry-points."pyaro_readers.reader"]
+AeronetSunTimeseriesReader = "pyaro_readers.aeronetsunreader.AeronetSunTimeseriesReader:AeronetSunTimeseriesReader"
+
+[tool.mypy]
+python_version = "3.9"
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_return_any = false
+warn_unreachable = true
+show_error_codes = true
+pretty = true
+sqlite_cache = true
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+envlist = py39, py310, py311, format, lint
+skip_missing_interpreters = True
+isolated_build = True
+
+[testenv:format]
+commands =
+    pre-commit run --all-files --show-diff-on-failure
+deps =
+    pre-commit
+
+[testenv:lint]
+commands =
+    mypy .
+depends =
+    mypy>=0.981
+"""
