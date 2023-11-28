@@ -21,7 +21,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
 requires-python = ">=3.9"
-dependencies = ["pyaro"]
+dependencies = ["pyaro@https://github.com/metno/pyaro.git"]
 
 [project.urls]
 "Homepage" = "https://github.com/metno/pyaro-readers"
