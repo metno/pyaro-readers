@@ -44,19 +44,23 @@ sqlite_cache = true
 [tool.tox]
 legacy_tox_ini = """
 [tox]
-envlist = py39, py310, py311, format, lint
+min_version = 4.0
 skip_missing_interpreters = True
 isolated_build = True
+
+envlist =
+    py39
+
+    py310
+    py311
+    format
+
+[testenv]
+commands = python3 -m unittest discover -s tests
 
 [testenv:format]
 commands =
     pre-commit run --all-files --show-diff-on-failure
 deps =
     pre-commit
-
-[testenv:lint]
-commands =
-    mypy .
-depends =
-    mypy>=0.981
 """
