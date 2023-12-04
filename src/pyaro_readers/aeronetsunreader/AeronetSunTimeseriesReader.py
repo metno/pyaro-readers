@@ -1,6 +1,13 @@
 import csv
 import numpy as np
-from pyaro.timeseries import Data, NpStructuredData, Flag, AutoFilterReaderEngine, Station, Engine
+from pyaro.timeseries import (
+    Data,
+    NpStructuredData,
+    Flag,
+    AutoFilterReaderEngine,
+    Station,
+    Engine,
+)
 import requests, zipfile, io
 import geocoder
 from tqdm import tqdm
@@ -10,6 +17,8 @@ BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Ave
 # number of lines to read before the reading is handed to Pythobn's csv reader
 HEADER_LINE_NO = 7
 DELIMITER = ","
+#
+NAN_VAL = -999.0
 # main variables to store
 LAT_NAME = "Site_Latitude(Degrees)"
 LON_NAME = "Site_Longitude(Degrees)"
@@ -21,8 +30,13 @@ AOD500_NAME = "AOD_500nm"
 ANG4487_NAME = "440-870_Angstrom_Exponent"
 AOD440_NAME = "AOD_440nm"
 AOD870_NAME = "AOD_870nm"
+AOD550_NAME = "AOD_550nm"
 
 DATA_VARS = [AOD500_NAME, ANG4487_NAME, AOD440_NAME, AOD870_NAME]
+COMPUTED_VARS = [AOD550_NAME]
+# The computed variables have to be named after the read ones, otherwise the calculation will fail!
+DATA_VARS.extend(COMPUTED_VARS)
+
 FILL_COUNTRY_FLAG = False
 
 # further vars can be added here
@@ -42,9 +56,7 @@ VARS_TO_STORE = [
 ]
 
 
-class AeronetSunTimeseriesReader(
-    AutoFilterReaderEngine.AutoFilterReader
-):
+class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
         self,
         filename,
@@ -123,16 +135,33 @@ class AeronetSunTimeseriesReader(
                             else:
                                 da = NpStructuredData(variable, units)
                                 self._data[variable] = da
+
+                day, month, year = row[DATE_NAME].split(":")
+                datestring = "-".join([year, month, day])
+                datestring = "T".join([datestring, row[TIME_NAME]])
+                start = np.datetime64(datestring)
+                end = start
+
+                ts_dummy_data = {}
                 for variable in DATA_VARS:
-                    day, month, year = row[DATE_NAME].split(":")
-                    datestring = "-".join([year, month, day])
-                    datestring = "T".join([datestring, row[TIME_NAME]])
-                    start = np.datetime64(datestring)
-                    end = start
-                    value = float(row[variable])
+                    try:
+                        value = float(row[variable])
+                        if value == NAN_VAL:
+                            value = np.nan
+                        ts_dummy_data[variable] = value
+                    except KeyError:
+                        # computed variable
+                        if variable == AOD550_NAME:
+                            value = self.compute_od_from_angstromexp(
+                                0.55,
+                                ts_dummy_data[AOD440_NAME],
+                                0.44,
+                                ts_dummy_data[ANG4487_NAME],
+                            )
                     self._data[variable].append(
                         value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
                     )
+                # add computed variables
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]
@@ -145,6 +174,47 @@ class AeronetSunTimeseriesReader(
 
     def close(self):
         pass
+
+    def compute_od_from_angstromexp(
+        self, to_lambda: float, od_ref: float, lambda_ref: float, angstrom_coeff: float
+    ) -> float:
+        """Compute AOD at specified wavelength
+
+        Uses Angstrom coefficient and reference AOD to compute the
+        corresponding wavelength shifted AOD
+
+        Parameters
+        ----------
+        to_lambda : :obj:`float` or :obj:`ndarray`
+            wavelength for which AOD is calculated
+        od_ref : :obj:`float` or :obj:`ndarray`
+            reference AOD
+        lambda_ref : :obj:`float` or :obj:`ndarray`
+            wavelength corresponding to reference AOD
+        angstrom_coeff : :obj:`float` or :obj:`ndarray`
+            Angstrom coefficient
+
+        Returns
+        -------
+        :obj:`float` or :obj:`ndarray`
+            AOD(s) at shifted wavelength
+
+        """
+        return od_ref * (lambda_ref / to_lambda) ** angstrom_coeff
+
+    def calc_angstroem_coeff(
+        self, od1: float, od2: float, wl1: float, wl2: float
+    ) -> float:
+        """
+        small helper method to calculate angstroem coefficient
+
+        :param od1:
+        :param od2:
+        :param wl1:
+        :param wl2:
+        :return:
+        """
+        return -np.log(od1 / od2) / np.log(wl1 / wl2)
 
 
 class AeronetSunTimeseriesEngine(Engine):

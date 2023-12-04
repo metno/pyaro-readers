@@ -24,7 +24,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 39972)
+            self.assertEqual(count, 49965)
             self.assertEqual(len(ts.stations()), 4)
 
     def test_stationfilter(self):
@@ -34,7 +34,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 39020)
+            self.assertEqual(count, 48775)
             self.assertEqual(len(ts.stations()), 3)
 
     def test_wrappers(self):
@@ -48,9 +48,9 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
 
     def test_variables_filter(self):
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-        new_var_name = "od500aer"
+        new_var_name = "od550aer"
         vfilter = pyaro.timeseries.filters.get(
-            "variables", reader_to_new={"AOD_500nm": new_var_name}
+            "variables", reader_to_new={"AOD_550nm": new_var_name}
         )
         with engine.open(self.file, filters=[vfilter]) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
