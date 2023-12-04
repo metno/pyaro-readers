@@ -1,6 +1,6 @@
 import csv
 import numpy as np
-from pyaro.timeseries import Data, NpStructuredData, Flag, Reader, Station, Engine
+from pyaro.timeseries import Data, NpStructuredData, Flag, AutoFilterReaderEngine, Station, Engine
 import requests, zipfile, io
 import geocoder
 from tqdm import tqdm
@@ -42,7 +42,9 @@ VARS_TO_STORE = [
 ]
 
 
-class AeronetSunTimeseriesReader(Reader):
+class AeronetSunTimeseriesReader(
+    AutoFilterReaderEngine.AutoFilterReader
+):
     def __init__(
         self,
         filename,
@@ -78,10 +80,8 @@ class AeronetSunTimeseriesReader(Reader):
 
             crd = csv.DictReader(csvfile, fieldnames=self._fields, **csvreader_kwargs)
             for _ridx, row in enumerate(crd):
-            # for _ridx in tqdm(range(len(crd))):
-            #     row = crd[_ridx]
                 if row[SITE_NAME] != _laststatstr:
-                    print(f"Next station {row[SITE_NAME]}")
+                    print(f"reading station {row[SITE_NAME]}...")
                     _laststatstr = row[SITE_NAME]
                     # new station
                     station = row[SITE_NAME]
@@ -90,7 +90,9 @@ class AeronetSunTimeseriesReader(Reader):
                     alt = float(row["Site_Elevation(m)"])
                     if FILL_COUNTRY_FLAG:
                         try:
-                            country = geocoder.osm([lat, lon], method='reverse').json['country_code']
+                            country = geocoder.osm([lat, lon], method="reverse").json[
+                                "country_code"
+                            ]
                         except:
                             country = "NN"
                     else:
@@ -115,7 +117,9 @@ class AeronetSunTimeseriesReader(Reader):
                             if variable in self._data:
                                 da = self._data[variable]
                                 if da.units != units:
-                                    raise Exception(f"unit change from '{da.units}' to 'units'")
+                                    raise Exception(
+                                        f"unit change from '{da.units}' to 'units'"
+                                    )
                             else:
                                 da = NpStructuredData(variable, units)
                                 self._data[variable] = da
@@ -126,11 +130,9 @@ class AeronetSunTimeseriesReader(Reader):
                     start = np.datetime64(datestring)
                     end = start
                     value = float(row[variable])
-                    self._data[variable].append(value, station, lat, lon, alt, start, end, Flag.VALID, np.nan)
-
-
-
-        print(crd.fieldnames)
+                    self._data[variable].append(
+                        value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
+                    )
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]
@@ -140,26 +142,6 @@ class AeronetSunTimeseriesReader(Reader):
 
     def _unfiltered_variables(self) -> list[str]:
         return list(self._data.keys())
-
-    def variables(self) -> list[str]:
-        vars = self._unfiltered_variables()
-        for fi in self._filters:
-            vars = fi.filter_variables(vars)
-        return vars
-
-    def stations(self) -> dict[str, Station]:
-        stats = self._unfiltered_stations()
-        for fi in self._filters:
-            stats = fi.filter_stations(stats)
-        return stats
-
-    def data(self, varname) -> Data:
-        dat = self._unfiltered_data(varname)
-        stats = self._unfiltered_stations()
-        vars = self._unfiltered_variables()
-        for fi in self._filters:
-            dat = fi.filter_data(dat, stats, vars)
-        return dat
 
     def close(self):
         pass
