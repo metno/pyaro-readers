@@ -2,6 +2,8 @@ import csv
 import numpy as np
 from pyaro.timeseries import Data, NpStructuredData, Flag, Reader, Station, Engine
 import requests, zipfile, io
+import geocoder
+from tqdm import tqdm
 
 # default URL
 BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
@@ -14,11 +16,14 @@ LON_NAME = "Site_Longitude(Degrees)"
 ALT_NAME = "Site_Elevation(m)"
 SITE_NAME = "AERONET_Site_Name"
 DATE_NAME = "Date(dd:mm:yyyy)"
-TIME_NAME = "Time(hh:mm:ss)"
+TIME_NAME: str = "Time(hh:mm:ss)"
 AOD500_NAME = "AOD_500nm"
 ANG4487_NAME = "440-870_Angstrom_Exponent"
 AOD440_NAME = "AOD_440nm"
 AOD870_NAME = "AOD_870nm"
+
+DATA_VARS = [AOD500_NAME, ANG4487_NAME, AOD440_NAME, AOD870_NAME]
+FILL_COUNTRY_FLAG = False
 
 # further vars can be added here
 VARS_TO_STORE = [
@@ -41,17 +46,6 @@ class AeronetSunTimeseriesReader(Reader):
     def __init__(
         self,
         filename,
-        # columns=dict(
-        #     variable=0,
-        #     station=1,
-        #     longitude=2,
-        #     latitude=3,
-        #     value=4,
-        #     units=5,
-        #     start_time=6,
-        #     end_time=7,
-        # ),
-        # variable_units={"SOx": "Gg", "NOx": "Mg"},
         csvreader_kwargs={"delimiter": DELIMITER},
         filters=[],
     ):
@@ -83,63 +77,60 @@ class AeronetSunTimeseriesReader(Reader):
             self._fields = csvfile.readline().strip().split(",")
 
             crd = csv.DictReader(csvfile, fieldnames=self._fields, **csvreader_kwargs)
-            for row in crd:
+            for _ridx, row in enumerate(crd):
+            # for _ridx in tqdm(range(len(crd))):
+            #     row = crd[_ridx]
                 if row[SITE_NAME] != _laststatstr:
                     print(f"Next station {row[SITE_NAME]}")
                     _laststatstr = row[SITE_NAME]
                     # new station
                     station = row[SITE_NAME]
-                    #     lon = float("Site_Longitude(Degrees)")
-                    #     lat = float("Site_Latitude(Degrees)")
-                    #     start = np.datetime64(row[columns["start_time"]])
-                    #     end = np.datetime64(row[columns["end_time"]])
-                    #     alt = float(row[])
-                    #     if "altitude" in columns:
-                    #     else:
-                    #         alt = 0
-                else:
-                    pass
+                    lon = float(row[LON_NAME])
+                    lat = float(row[LAT_NAME])
+                    alt = float(row["Site_Elevation(m)"])
+                    if FILL_COUNTRY_FLAG:
+                        try:
+                            country = geocoder.osm([lat, lon], method='reverse').json['country_code']
+                        except:
+                            country = "NN"
+                    else:
+                        country = "NN"
+                    # units of Aeronet data are always 1
+                    units = "1"
+                    if not station in self._stations:
+                        self._stations[station] = Station(
+                            {
+                                "station": station,
+                                "longitude": lon,
+                                "latitude": lat,
+                                "altitude": alt,
+                                "country": country,
+                                "url": "",
+                                "long_name": station,
+                            }
+                        )
+                    # every line contains all variables, sometimes filled with NaNs though
+                    if _ridx == 0:
+                        for variable in DATA_VARS:
+                            if variable in self._data:
+                                da = self._data[variable]
+                                if da.units != units:
+                                    raise Exception(f"unit change from '{da.units}' to 'units'")
+                            else:
+                                da = NpStructuredData(variable, units)
+                                self._data[variable] = da
+                for variable in DATA_VARS:
+                    day, month, year = row[DATE_NAME].split(":")
+                    datestring = "-".join([year, month, day])
+                    datestring = "T".join([datestring, row[TIME_NAME]])
+                    start = np.datetime64(datestring)
+                    end = start
+                    value = float(row[variable])
+                    self._data[variable].append(value, station, lat, lon, alt, start, end, Flag.VALID, np.nan)
+
+
 
         print(crd.fieldnames)
-
-        # for row in crd:
-        #     variable = row[columns["variable"]]
-        #
-        #     value = float(row[columns["value"]])
-        #     station = row[columns["station"]]
-        #     lon = float(row[columns["longitude"]])
-        #     lat = float(row[columns["latitude"]])
-        #     start = np.datetime64(row[columns["start_time"]])
-        #     end = np.datetime64(row[columns["end_time"]])
-        #     if "altitude" in columns:
-        #         alt = float(row[columns["altitude"]])
-        #     else:
-        #         alt = 0
-        #     if "units" in columns:
-        #         units = row[columns["units"]]
-        #     else:
-        #         units = variable_units[variable]
-        #
-        #     if variable in self._data:
-        #         da = self._data[variable]
-        #         if da.units != units:
-        #             raise Exception(f"unit change from '{da.units}' to 'units'")
-        #     else:
-        #         da = NpStructuredData(variable, units)
-        #         self._data[variable] = da
-        #     da.append(value, station, lat, lon, alt, start, end, Flag.VALID, np.nan)
-        #     if not station in self._stations:
-        #         self._stations[station] = Station(
-        #             {
-        #                 "station": station,
-        #                 "longitude": lon,
-        #                 "latitude": lat,
-        #                 "altitude": 0,
-        #                 "country": "NO",
-        #                 "url": "",
-        #                 "long_name": station,
-        #             }
-        #         )
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]

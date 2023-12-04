@@ -20,13 +20,13 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         # just see that it doesn't fail
         engine.description()
         engine.args()
-        bla = engine.open(self.file, filters=[])
-        # with engine.open(self.file, filters=[]) as ts:
-        #     count = 0
-        #     for var in ts.variables():
-        #         count += len(ts.data(var))
-        #     self.assertEqual(count, 208)
-        #     self.assertEqual(len(ts.stations()), 4)
+        # bla = engine.open(self.file, filters=[])
+        with engine.open(self.file, filters=[]) as ts:
+            count = 0
+            for var in ts.variables():
+                count += len(ts.data(var))
+            self.assertEqual(count, 39972)
+            self.assertEqual(len(ts.stations()), 4)
 
     # def test_stationfilter(self):
     #     engine = pyaro.list_timeseries_engines()["csv_timeseries"]
