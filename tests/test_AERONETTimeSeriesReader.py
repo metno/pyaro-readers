@@ -20,7 +20,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         # just see that it doesn't fail
         engine.description()
         engine.args()
-        with engine.open(self.file, filters=[]) as ts:
+        with engine.open(self.file, filters=[], fill_country_flag=True) as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))

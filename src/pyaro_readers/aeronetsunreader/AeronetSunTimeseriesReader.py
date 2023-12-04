@@ -39,29 +39,13 @@ DATA_VARS.extend(COMPUTED_VARS)
 
 FILL_COUNTRY_FLAG = False
 
-# further vars can be added here
-VARS_TO_STORE = [
-    LAT_NAME,
-    LON_NAME,
-    ALT_NAME,
-    SITE_NAME,
-    DATE_NAME,
-    TIME_NAME,
-    AOD500_NAME,
-    ANG4487_NAME,
-    AOD440_NAME,
-    AOD870_NAME,
-    "AERONET_Instrument_Number",
-    "Data_Quality_Level",
-]
-
-
 class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
         self,
         filename,
         csvreader_kwargs={"delimiter": DELIMITER},
         filters=[],
+        fill_country_flag:bool = FILL_COUNTRY_FLAG,
     ):
         """open a new csv timeseries-reader
 
@@ -84,6 +68,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._filters = filters
         self._header = []
         _laststatstr = ""
+
         with open(self._filename, newline="") as csvfile:
             for _hidx in range(HEADER_LINE_NO - 1):
                 self._header.append(csvfile.readline())
@@ -100,15 +85,17 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     lon = float(row[LON_NAME])
                     lat = float(row[LAT_NAME])
                     alt = float(row["Site_Elevation(m)"])
-                    if FILL_COUNTRY_FLAG:
+                    if fill_country_flag:
                         try:
                             country = geocoder.osm([lat, lon], method="reverse").json[
                                 "country_code"
                             ]
+                            country = country.upper()
                         except:
                             country = "NN"
                     else:
                         country = "NN"
+                    # print(country)
                     # units of Aeronet data are always 1
                     units = "1"
                     if not station in self._stations:
@@ -148,6 +135,8 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         value = float(row[variable])
                         if value == NAN_VAL:
                             value = np.nan
+                        # store value in ts_dummy_data, so we don't need to perform the nan check
+                        # for each component of calculated values again
                         ts_dummy_data[variable] = value
                     except KeyError:
                         # computed variable
@@ -161,7 +150,6 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     self._data[variable].append(
                         value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
                     )
-                # add computed variables
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]
