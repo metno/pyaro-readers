@@ -1,10 +1,14 @@
 import unittest
 import os
 
-import numpy as np
 import pyaro
 import pyaro.timeseries
 from pyaro.timeseries.Wrappers import VariableNameChangingReader
+
+TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv"
+TEST_ZIP_URL = (
+    "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv.zip"
+)
 
 
 class TestAERONETTimeSeriesReader(unittest.TestCase):
@@ -13,6 +17,24 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         "testdata",
         "aeronetsun_testdata.csv",
     )
+
+    def test_dl_data_unzipped(self):
+        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+        with engine.open(TEST_URL, filters=[], fill_country_flag=False) as ts:
+            count = 0
+            for var in ts.variables():
+                count += len(ts.data(var))
+            self.assertEqual(count, 49965)
+            self.assertEqual(len(ts.stations()), 4)
+
+    def test_dl_data_zipped(self):
+        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+        with engine.open(TEST_ZIP_URL, filters=[], fill_country_flag=False) as ts:
+            count = 0
+            for var in ts.variables():
+                count += len(ts.data(var))
+            self.assertEqual(count, 49965)
+            self.assertEqual(len(ts.stations()), 4)
 
     def test_init(self):
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
@@ -54,9 +76,6 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         )
         with engine.open(self.file, filters=[vfilter]) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
-
-    def test_downloaded_file(self):
-        pass
 
 
 if __name__ == "__main__":

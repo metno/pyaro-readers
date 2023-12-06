@@ -9,8 +9,11 @@ from pyaro.timeseries import (
     Engine,
 )
 
-# import requests, zipfile, io
+import requests, zipfile, io
 import geocoder
+
+from urllib.parse import urlparse
+
 
 # from tqdm import tqdm
 
@@ -72,87 +75,109 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._header = []
         _laststatstr = ""
 
-        with open(self._filename, newline="") as csvfile:
-            for _hidx in range(HEADER_LINE_NO - 1):
-                self._header.append(csvfile.readline())
-            # get fields from header line although csv can do that as well since we might want to adjust these names
-            self._fields = csvfile.readline().strip().split(",")
+        # check if file is a URL
+        if self.is_valid_url(self._filename):
+            from urllib.request import urlopen
+            from io import BytesIO
+            from zipfile import ZipFile
 
-            crd = csv.DictReader(csvfile, fieldnames=self._fields, **csvreader_kwargs)
-            for _ridx, row in enumerate(crd):
-                if row[SITE_NAME] != _laststatstr:
-                    print(f"reading station {row[SITE_NAME]}...")
-                    _laststatstr = row[SITE_NAME]
-                    # new station
-                    station = row[SITE_NAME]
-                    lon = float(row[LON_NAME])
-                    lat = float(row[LAT_NAME])
-                    alt = float(row["Site_Elevation(m)"])
-                    if fill_country_flag:
-                        try:
-                            country = geocoder.osm([lat, lon], method="reverse").json[
-                                "country_code"
-                            ]
-                            country = country.upper()
-                        except:
-                            country = "NN"
-                    else:
-                        country = "NN"
-                    # print(country)
-                    # units of Aeronet data are always 1
-                    units = "1"
-                    if not station in self._stations:
-                        self._stations[station] = Station(
-                            {
-                                "station": station,
-                                "longitude": lon,
-                                "latitude": lat,
-                                "altitude": alt,
-                                "country": country,
-                                "url": "",
-                                "long_name": station,
-                            }
-                        )
-                    # every line contains all variables, sometimes filled with NaNs though
-                    if _ridx == 0:
-                        for variable in DATA_VARS:
-                            if variable in self._data:
-                                da = self._data[variable]
-                                if da.units != units:
-                                    raise Exception(
-                                        f"unit change from '{da.units}' to 'units'"
-                                    )
-                            else:
-                                da = NpStructuredData(variable, units)
-                                self._data[variable] = da
+            # try to open as zipfile
+            try:
+                r = requests.get(self._filename)
+                zip_ref = ZipFile(BytesIO(r.content))
+                for file in zip_ref.namelist():
+                    with zip_ref.open(file) as response:
+                        lines = [line.decode("utf-8") for line in response.readlines()]
+                    # read only 1st file here
+                    break
+            except:
+                response = urlopen(self._filename)
+                lines = [line.decode("utf-8") for line in response.readlines()]
 
-                day, month, year = row[DATE_NAME].split(":")
-                datestring = "-".join([year, month, day])
-                datestring = "T".join([datestring, row[TIME_NAME]])
-                start = np.datetime64(datestring)
-                end = start
+        else:
+            with open(self._filename, newline="") as csvfile:
+                lines = csvfile.readlines()
 
-                ts_dummy_data = {}
-                for variable in DATA_VARS:
+        for _hidx in range(HEADER_LINE_NO - 1):
+            self._header.append(lines.pop(0))
+        # get fields from header line although csv can do that as well since we might want to adjust these names
+        self._fields = lines.pop(0).strip().split(",")
+
+        crd = csv.DictReader(lines, fieldnames=self._fields, **csvreader_kwargs)
+        for _ridx, row in enumerate(crd):
+            if row[SITE_NAME] != _laststatstr:
+                print(f"reading station {row[SITE_NAME]}...")
+                _laststatstr = row[SITE_NAME]
+                # new station
+                station = row[SITE_NAME]
+                lon = float(row[LON_NAME])
+                lat = float(row[LAT_NAME])
+                alt = float(row["Site_Elevation(m)"])
+                if fill_country_flag:
                     try:
-                        value = float(row[variable])
-                        if value == NAN_VAL:
-                            value = np.nan
-                        # store value in ts_dummy_data, so we don't need to perform the nan check
-                        # for each component of calculated values again
-                        ts_dummy_data[variable] = value
-                    except KeyError:
-                        # computed variable
-                        if variable == AOD550_NAME:
-                            value = self.compute_od_from_angstromexp(
-                                0.55,
-                                ts_dummy_data[AOD440_NAME],
-                                0.44,
-                                ts_dummy_data[ANG4487_NAME],
-                            )
-                    self._data[variable].append(
-                        value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
+                        country = geocoder.osm([lat, lon], method="reverse").json[
+                            "country_code"
+                        ]
+                        country = country.upper()
+                    except:
+                        country = "NN"
+                else:
+                    country = "NN"
+
+                # units of Aeronet data are always 1
+                units = "1"
+                if not station in self._stations:
+                    self._stations[station] = Station(
+                        {
+                            "station": station,
+                            "longitude": lon,
+                            "latitude": lat,
+                            "altitude": alt,
+                            "country": country,
+                            "url": "",
+                            "long_name": station,
+                        }
                     )
+                # every line contains all variables, sometimes filled with NaNs though
+                if _ridx == 0:
+                    for variable in DATA_VARS:
+                        if variable in self._data:
+                            da = self._data[variable]
+                            if da.units != units:
+                                raise Exception(
+                                    f"unit change from '{da.units}' to 'units'"
+                                )
+                        else:
+                            da = NpStructuredData(variable, units)
+                            self._data[variable] = da
+
+            day, month, year = row[DATE_NAME].split(":")
+            datestring = "-".join([year, month, day])
+            datestring = "T".join([datestring, row[TIME_NAME]])
+            start = np.datetime64(datestring)
+            end = start
+
+            ts_dummy_data = {}
+            for variable in DATA_VARS:
+                try:
+                    value = float(row[variable])
+                    if value == NAN_VAL:
+                        value = np.nan
+                    # store value in ts_dummy_data, so we don't need to perform the nan check
+                    # for each component of calculated values again
+                    ts_dummy_data[variable] = value
+                except KeyError:
+                    # computed variable
+                    if variable == AOD550_NAME:
+                        value = self.compute_od_from_angstromexp(
+                            0.55,
+                            ts_dummy_data[AOD440_NAME],
+                            0.44,
+                            ts_dummy_data[ANG4487_NAME],
+                        )
+                self._data[variable].append(
+                    value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
+                )
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]
@@ -206,6 +231,13 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         :return:
         """
         return -np.log(od1 / od2) / np.log(wl1 / wl2)
+
+    def is_valid_url(self, url):
+        try:
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except ValueError:
+            return False
 
 
 class AeronetSunTimeseriesEngine(Engine):
