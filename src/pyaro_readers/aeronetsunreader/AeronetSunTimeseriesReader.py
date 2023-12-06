@@ -1,21 +1,18 @@
 import csv
-import numpy as np
-from pyaro.timeseries import (
-    Data,
-    NpStructuredData,
-    Flag,
-    AutoFilterReaderEngine,
-    Station,
-    Engine,
-)
-
-import requests, zipfile, io
-import geocoder
-
 from urllib.parse import urlparse
 
-
-# from tqdm import tqdm
+import geocoder
+import numpy as np
+import requests
+from pyaro.timeseries import (
+    AutoFilterReaderEngine,
+    Data,
+    Engine,
+    Flag,
+    NpStructuredData,
+    Station,
+)
+from tqdm import tqdm
 
 # default URL
 BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
@@ -24,6 +21,8 @@ HEADER_LINE_NO = 7
 DELIMITER = ","
 #
 NAN_VAL = -999.0
+# update progress bar every N lines...
+PG_UPDATE_LINES = 100
 # main variables to store
 LAT_NAME = "Site_Latitude(Degrees)"
 LON_NAME = "Site_Longitude(Degrees)"
@@ -77,8 +76,8 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         # check if file is a URL
         if self.is_valid_url(self._filename):
-            from urllib.request import urlopen
             from io import BytesIO
+            from urllib.request import urlopen
             from zipfile import ZipFile
 
             # try to open as zipfile
@@ -104,9 +103,12 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._fields = lines.pop(0).strip().split(",")
 
         crd = csv.DictReader(lines, fieldnames=self._fields, **csvreader_kwargs)
+        bar = tqdm(total=len(lines))
         for _ridx, row in enumerate(crd):
+            # if _ridx % PG_UPDATE_LINES == 0:
+            bar.update(1)
             if row[SITE_NAME] != _laststatstr:
-                print(f"reading station {row[SITE_NAME]}...")
+                # print(f"reading station {row[SITE_NAME]}...")
                 _laststatstr = row[SITE_NAME]
                 # new station
                 station = row[SITE_NAME]
@@ -178,6 +180,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 self._data[variable].append(
                     value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
                 )
+        bar.close()
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]

@@ -25,6 +25,7 @@ dependencies = [
     "pyaro@git+https://github.com/metno/pyaro",
     "requests",
     "geocoder",
+    "tqdm",
 ]
 
 [project.urls]
