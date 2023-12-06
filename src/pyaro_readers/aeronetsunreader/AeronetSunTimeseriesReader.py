@@ -1,17 +1,14 @@
 import csv
+from io import BytesIO
 from urllib.parse import urlparse
+from urllib.request import urlopen
+from zipfile import BadZipFile, ZipFile
 
 import geocoder
 import numpy as np
 import requests
-from pyaro.timeseries import (
-    AutoFilterReaderEngine,
-    Data,
-    Engine,
-    Flag,
-    NpStructuredData,
-    Station,
-)
+from pyaro.timeseries import (AutoFilterReaderEngine, Data, Engine, Flag,
+                              NpStructuredData, Station)
 from tqdm import tqdm
 
 # default URL
@@ -76,10 +73,6 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         # check if file is a URL
         if self.is_valid_url(self._filename):
-            from io import BytesIO
-            from urllib.request import urlopen
-            from zipfile import ZipFile
-
             # try to open as zipfile
             try:
                 r = requests.get(self._filename)
@@ -89,7 +82,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         lines = [line.decode("utf-8") for line in response.readlines()]
                     # read only 1st file here
                     break
-            except:
+            except BadZipFile:
                 response = urlopen(self._filename)
                 lines = [line.decode("utf-8") for line in response.readlines()]
 
@@ -105,10 +98,8 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         crd = csv.DictReader(lines, fieldnames=self._fields, **csvreader_kwargs)
         bar = tqdm(total=len(lines))
         for _ridx, row in enumerate(crd):
-            # if _ridx % PG_UPDATE_LINES == 0:
             bar.update(1)
             if row[SITE_NAME] != _laststatstr:
-                # print(f"reading station {row[SITE_NAME]}...")
                 _laststatstr = row[SITE_NAME]
                 # new station
                 station = row[SITE_NAME]
