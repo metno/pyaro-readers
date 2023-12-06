@@ -7,8 +7,14 @@ from zipfile import BadZipFile, ZipFile
 import geocoder
 import numpy as np
 import requests
-from pyaro.timeseries import (AutoFilterReaderEngine, Data, Engine, Flag,
-                              NpStructuredData, Station)
+from pyaro.timeseries import (
+    AutoFilterReaderEngine,
+    Data,
+    Engine,
+    Flag,
+    NpStructuredData,
+    Station,
+)
 from tqdm import tqdm
 
 # default URL
