@@ -8,9 +8,11 @@ from pyaro.timeseries import (
     Station,
     Engine,
 )
-import requests, zipfile, io
+
+# import requests, zipfile, io
 import geocoder
-from tqdm import tqdm
+
+# from tqdm import tqdm
 
 # default URL
 BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
@@ -39,13 +41,14 @@ DATA_VARS.extend(COMPUTED_VARS)
 
 FILL_COUNTRY_FLAG = False
 
+
 class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
         self,
         filename,
         csvreader_kwargs={"delimiter": DELIMITER},
         filters=[],
-        fill_country_flag:bool = FILL_COUNTRY_FLAG,
+        fill_country_flag: bool = FILL_COUNTRY_FLAG,
     ):
         """open a new csv timeseries-reader
 

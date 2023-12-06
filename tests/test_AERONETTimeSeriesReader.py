@@ -54,6 +54,8 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         )
         with engine.open(self.file, filters=[vfilter]) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
+
+    def test_downloaded_file(self):
         pass
 
 

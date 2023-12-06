@@ -24,6 +24,7 @@ requires-python = ">=3.9"
 dependencies = [
     "pyaro@git+https://github.com/metno/pyaro",
     "requests",
+    "geocoder",
 ]
 
 [project.urls]
@@ -52,9 +53,6 @@ skip_missing_interpreters = True
 isolated_build = True
 
 envlist =
-    py39
-
-    py310
     py311
     format
 
