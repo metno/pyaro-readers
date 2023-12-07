@@ -54,9 +54,15 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         csvreader_kwargs={"delimiter": DELIMITER},
         filters=[],
         fill_country_flag: bool = FILL_COUNTRY_FLAG,
+        tqdm_desc: [str, None] = None,
     ):
         """open a new csv timeseries-reader
 
+                :param filename: str
+                :param csvreader_kwargs:
+                :param filters:
+                :param fill_country_flag:
+                :param tqdm_desc:
                 :param filename_or_obj_or_url: path-like object to csv-file
 
                 input file looks like this:
@@ -102,7 +108,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._fields = lines.pop(0).strip().split(",")
 
         crd = csv.DictReader(lines, fieldnames=self._fields, **csvreader_kwargs)
-        bar = tqdm(total=len(lines))
+        bar = tqdm(desc=tqdm_desc, total=len(lines))
         for _ridx, row in enumerate(crd):
             bar.update(1)
             if row[SITE_NAME] != _laststatstr:
@@ -240,21 +246,12 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             return False
 
 
-class AeronetSunTimeseriesEngine(Engine):
+class AeronetSunTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
+    def reader_class(self):
+        return AeronetSunTimeseriesReader
+
     def open(self, filename, *args, **kwargs) -> AeronetSunTimeseriesReader:
-        return AeronetSunTimeseriesReader(filename, *args, **kwargs)
-
-    def args(self):
-        return (
-            "filename",
-            "columns",
-            "reader_kwargs",
-            "variable_units",
-            "filters",
-        )
-
-    def supported_filters(self):
-        return ""
+        return self.reader_class()(filename, *args, **kwargs)
 
     def description(self):
         return "Simple reader of AeronetSun-files using the pyaro infrastructure"
