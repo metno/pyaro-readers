@@ -21,7 +21,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
 requires-python = ">=3.9"
-dependencies = ["pyaro@git+https://github.com/metno/pyaro"]
+dependencies = [
+    "pyaro@git+https://github.com/metno/pyaro",
+    "requests",
+    "geocoder",
+    "tqdm",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/metno/pyaro-readers"
@@ -49,9 +54,6 @@ skip_missing_interpreters = True
 isolated_build = True
 
 envlist =
-    py39
-
-    py310
     py311
     format
 
