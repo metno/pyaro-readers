@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["pyaro_readers", "geocoder_reverse_natural_earth"]
+packages = ["pyaro_readers.aeronetsunreader", "geocoder_reverse_natural_earth"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
