@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
 
-import geocoder
+from geocoder_reverse_natural_earth import Geocoder_Reverse_NE
 import numpy as np
 import requests
 from pyaro.timeseries import (
@@ -107,6 +107,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # get fields from header line although csv can do that as well since we might want to adjust these names
         self._fields = lines.pop(0).strip().split(",")
 
+        gcd = Geocoder_Reverse_NE()
         crd = csv.DictReader(lines, fieldnames=self._fields, **csvreader_kwargs)
         bar = tqdm(desc=tqdm_desc, total=len(lines))
         for _ridx, row in enumerate(crd):
@@ -120,10 +121,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 alt = float(row["Site_Elevation(m)"])
                 if fill_country_flag:
                     try:
-                        country = geocoder.osm([lat, lon], method="reverse").json[
-                            "country_code"
-                        ]
-                        country = country.upper()
+                        country = gcd.lookup(lat, lon)["ISO_A2_EH"]
                     except:
                         country = "NN"
                 else:

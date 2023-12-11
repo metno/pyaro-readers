@@ -24,9 +24,18 @@ requires-python = ">=3.9"
 dependencies = [
     "pyaro@git+https://github.com/metno/pyaro",
     "requests",
-    "geocoder",
+    "fiona",
+    "shapely",
+    "rtree",
     "tqdm",
 ]
+
+[tool.setuptools]
+packages = ["pyaro_readers", "geocoder_reverse_natural_earth"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+geocoder_reverse_natural_earth = ["*.zip"]
 
 [project.urls]
 "Homepage" = "https://github.com/metno/pyaro-readers"
@@ -54,6 +63,7 @@ skip_missing_interpreters = True
 isolated_build = True
 
 envlist =
+    py310
     py311
     format
 
