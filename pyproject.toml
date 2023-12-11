@@ -63,7 +63,6 @@ skip_missing_interpreters = True
 isolated_build = True
 
 envlist =
-    py310
     py311
     format
 

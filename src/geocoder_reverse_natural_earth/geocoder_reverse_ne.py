@@ -2,7 +2,6 @@ import os
 import fiona
 import rtree
 import shapely.geometry
-import shapely.speedups
 
 
 class Geocoder_Reverse_Exception(Exception):
