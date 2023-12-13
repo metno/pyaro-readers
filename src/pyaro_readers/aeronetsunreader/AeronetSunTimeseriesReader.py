@@ -4,13 +4,15 @@ from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
 
-from geocoder_reverse_natural_earth import Geocoder_Reverse_NE
+from geocoder_reverse_natural_earth import (
+    Geocoder_Reverse_NE,
+    Geocoder_Reverse_Exception,
+)
 import numpy as np
 import requests
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
-    Engine,
     Flag,
     NpStructuredData,
     Station,
@@ -122,7 +124,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 if fill_country_flag:
                     try:
                         country = gcd.lookup(lat, lon)["ISO_A2_EH"]
-                    except:
+                    except Geocoder_Reverse_Exception:
                         country = "NN"
                 else:
                     country = "NN"
