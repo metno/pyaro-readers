@@ -13,7 +13,6 @@ import requests
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
-    Engine,
     Flag,
     NpStructuredData,
     Station,
