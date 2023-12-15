@@ -53,7 +53,6 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
         self,
         filename,
-        csvreader_kwargs={"delimiter": DELIMITER},
         filters=[],
         fill_country_flag: bool = FILL_COUNTRY_FLAG,
         tqdm_desc: [str, None] = None,
@@ -110,7 +109,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._fields = lines.pop(0).strip().split(",")
 
         gcd = Geocoder_Reverse_NE()
-        crd = csv.DictReader(lines, fieldnames=self._fields, **csvreader_kwargs)
+        crd = csv.DictReader(lines, fieldnames=self._fields, delimiter=DELIMITER)
         bar = tqdm(desc=tqdm_desc, total=len(lines))
         for _ridx, row in enumerate(crd):
             bar.update(1)

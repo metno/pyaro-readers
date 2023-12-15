@@ -10,6 +10,7 @@ TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.cs
 TEST_ZIP_URL = (
     "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv.zip"
 )
+AERONETSUN_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
 
 
 class TestAERONETTimeSeriesReader(unittest.TestCase):
@@ -59,6 +60,25 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
                 count += len(ts.data(var))
             self.assertEqual(count, 49965)
             self.assertEqual(len(ts.stations()), 4)
+
+    def test_aeronet_data_zipped(self):
+        if not os.path.exists("/lustre"):
+            self.skipTest(f"lustre not available; skipping Aeronet download on CI")
+
+        if not self.external_resource_available(AERONETSUN_URL):
+            self.skipTest(f"external resource not available: {AERONETSUN_URL}")
+        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+        with engine.open(
+            AERONETSUN_URL,
+            filters=[],
+            fill_country_flag=False,
+            tqdm_desc="aeronet data zipped",
+        ) as ts:
+            count = 0
+            for var in ts.variables():
+                count += len(ts.data(var))
+            self.assertGreaterEqual(count, 49965)
+            self.assertGreaterEqual(len(ts.stations()), 4)
 
     def test_init(self):
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
