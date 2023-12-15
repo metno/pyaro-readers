@@ -10,6 +10,7 @@ TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.cs
 TEST_ZIP_URL = (
     "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv.zip"
 )
+AERONETSUN_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
 
 
 class TestAERONETTimeSeriesReader(unittest.TestCase):
@@ -33,10 +34,10 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             self.skipTest(f"external resource not available: {TEST_URL}")
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
         with engine.open(
-            TEST_URL,
-            filters=[],
-            fill_country_flag=False,
-            tqdm_desc="test_dl_data_unzipped",
+                TEST_URL,
+                filters=[],
+                fill_country_flag=False,
+                tqdm_desc="test_dl_data_unzipped",
         ) as ts:
             count = 0
             for var in ts.variables():
@@ -49,16 +50,32 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             self.skipTest(f"external resource not available: {TEST_ZIP_URL}")
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
         with engine.open(
-            TEST_ZIP_URL,
-            filters=[],
-            fill_country_flag=False,
-            tqdm_desc="test_dl_data_zipped",
+                TEST_ZIP_URL,
+                filters=[],
+                fill_country_flag=False,
+                tqdm_desc="test_dl_data_zipped",
         ) as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
             self.assertEqual(count, 49965)
             self.assertEqual(len(ts.stations()), 4)
+
+    def test_aeronet_data_zipped(self):
+        if not self.external_resource_available(AERONETSUN_URL):
+            self.skipTest(f"external resource not available: {AERONETSUN_URL}")
+        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+        with engine.open(
+                AERONETSUN_URL,
+                filters=[],
+                fill_country_flag=False,
+                tqdm_desc="aeronet data zipped",
+        ) as ts:
+            count = 0
+            for var in ts.variables():
+                count += len(ts.data(var))
+            self.assertGreaterEqual(count, 49965)
+            self.assertGreaterEqual(len(ts.stations()), 4)
 
     def test_init(self):
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
@@ -67,7 +84,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         engine.description()
         engine.args()
         with engine.open(
-            self.file, filters=[], fill_country_flag=True, tqdm_desc="test_init"
+                self.file, filters=[], fill_country_flag=True, tqdm_desc="test_init"
         ) as ts:
             count = 0
             for var in ts.variables():
@@ -79,7 +96,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
         sfilter = pyaro.timeseries.filters.get("stations", exclude=["Cuiaba"])
         with engine.open(
-            self.file, filters=[sfilter], tqdm_desc="test_stationfilter"
+                self.file, filters=[sfilter], tqdm_desc="test_stationfilter"
         ) as ts:
             count = 0
             for var in ts.variables():
@@ -91,7 +108,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
         new_var_name = "od500aer"
         with VariableNameChangingReader(
-            engine.open(self.file, filters=[]), {"AOD_500nm": new_var_name}
+                engine.open(self.file, filters=[]), {"AOD_500nm": new_var_name}
         ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
         pass
@@ -103,7 +120,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             "variables", reader_to_new={"AOD_550nm": new_var_name}
         )
         with engine.open(
-            self.file, filters=[vfilter], tqdm_desc="test_variables_filter"
+                self.file, filters=[vfilter], tqdm_desc="test_variables_filter"
         ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
 
