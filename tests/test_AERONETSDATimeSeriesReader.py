@@ -37,12 +37,12 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             TEST_URL,
             filters=[],
             fill_country_flag=False,
-            tqdm_desc="test_dl_data_unzipped",
+            tqdm_desc="test_sda_dl_data_unzipped",
         ) as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 69951)
+            self.assertEqual(count, 79944)
             self.assertEqual(len(ts.stations()), 4)
 
     def test_dl_data_zipped(self):
@@ -53,12 +53,12 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             TEST_ZIP_URL,
             filters=[],
             fill_country_flag=False,
-            tqdm_desc="test_dl_data_zipped",
+            tqdm_desc="test_sda_dl_data_zipped",
         ) as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 69951)
+            self.assertEqual(count, 79944)
             self.assertEqual(len(ts.stations()), 4)
 
     def test_aeronet_data_zipped(self):
@@ -72,7 +72,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             AERONETSDA_URL,
             filters=[],
             fill_country_flag=False,
-            tqdm_desc="aeronet data zipped",
+            tqdm_desc="aeronet SDA data zipped",
         ) as ts:
             count = 0
             for var in ts.variables():
@@ -92,7 +92,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 69951)
+            self.assertEqual(count, 79944)
             self.assertEqual(len(ts.stations()), 4)
 
     def test_stationfilter(self):
@@ -104,7 +104,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 68320)
+            self.assertEqual(count, 78080)
             self.assertEqual(len(ts.stations()), 3)
 
     def test_wrappers(self):
@@ -123,7 +123,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             "variables", reader_to_new={"Coarse_Mode_AOD_500nm[tau_c]": new_var_name}
         )
         with engine.open(
-            self.file, filters=[vfilter], tqdm_desc="test_variables_filter"
+            self.file, filters=[vfilter], tqdm_desc="test_sda_variables_filter"
         ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
 

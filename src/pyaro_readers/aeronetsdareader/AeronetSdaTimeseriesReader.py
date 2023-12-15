@@ -43,9 +43,10 @@ ANG50_NAME = "Angstrom_Exponent(AE)-Total_500nm[alpha]"
 ETA50LT1_NAME = "FineModeFraction_500nm[eta]"
 AOD550GT1_NAME = "AODGT1_550nm"
 AOD550LT1_NAME = "AODLT1_550nm"
+AOD550_NAME = "AOD_550nm"
 
 DATA_VARS = [AOD500_NAME, AOD500GT1_NAME, AOD500LT1_NAME, ANG50_NAME, ETA50LT1_NAME]
-COMPUTED_VARS = [AOD550GT1_NAME, AOD550LT1_NAME]
+COMPUTED_VARS = [AOD550GT1_NAME, AOD550LT1_NAME, AOD550_NAME]
 # The computed variables have to be named after the read ones, otherwise the calculation will fail!
 DATA_VARS.extend(COMPUTED_VARS)
 
@@ -175,10 +176,23 @@ Cuiaba,19:06:1993,12:00:00,170,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-
                 except KeyError:
                     # computed variable
                     if variable == AOD550GT1_NAME:
-                        # ang_dummy = self.calc_angstroem_coeff(ts_dummy_data[AOD440_NAME], ts_dummy_data[AOD870_NAME], 0.44, 0.87)
                         value = self.compute_od_from_angstromexp(
                             0.55,
                             ts_dummy_data[AOD500GT1_NAME],
+                            0.50,
+                            ts_dummy_data[ANG50_NAME],
+                        )
+                    elif variable == AOD550LT1_NAME:
+                        value = self.compute_od_from_angstromexp(
+                            0.55,
+                            ts_dummy_data[AOD500LT1_NAME],
+                            0.50,
+                            ts_dummy_data[ANG50_NAME],
+                        )
+                    elif variable == AOD500_NAME:
+                        value = self.compute_od_from_angstromexp(
+                            0.55,
+                            ts_dummy_data[AOD500_NAME],
                             0.50,
                             ts_dummy_data[ANG50_NAME],
                         )
@@ -226,19 +240,6 @@ Cuiaba,19:06:1993,12:00:00,170,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-
         """
         return od_ref * (lambda_ref / to_lambda) ** angstrom_coeff
 
-    def calc_angstroem_coeff(
-        self, od1: float, od2: float, wl1: float, wl2: float
-    ) -> float:
-        """
-        small helper method to calculate angstroem coefficient
-
-        :param od1:
-        :param od2:
-        :param wl1:
-        :param wl2:
-        :return:
-        """
-        return -np.log(od1 / od2) / np.log(wl1 / wl2)
 
     def is_valid_url(self, url):
         try:
