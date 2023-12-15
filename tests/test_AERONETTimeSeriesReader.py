@@ -62,6 +62,9 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             self.assertEqual(len(ts.stations()), 4)
 
     def test_aeronet_data_zipped(self):
+        if not os.path.exists("/lustre"):
+            self.skipTest(f"lustre not available; skipping Aeronet download on CI")
+
         if not self.external_resource_available(AERONETSUN_URL):
             self.skipTest(f"external resource not available: {AERONETSUN_URL}")
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
