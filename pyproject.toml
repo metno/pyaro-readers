@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyaro_readers"
-version = "0.0.1"
+version = "0.0.2"
 authors = [{ name = "MET Norway" }]
 description = "implementations of pyaerocom reading plugings using pyaro as interface'"
 readme = "README.md"
@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["pyaro_readers.aeronetsunreader", "geocoder_reverse_natural_earth"]
+packages = ["pyaro_readers.aeronetsunreader", "pyaro_readers.aeronetsdareader","geocoder_reverse_natural_earth"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
@@ -43,6 +43,7 @@ geocoder_reverse_natural_earth = ["*.zip"]
 
 [project.entry-points."pyaro.timeseries"]
 "aeronetsunreader" = "pyaro_readers.aeronetsunreader:AeronetSunTimeseriesEngine"
+"aeronetsdareader" = "pyaro_readers.aeronetsdareader:AeronetSdaTimeseriesEngine"
 
 [tool.mypy]
 python_version = "3.9"
