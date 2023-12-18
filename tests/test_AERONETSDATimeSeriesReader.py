@@ -111,7 +111,8 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
         new_var_name = "od500gt1aer"
         with VariableNameChangingReader(
-            engine.open(self.file, filters=[]), {"Coarse_Mode_AOD_500nm[tau_c]": new_var_name}
+            engine.open(self.file, filters=[]),
+            {"Coarse_Mode_AOD_500nm[tau_c]": new_var_name},
         ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
         pass

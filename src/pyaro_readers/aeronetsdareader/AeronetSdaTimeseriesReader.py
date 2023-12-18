@@ -21,7 +21,9 @@ from tqdm import tqdm
 
 # default URL
 BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_SDA20.zip"
-BASE_URL_TAR = "https://aeronet.gsfc.nasa.gov/data_push/V3/SDA/SDA_Level20_Daily_V3.tar.gz"
+BASE_URL_TAR = (
+    "https://aeronet.gsfc.nasa.gov/data_push/V3/SDA/SDA_Level20_Daily_V3.tar.gz"
+)
 # number of lines to read before the reading is handed to Pythobn's csv reader
 HEADER_LINE_NO = 7
 DELIMITER = ","
@@ -63,21 +65,21 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     ):
         """open a new csv timeseries-reader
 
-                :param filename: str
-                :param filters:
-                :param fill_country_flag:
-                :param tqdm_desc:
-                :param filename_or_obj_or_url: path-like object to csv-file
+                        :param filename: str
+                        :param filters:
+                        :param fill_country_flag:
+                        :param tqdm_desc:
+                        :param filename_or_obj_or_url: path-like object to csv-file
 
-                input file looks like this:
-Version 3: SDA Retrieval Level 2.0
-The following data are automatically cloud cleared and quality assured with pre-field and post-field calibration applied.
-Contact: PI=Pawan Gupta and Elena Lind; PI Email=Pawan.Gupta@nasa.gov and Elena.Lind@nasa.gov
-Daily Averages,UNITS can be found at,,, https://aeronet.gsfc.nasa.gov/new_web/units.html
-AERONET_Site,Date_(dd:mm:yyyy),Time_(hh:mm:ss),Day_of_Year,Total_AOD_500nm[tau_a],Fine_Mode_AOD_500nm[tau_f],Coarse_Mode_AOD_500nm[tau_c],FineModeFraction_500nm[eta],2nd_Order_Reg_Fit_Error-Total_AOD_500nm[regression_dtau_a],RMSE_Fine_Mode_AOD_500nm[Dtau_f],RMSE_Coarse_Mode_AOD_500nm[Dtau_c],RMSE_FineModeFraction_500nm[Deta],Angstrom_Exponent(AE)-Total_500nm[alpha],dAE/dln(wavelength)-Total_500nm[alphap],AE-Fine_Mode_500nm[alpha_f],dAE/dln(wavelength)-Fine_Mode_500nm[alphap_f],N[Total_AOD_500nm[tau_a]],N[Fine_Mode_AOD_500nm[tau_f]],N[Coarse_Mode_AOD_500nm[tau_c]],N[FineModeFraction_500nm[eta]],N[2nd_Order_Reg_Fit_Error-Total_AOD_500nm[regression_dtau_a]],N[RMSE_Fine_Mode_AOD_500nm[Dtau_f]],N[RMSE_Coarse_Mode_AOD_500nm[Dtau_c]],N[RMSE_FineModeFraction_500nm[Deta]],N[Angstrom_Exponent(AE)-Total_500nm[alpha]],N[dAE/dln(wavelength)-Total_500nm[alphap]],N[AE-Fine_Mode_500nm[alpha_f]],N[dAE/dln(wavelength)-Fine_Mode_500nm[alphap_f]],Data_Quality_Level,AERONET_Instrument_Number,AERONET_Site_Name,Site_Latitude(Degrees),Site_Longitude(Degrees),Site_Elevation(m),
-Cuiaba,16:06:1993,12:00:00,167,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
-Cuiaba,17:06:1993,12:00:00,168,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
-Cuiaba,19:06:1993,12:00:00,170,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
+                        input file looks like this:
+        Version 3: SDA Retrieval Level 2.0
+        The following data are automatically cloud cleared and quality assured with pre-field and post-field calibration applied.
+        Contact: PI=Pawan Gupta and Elena Lind; PI Email=Pawan.Gupta@nasa.gov and Elena.Lind@nasa.gov
+        Daily Averages,UNITS can be found at,,, https://aeronet.gsfc.nasa.gov/new_web/units.html
+        AERONET_Site,Date_(dd:mm:yyyy),Time_(hh:mm:ss),Day_of_Year,Total_AOD_500nm[tau_a],Fine_Mode_AOD_500nm[tau_f],Coarse_Mode_AOD_500nm[tau_c],FineModeFraction_500nm[eta],2nd_Order_Reg_Fit_Error-Total_AOD_500nm[regression_dtau_a],RMSE_Fine_Mode_AOD_500nm[Dtau_f],RMSE_Coarse_Mode_AOD_500nm[Dtau_c],RMSE_FineModeFraction_500nm[Deta],Angstrom_Exponent(AE)-Total_500nm[alpha],dAE/dln(wavelength)-Total_500nm[alphap],AE-Fine_Mode_500nm[alpha_f],dAE/dln(wavelength)-Fine_Mode_500nm[alphap_f],N[Total_AOD_500nm[tau_a]],N[Fine_Mode_AOD_500nm[tau_f]],N[Coarse_Mode_AOD_500nm[tau_c]],N[FineModeFraction_500nm[eta]],N[2nd_Order_Reg_Fit_Error-Total_AOD_500nm[regression_dtau_a]],N[RMSE_Fine_Mode_AOD_500nm[Dtau_f]],N[RMSE_Coarse_Mode_AOD_500nm[Dtau_c]],N[RMSE_FineModeFraction_500nm[Deta]],N[Angstrom_Exponent(AE)-Total_500nm[alpha]],N[dAE/dln(wavelength)-Total_500nm[alphap]],N[AE-Fine_Mode_500nm[alpha_f]],N[dAE/dln(wavelength)-Fine_Mode_500nm[alphap_f]],Data_Quality_Level,AERONET_Instrument_Number,AERONET_Site_Name,Site_Latitude(Degrees),Site_Longitude(Degrees),Site_Elevation(m),
+        Cuiaba,16:06:1993,12:00:00,167,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
+        Cuiaba,17:06:1993,12:00:00,168,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
+        Cuiaba,19:06:1993,12:00:00,170,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
 
         """
         self._filename = filename
@@ -239,7 +241,6 @@ Cuiaba,19:06:1993,12:00:00,170,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-
 
         """
         return od_ref * (lambda_ref / to_lambda) ** angstrom_coeff
-
 
     def is_valid_url(self, url):
         try:
