@@ -7,6 +7,9 @@ import pyaro.timeseries
 from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
 TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsda_testdata.csv"
+TEST_TAR_URL = (
+    "https://pyaerocom.met.no/pyaro-suppl/testdata/SDA_Level20_Daily_V3_testdata.tar.gz"
+)
 TEST_ZIP_URL = (
     "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsda_testdata.csv.zip"
 )
@@ -28,6 +31,22 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             return True
         except:
             return False
+
+    def test_dl_data_tared(self):
+        if not self.external_resource_available(TEST_TAR_URL):
+            self.skipTest(f"external resource not available: {TEST_TAR_URL}")
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
+        with engine.open(
+            TEST_TAR_URL,
+            filters=[],
+            fill_country_flag=False,
+            tqdm_desc="test_sda_dl_data_tared",
+        ) as ts:
+            count = 0
+            for var in ts.variables():
+                count += len(ts.data(var))
+            self.assertEqual(count, 79944)
+            self.assertEqual(len(ts.stations()), 4)
 
     def test_dl_data_unzipped(self):
         if not self.external_resource_available(TEST_URL):
@@ -121,7 +140,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
         new_var_name = "od550gt1aer"
         vfilter = pyaro.timeseries.filters.get(
-            "variables", reader_to_new={"Coarse_Mode_AOD_500nm[tau_c]": new_var_name}
+            "variables", reader_to_new={"AODGT1_550nm": new_var_name}
         )
         with engine.open(
             self.file, filters=[vfilter], tqdm_desc="test_sda_variables_filter"

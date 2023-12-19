@@ -10,6 +10,7 @@ from geocoder_reverse_natural_earth import (
 )
 import numpy as np
 import requests
+import tarfile
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -101,6 +102,29 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     # read only 1st file here
                     break
             except BadZipFile:
+                # try reading as tar.gz file
+                # Aeronet's tar files differ from the zip files by providing one file per station instead of one file
+                # with all stations
+                # the general format of the data is the same though.
+                # so we just keep the header lines of the 1st station, and add all data lines of all stations
+                # That way we get to the same file format as the zip file
+                r = requests.get(self._filename)
+                with tarfile.open(fileobj=BytesIO(r.raw.read()), mode="r") as tf:
+                    lines = []
+                    for _midx, member in enumerate(tf.getmembers()):
+                        f = tf.extractfile(member)
+                        if _midx == 0:
+                            lines.extend(
+                                [line.decode("utf-8") for line in f.readlines()]
+                            )
+                        else:
+                            # skip the header lines
+                            for _hidx in range(HEADER_LINE_NO):
+                                dummy = f.readline()
+
+                        lines.extend([line.decode("utf-8") for line in f.readlines()])
+            except tarfile.TarError:
+                # read as text file
                 response = urlopen(self._filename)
                 lines = [line.decode("utf-8") for line in response.readlines()]
 
