@@ -1,25 +1,19 @@
 import csv
+import tarfile
+from fnmatch import fnmatch
 from io import BytesIO
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
 
-from geocoder_reverse_natural_earth import (
-    Geocoder_Reverse_NE,
-    Geocoder_Reverse_Exception,
-)
 import numpy as np
 import requests
-import tarfile
-import gzip
-from pyaro.timeseries import (
-    AutoFilterReaderEngine,
-    Data,
-    Flag,
-    NpStructuredData,
-    Station,
-)
+from pyaro.timeseries import (AutoFilterReaderEngine, Data, Flag,
+                              NpStructuredData, Station)
 from tqdm import tqdm
+
+from geocoder_reverse_natural_earth import (Geocoder_Reverse_Exception,
+                                            Geocoder_Reverse_NE)
 
 # default URL
 BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_SDA20.zip"
@@ -56,7 +50,7 @@ DATA_VARS.extend(COMPUTED_VARS)
 
 FILL_COUNTRY_FLAG = False
 
-FILE_MASK = ".ONEILL_lev20"
+FILE_MASK = "*.ONEILL_lev*"
 
 
 class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
@@ -120,7 +114,7 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         members = tf.getmembers()
                         bar = tqdm(desc="extracting tar file...", total=len(members))
                         for _midx, member in enumerate(members):
-                            if member.name.endswith(FILE_MASK):
+                            if fnmatch(member.name, FILE_MASK):
                                 bar.update(1)
                                 f = tf.extractfile(member)
                                 if _fidx == 0:
@@ -132,7 +126,6 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                     # skip the header lines
                                     for _hidx in range(HEADER_LINE_NO):
                                         dummy = f.readline()
-
                                 lines.extend(
                                     [line.decode("utf-8") for line in f.readlines()]
                                 )
