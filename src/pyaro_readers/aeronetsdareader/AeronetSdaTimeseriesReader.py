@@ -8,12 +8,19 @@ from zipfile import BadZipFile, ZipFile
 
 import numpy as np
 import requests
-from pyaro.timeseries import (AutoFilterReaderEngine, Data, Flag,
-                              NpStructuredData, Station)
+from pyaro.timeseries import (
+    AutoFilterReaderEngine,
+    Data,
+    Flag,
+    NpStructuredData,
+    Station,
+)
 from tqdm import tqdm
 
-from geocoder_reverse_natural_earth import (Geocoder_Reverse_Exception,
-                                            Geocoder_Reverse_NE)
+from geocoder_reverse_natural_earth import (
+    Geocoder_Reverse_Exception,
+    Geocoder_Reverse_NE,
+)
 
 # default URL
 BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_SDA20.zip"
