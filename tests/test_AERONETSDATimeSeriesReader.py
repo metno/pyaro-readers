@@ -45,8 +45,8 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 79944)
-            self.assertEqual(len(ts.stations()), 4)
+            self.assertEqual(count, 421984)
+            self.assertEqual(len(ts.stations()), 94)
 
     def test_dl_data_unzipped(self):
         if not self.external_resource_available(TEST_URL):

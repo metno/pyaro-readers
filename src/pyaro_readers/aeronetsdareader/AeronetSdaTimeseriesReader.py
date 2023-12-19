@@ -11,6 +11,7 @@ from geocoder_reverse_natural_earth import (
 import numpy as np
 import requests
 import tarfile
+import gzip
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -54,6 +55,8 @@ COMPUTED_VARS = [AOD550GT1_NAME, AOD550LT1_NAME, AOD550_NAME]
 DATA_VARS.extend(COMPUTED_VARS)
 
 FILL_COUNTRY_FLAG = False
+
+FILE_MASK = ".ONEILL_lev20"
 
 
 class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
@@ -108,25 +111,44 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 # the general format of the data is the same though.
                 # so we just keep the header lines of the 1st station, and add all data lines of all stations
                 # That way we get to the same file format as the zip file
-                r = requests.get(self._filename)
-                with tarfile.open(fileobj=BytesIO(r.raw.read()), mode="r") as tf:
-                    lines = []
-                    for _midx, member in enumerate(tf.getmembers()):
-                        f = tf.extractfile(member)
-                        if _midx == 0:
-                            lines.extend(
-                                [line.decode("utf-8") for line in f.readlines()]
-                            )
-                        else:
-                            # skip the header lines
-                            for _hidx in range(HEADER_LINE_NO):
-                                dummy = f.readline()
+                r.close()
+                try:
+                    r = requests.get(self._filename)
+                    with tarfile.open(fileobj=BytesIO(r.content), mode="r") as tf:
+                        lines = []
+                        _fidx = 0
+                        members = tf.getmembers()
+                        bar = tqdm(desc="extracting tar file...", total=len(members))
+                        for _midx, member in enumerate(members):
+                            if member.name.endswith(FILE_MASK):
+                                bar.update(1)
+                                f = tf.extractfile(member)
+                                if _fidx == 0:
+                                    lines.extend(
+                                        [line.decode("utf-8") for line in f.readlines()]
+                                    )
+                                    _fidx += 1
+                                else:
+                                    # skip the header lines
+                                    for _hidx in range(HEADER_LINE_NO):
+                                        dummy = f.readline()
 
-                        lines.extend([line.decode("utf-8") for line in f.readlines()])
-            except tarfile.TarError:
-                # read as text file
-                response = urlopen(self._filename)
-                lines = [line.decode("utf-8") for line in response.readlines()]
+                                lines.extend(
+                                    [line.decode("utf-8") for line in f.readlines()]
+                                )
+                            else:
+                                continue
+
+                # too many possible exceptions due to different tar possible tar file
+                # compressions. Just try to read as text if everything fails
+                except:
+                    # read as text file
+                    r.close()
+                    try:
+                        response = urlopen(self._filename)
+                        lines = [line.decode("utf-8") for line in response.readlines()]
+                    except Exception as e:
+                        print(e)
 
         else:
             with open(self._filename, newline="") as csvfile:
