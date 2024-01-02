@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyaro_readers"
-version = "0.0.2"
+version = "0.0.3"
 authors = [{ name = "MET Norway" }]
 description = "implementations of pyaerocom reading plugings using pyaro as interface'"
 readme = "README.md"
