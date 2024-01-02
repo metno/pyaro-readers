@@ -34,7 +34,7 @@ ts.data('AOD_550nm')['stations']
 # start_times
 ts.data('AOD_550nm')['start_times']
 # stop_times
-ts.data('AOD_550nm')['stop_times']
+ts.data('AOD_550nm')['end_times']
 # latitudes
 ts.data('AOD_550nm')['latitudes']
 # longitudes
@@ -57,7 +57,7 @@ ts.data('AODGT1_550nm')['stations']
 # start_times
 ts.data('AODGT1_550nm')['start_times']
 # stop_times
-ts.data('AODGT1_550nm')['stop_times']
+ts.data('AODGT1_550nm')['end_times']
 # latitudes
 ts.data('AODGT1_550nm')['latitudes']
 # longitudes
