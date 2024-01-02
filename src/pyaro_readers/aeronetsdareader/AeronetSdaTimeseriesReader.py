@@ -59,6 +59,13 @@ FILL_COUNTRY_FLAG = False
 
 FILE_MASK = "*.ONEILL_lev*"
 
+TS_TYPE_DIFFS = {
+    "daily": np.timedelta64(12, "h"),
+    "instantaneous": np.timedelta64(0, "s"),
+    "points": np.timedelta64(0, "s"),
+    "monthly": np.timedelta64(15, "D"),
+}
+
 
 class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
@@ -67,6 +74,7 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         filters=[],
         fill_country_flag: bool = FILL_COUNTRY_FLAG,
         tqdm_desc: [str, None] = None,
+        ts_type: str = "daily",
     ):
         """open a new csv timeseries-reader
 
@@ -209,8 +217,9 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             day, month, year = row[DATE_NAME].split(":")
             datestring = "-".join([year, month, day])
             datestring = "T".join([datestring, row[TIME_NAME]])
-            start = np.datetime64(datestring)
-            end = start
+            time_dummy = np.datetime64(datestring)
+            start = time_dummy - TS_TYPE_DIFFS[ts_type]
+            end = time_dummy + TS_TYPE_DIFFS[ts_type]
 
             ts_dummy_data = {}
             for variable in DATA_VARS:
