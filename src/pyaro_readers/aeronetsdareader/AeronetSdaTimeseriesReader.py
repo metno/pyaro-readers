@@ -98,7 +98,7 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._filename = filename
         self._stations = {}
         self._data = {}  # var -> {data-array}
-        self._filters = filters
+        self._set_filters(filters)
         self._header = []
         _laststatstr = ""
 
