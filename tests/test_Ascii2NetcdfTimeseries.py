@@ -37,3 +37,4 @@ class TestAscii2NetcdfTimeSeriesReader(unittest.TestCase):
             self.assertIn("AM0001", data.stations)
             self.assertGreater(np.sum(data.values), 10000)
             self.assertEqual(data.units, "ug")
+
