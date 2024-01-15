@@ -1,13 +1,11 @@
 import csv
+import tarfile
+from fnmatch import fnmatch
 from io import BytesIO
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
 
-from geocoder_reverse_natural_earth import (
-    Geocoder_Reverse_NE,
-    Geocoder_Reverse_Exception,
-)
 import numpy as np
 import requests
 from pyaro.timeseries import (
@@ -19,8 +17,16 @@ from pyaro.timeseries import (
 )
 from tqdm import tqdm
 
+from geocoder_reverse_natural_earth import (
+    Geocoder_Reverse_Exception,
+    Geocoder_Reverse_NE,
+)
+
 # default URL
-BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
+BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_SDA20.zip"
+BASE_URL_TAR = (
+    "https://aeronet.gsfc.nasa.gov/data_push/V3/SDA/SDA_Level20_Daily_V3.tar.gz"
+)
 # number of lines to read before the reading is handed to Pythobn's csv reader
 HEADER_LINE_NO = 7
 DELIMITER = ","
@@ -33,20 +39,25 @@ LAT_NAME = "Site_Latitude(Degrees)"
 LON_NAME = "Site_Longitude(Degrees)"
 ALT_NAME = "Site_Elevation(m)"
 SITE_NAME = "AERONET_Site_Name"
-DATE_NAME = "Date(dd:mm:yyyy)"
-TIME_NAME: str = "Time(hh:mm:ss)"
-AOD500_NAME = "AOD_500nm"
-ANG4487_NAME = "440-870_Angstrom_Exponent"
-AOD440_NAME = "AOD_440nm"
-AOD870_NAME = "AOD_870nm"
+DATE_NAME = "Date_(dd:mm:yyyy)"
+TIME_NAME: str = "Time_(hh:mm:ss)"
+AOD500_NAME = "Total_AOD_500nm[tau_a]"
+AOD500GT1_NAME = "Coarse_Mode_AOD_500nm[tau_c]"
+AOD500LT1_NAME = "Fine_Mode_AOD_500nm[tau_f]"
+ANG50_NAME = "Angstrom_Exponent(AE)-Total_500nm[alpha]"
+ETA50LT1_NAME = "FineModeFraction_500nm[eta]"
+AOD550GT1_NAME = "AODGT1_550nm"
+AOD550LT1_NAME = "AODLT1_550nm"
 AOD550_NAME = "AOD_550nm"
 
-DATA_VARS = [AOD500_NAME, ANG4487_NAME, AOD440_NAME, AOD870_NAME]
-COMPUTED_VARS = [AOD550_NAME]
+DATA_VARS = [AOD500_NAME, AOD500GT1_NAME, AOD500LT1_NAME, ANG50_NAME, ETA50LT1_NAME]
+COMPUTED_VARS = [AOD550GT1_NAME, AOD550LT1_NAME, AOD550_NAME]
 # The computed variables have to be named after the read ones, otherwise the calculation will fail!
 DATA_VARS.extend(COMPUTED_VARS)
 
 FILL_COUNTRY_FLAG = False
+
+FILE_MASK = "*.ONEILL_lev*"
 
 TS_TYPE_DIFFS = {
     "daily": np.timedelta64(12, "h"),
@@ -56,7 +67,7 @@ TS_TYPE_DIFFS = {
 }
 
 
-class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
+class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
         self,
         filename,
@@ -65,24 +76,24 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         tqdm_desc: [str, None] = None,
         ts_type: str = "daily",
     ):
-        """open a new Aeronet timeseries-reader
+        """open a new csv timeseries-reader
 
-                :param filename: str
-                :param filters:
-                :param fill_country_flag:
-                :param tqdm_desc:
-                :param filename_or_obj_or_url: path-like object to csv-file
+                        :param filename: str
+                        :param filters:
+                        :param fill_country_flag:
+                        :param tqdm_desc:
+                        :param filename_or_obj_or_url: path-like object to csv-file
 
-                input file looks like this (daily file; times noted are middle times):
-        AERONET Version 3;
-        Cuiaba
-        Version 3: AOD Level 2.0
+                        input file looks like this:
+        Version 3: SDA Retrieval Level 2.0
         The following data are automatically cloud cleared and quality assured with pre-field and post-field calibration applied.
         Contact: PI=Pawan Gupta and Elena Lind; PI Email=Pawan.Gupta@nasa.gov and Elena.Lind@nasa.gov
         Daily Averages,UNITS can be found at,,, https://aeronet.gsfc.nasa.gov/new_web/units.html
-        AERONET_Site,Date(dd:mm:yyyy),Time(hh:mm:ss),Day_of_Year,AOD_1640nm,AOD_1020nm,AOD_870nm,AOD_865nm,AOD_779nm,AOD_675nm,AOD_667nm,AOD_620nm,AOD_560nm,AOD_555nm,AOD_551nm,AOD_532nm,AOD_531nm,AOD_510nm,AOD_500nm,AOD_490nm,AOD_443nm,AOD_440nm,AOD_412nm,AOD_400nm,AOD_380nm,AOD_340nm,Precipitable_Water(cm),AOD_681nm,AOD_709nm,AOD_Empty,AOD_Empty,AOD_Empty,AOD_Empty,AOD_Empty,440-870_Angstrom_Exponent,380-500_Angstrom_Exponent,440-675_Angstrom_Exponent,500-870_Angstrom_Exponent,340-440_Angstrom_Exponent,440-675_Angstrom_Exponent[Polar],N[AOD_1640nm],N[AOD_1020nm],N[AOD_870nm],N[AOD_865nm],N[AOD_779nm],N[AOD_675nm],N[AOD_667nm],N[AOD_620nm],N[AOD_560nm],N[AOD_555nm],N[AOD_551nm],N[AOD_532nm],N[AOD_531nm],N[AOD_510nm],N[AOD_500nm],N[AOD_490nm],N[AOD_443nm],N[AOD_440nm],N[AOD_412nm],N[AOD_400nm],N[AOD_380nm],N[AOD_340nm],N[Precipitable_Water(cm)],N[AOD_681nm],N[AOD_709nm],N[AOD_Empty],N[AOD_Empty],N[AOD_Empty],N[AOD_Empty],N[AOD_Empty],N[440-870_Angstrom_Exponent],N[380-500_Angstrom_Exponent],N[440-675_Angstrom_Exponent],N[500-870_Angstrom_Exponent],N[340-440_Angstrom_Exponent],N[440-675_Angstrom_Exponent[Polar]],Data_Quality_Level,AERONET_Instrument_Number,AERONET_Site_Name,Site_Latitude(Degrees),Site_Longitude(Degrees),Site_Elevation(m)
-        Cuiaba,16:06:1993,12:00:00,167,-999.,0.081800,0.088421,-999.,-999.,0.095266,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0.117581,-999.,-999.,-999.,0.149887,2.487799,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0.424234,-999.,0.497630,-999.,0.924333,-999.,0,3,3,0,0,3,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,3,6,0,0,0,0,0,0,0,3,0,3,0,3,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
-        Cuiaba,17:06:1993,12:00:00,168,-999.,0.092246,0.099877,-999.,-999.,0.110915,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0.144628,-999.,-999.,-999.,0.187276,2.592902,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0.547807,-999.,0.628609,-999.,0.988320,-999.,0,16,16,0,0,16,0,0,0,0,0,0,0,0,0,0,0,16,0,0,0,16,32,0,0,0,0,0,0,0,16,0,16,0,16,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
+        AERONET_Site,Date_(dd:mm:yyyy),Time_(hh:mm:ss),Day_of_Year,Total_AOD_500nm[tau_a],Fine_Mode_AOD_500nm[tau_f],Coarse_Mode_AOD_500nm[tau_c],FineModeFraction_500nm[eta],2nd_Order_Reg_Fit_Error-Total_AOD_500nm[regression_dtau_a],RMSE_Fine_Mode_AOD_500nm[Dtau_f],RMSE_Coarse_Mode_AOD_500nm[Dtau_c],RMSE_FineModeFraction_500nm[Deta],Angstrom_Exponent(AE)-Total_500nm[alpha],dAE/dln(wavelength)-Total_500nm[alphap],AE-Fine_Mode_500nm[alpha_f],dAE/dln(wavelength)-Fine_Mode_500nm[alphap_f],N[Total_AOD_500nm[tau_a]],N[Fine_Mode_AOD_500nm[tau_f]],N[Coarse_Mode_AOD_500nm[tau_c]],N[FineModeFraction_500nm[eta]],N[2nd_Order_Reg_Fit_Error-Total_AOD_500nm[regression_dtau_a]],N[RMSE_Fine_Mode_AOD_500nm[Dtau_f]],N[RMSE_Coarse_Mode_AOD_500nm[Dtau_c]],N[RMSE_FineModeFraction_500nm[Deta]],N[Angstrom_Exponent(AE)-Total_500nm[alpha]],N[dAE/dln(wavelength)-Total_500nm[alphap]],N[AE-Fine_Mode_500nm[alpha_f]],N[dAE/dln(wavelength)-Fine_Mode_500nm[alphap_f]],Data_Quality_Level,AERONET_Instrument_Number,AERONET_Site_Name,Site_Latitude(Degrees),Site_Longitude(Degrees),Site_Elevation(m),
+        Cuiaba,16:06:1993,12:00:00,167,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
+        Cuiaba,17:06:1993,12:00:00,168,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
+        Cuiaba,19:06:1993,12:00:00,170,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,-999.,0,0,0,0,0,0,0,0,0,0,0,0,lev20,3,Cuiaba,-15.555244,-56.070214,234.000000
+
         """
         self._filename = filename
         self._stations = {}
@@ -103,8 +114,49 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     # read only 1st file here
                     break
             except BadZipFile:
-                response = urlopen(self._filename)
-                lines = [line.decode("utf-8") for line in response.readlines()]
+                # try reading as tar.gz file
+                # Aeronet's tar files differ from the zip files by providing one file per station instead of one file
+                # with all stations
+                # the general format of the data is the same though.
+                # so we just keep the header lines of the 1st station, and add all data lines of all stations
+                # That way we get to the same file format as the zip file
+                r.close()
+                try:
+                    r = requests.get(self._filename)
+                    with tarfile.open(fileobj=BytesIO(r.content), mode="r") as tf:
+                        lines = []
+                        _fidx = 0
+                        members = tf.getmembers()
+                        bar = tqdm(desc="extracting tar file...", total=len(members))
+                        for _midx, member in enumerate(members):
+                            if fnmatch(member.name, FILE_MASK):
+                                bar.update(1)
+                                f = tf.extractfile(member)
+                                if _fidx == 0:
+                                    lines.extend(
+                                        [line.decode("utf-8") for line in f.readlines()]
+                                    )
+                                    _fidx += 1
+                                else:
+                                    # skip the header lines
+                                    for _hidx in range(HEADER_LINE_NO):
+                                        dummy = f.readline()
+                                lines.extend(
+                                    [line.decode("utf-8") for line in f.readlines()]
+                                )
+                            else:
+                                continue
+
+                # too many possible exceptions due to different tar possible tar file
+                # compressions. Just try to read as text if everything fails
+                except:
+                    # read as text file
+                    r.close()
+                    try:
+                        response = urlopen(self._filename)
+                        lines = [line.decode("utf-8") for line in response.readlines()]
+                    except Exception as e:
+                        print(e)
 
         else:
             with open(self._filename, newline="") as csvfile:
@@ -180,12 +232,26 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     ts_dummy_data[variable] = value
                 except KeyError:
                     # computed variable
-                    if variable == AOD550_NAME:
+                    if variable == AOD550GT1_NAME:
                         value = self.compute_od_from_angstromexp(
                             0.55,
-                            ts_dummy_data[AOD440_NAME],
-                            0.44,
-                            ts_dummy_data[ANG4487_NAME],
+                            ts_dummy_data[AOD500GT1_NAME],
+                            0.50,
+                            ts_dummy_data[ANG50_NAME],
+                        )
+                    elif variable == AOD550LT1_NAME:
+                        value = self.compute_od_from_angstromexp(
+                            0.55,
+                            ts_dummy_data[AOD500LT1_NAME],
+                            0.50,
+                            ts_dummy_data[ANG50_NAME],
+                        )
+                    elif variable == AOD500_NAME:
+                        value = self.compute_od_from_angstromexp(
+                            0.55,
+                            ts_dummy_data[AOD500_NAME],
+                            0.50,
+                            ts_dummy_data[ANG50_NAME],
                         )
                 self._data[variable].append(
                     value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
@@ -231,20 +297,6 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         """
         return od_ref * (lambda_ref / to_lambda) ** angstrom_coeff
 
-    def calc_angstroem_coeff(
-        self, od1: float, od2: float, wl1: float, wl2: float
-    ) -> float:
-        """
-        small helper method to calculate angstroem coefficient
-
-        :param od1:
-        :param od2:
-        :param wl1:
-        :param wl2:
-        :return:
-        """
-        return -np.log(od1 / od2) / np.log(wl1 / wl2)
-
     def is_valid_url(self, url):
         try:
             result = urlparse(url)
@@ -253,15 +305,15 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             return False
 
 
-class AeronetSunTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
+class AeronetSdaTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
     def reader_class(self):
-        return AeronetSunTimeseriesReader
+        return AeronetSdaTimeseriesReader
 
-    def open(self, filename, *args, **kwargs) -> AeronetSunTimeseriesReader:
+    def open(self, filename, *args, **kwargs) -> AeronetSdaTimeseriesReader:
         return self.reader_class()(filename, *args, **kwargs)
 
     def description(self):
-        return "Simple reader of AeronetSun-files using the pyaro infrastructure"
+        return "Simple reader of AeronetSDA-files using the pyaro infrastructure"
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"

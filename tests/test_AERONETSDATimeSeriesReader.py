@@ -6,18 +6,21 @@ import pyaro
 import pyaro.timeseries
 from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
-TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv"
-TEST_ZIP_URL = (
-    "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv.zip"
+TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsda_testdata.csv"
+TEST_TAR_URL = (
+    "https://pyaerocom.met.no/pyaro-suppl/testdata/SDA_Level20_Daily_V3_testdata.tar.gz"
 )
-AERONETSUN_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
+TEST_ZIP_URL = (
+    "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsda_testdata.csv.zip"
+)
+AERONETSDA_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_SDA20.zip"
 
 
 class TestAERONETTimeSeriesReader(unittest.TestCase):
     file = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
         "testdata",
-        "aeronetsun_testdata.csv",
+        "aeronetsda_testdata.csv",
     )
 
     def external_resource_available(self, url):
@@ -29,50 +32,66 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         except:
             return False
 
-    def test_dl_data_unzipped(self):
-        if not self.external_resource_available(TEST_URL):
-            self.skipTest(f"external resource not available: {TEST_URL}")
-        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+    def test_dl_data_tared(self):
+        if not self.external_resource_available(TEST_TAR_URL):
+            self.skipTest(f"external resource not available: {TEST_TAR_URL}")
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
         with engine.open(
-            TEST_URL,
+            TEST_TAR_URL,
             filters=[],
             fill_country_flag=False,
-            tqdm_desc="test_dl_data_unzipped",
+            tqdm_desc="test_sda_dl_data_tared",
         ) as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 49965)
+            self.assertEqual(count, 421984)
+            self.assertEqual(len(ts.stations()), 94)
+
+    def test_dl_data_unzipped(self):
+        if not self.external_resource_available(TEST_URL):
+            self.skipTest(f"external resource not available: {TEST_URL}")
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
+        with engine.open(
+            TEST_URL,
+            filters=[],
+            fill_country_flag=False,
+            tqdm_desc="test_sda_dl_data_unzipped",
+        ) as ts:
+            count = 0
+            for var in ts.variables():
+                count += len(ts.data(var))
+            self.assertEqual(count, 79944)
             self.assertEqual(len(ts.stations()), 4)
 
     def test_dl_data_zipped(self):
         if not self.external_resource_available(TEST_ZIP_URL):
             self.skipTest(f"external resource not available: {TEST_ZIP_URL}")
-        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
         with engine.open(
             TEST_ZIP_URL,
             filters=[],
             fill_country_flag=False,
-            tqdm_desc="test_dl_data_zipped",
+            tqdm_desc="test_sda_dl_data_zipped",
         ) as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 49965)
+            self.assertEqual(count, 79944)
             self.assertEqual(len(ts.stations()), 4)
 
     def test_aeronet_data_zipped(self):
         if not os.path.exists("/lustre"):
             self.skipTest(f"lustre not available; skipping Aeronet download on CI")
 
-        if not self.external_resource_available(AERONETSUN_URL):
-            self.skipTest(f"external resource not available: {AERONETSUN_URL}")
-        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+        if not self.external_resource_available(AERONETSDA_URL):
+            self.skipTest(f"external resource not available: {AERONETSDA_URL}")
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
         with engine.open(
-            AERONETSUN_URL,
+            AERONETSDA_URL,
             filters=[],
             fill_country_flag=False,
-            tqdm_desc="aeronet data zipped",
+            tqdm_desc="aeronet SDA data zipped",
         ) as ts:
             count = 0
             for var in ts.variables():
@@ -81,7 +100,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             self.assertGreaterEqual(len(ts.stations()), 4)
 
     def test_init(self):
-        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
         self.assertEqual(engine.url(), "https://github.com/metno/pyaro-readers")
         # just see that it doesn't fail
         engine.description()
@@ -92,11 +111,11 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 49965)
+            self.assertEqual(count, 79944)
             self.assertEqual(len(ts.stations()), 4)
 
     def test_stationfilter(self):
-        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
         sfilter = pyaro.timeseries.filters.get("stations", exclude=["Cuiaba"])
         with engine.open(
             self.file, filters=[sfilter], tqdm_desc="test_stationfilter"
@@ -104,26 +123,27 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
-            self.assertEqual(count, 48775)
+            self.assertEqual(count, 78080)
             self.assertEqual(len(ts.stations()), 3)
 
     def test_wrappers(self):
-        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-        new_var_name = "od500aer"
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
+        new_var_name = "od500gt1aer"
         with VariableNameChangingReader(
-            engine.open(self.file, filters=[]), {"AOD_500nm": new_var_name}
+            engine.open(self.file, filters=[]),
+            {"Coarse_Mode_AOD_500nm[tau_c]": new_var_name},
         ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
         pass
 
     def test_variables_filter(self):
-        engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-        new_var_name = "od550aer"
+        engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
+        new_var_name = "od550gt1aer"
         vfilter = pyaro.timeseries.filters.get(
-            "variables", reader_to_new={"AOD_550nm": new_var_name}
+            "variables", reader_to_new={"AODGT1_550nm": new_var_name}
         )
         with engine.open(
-            self.file, filters=[vfilter], tqdm_desc="test_variables_filter"
+            self.file, filters=[vfilter], tqdm_desc="test_sda_variables_filter"
         ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
 
