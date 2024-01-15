@@ -21,53 +21,92 @@ uncompressed file or a tar file (including all common compression formats).
 If a zip file URL is provided, only the 1st file in there is used (since the
 Aeronet provided zip contains all data in a single file).
 
+### ascii2netcdf
+Reader for databases created with MSC-W tools niluNasaAmes2Netcdf or eea_airquip2emepdata.py.
+The database consists of a directory with a list of stations, i.e. `StationList.csv` and netcdf
+data-files per year with resolutions `hourly`, `daily`, `weekly`, `monthly` and `yearly` and a naming
+of `data_{resolution}.{YYYY}.nc`, e.g. `data_daily.2021.nc`. A test-database with daily data only
+can be found under `tests/testdata/NILU`.
+
+The MSC-W database contains the EBAS database for 1990-2021 and the EEA_Airquip database for
+2016-2018 as of yearly 2024. The data in the database is already aggregated, i.e. daily files
+contain already hourly data if enough hours have been measured. Therefore, `resolution` is a
+required parameter.
+
+
 ## Usage
 ### aeronetsunreader
 ```python
-import pyaro.timeseries
+import pyaro
 TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv"
-engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-ts = engine.open(TEST_URL, filters=[], fill_country_flag=False)
-print(ts.variables())
-# stations
-ts.data('AOD_550nm')['stations']
-# start_times
-ts.data('AOD_550nm')['start_times']
-# stop_times
-ts.data('AOD_550nm')['end_times']
-# latitudes
-ts.data('AOD_550nm')['latitudes']
-# longitudes
-ts.data('AOD_550nm')['longitudes']
-# altitudes
-ts.data('AOD_550nm')['altitudes']
-# values
-ts.data('AOD_550nm')['values']
+with pyro.open_timeseries("aeronetsunreader", TEST_URL, filters=[], fill_country_flag=False) as ts:
+    print(ts.variables())
+    data = ts.data('AOD_550nm')
+    # stations
+    data.stations
+    # start_times
+    data.start_times
+    # stop_times
+    data.end_times
+    # latitudes
+    data.latitudes
+    # longitudes
+    data.longitudes
+    # altitudes
+    data.altitudes
+    # values
+    data.values
 
 ```
 ### aeronetsdareader
 ```python
-import pyaro.timeseries
+import pyaro
 TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/SDA_Level20_Daily_V3_testdata.tar.gz"
-engine = pyaro.list_timeseries_engines()["aeronetsdareader"]
-ts = engine.open(TEST_URL, filters=[], fill_country_flag=False)
-print(ts.variables())
-# stations
-ts.data('AODGT1_550nm')['stations']
-# start_times
-ts.data('AODGT1_550nm')['start_times']
-# stop_times
-ts.data('AODGT1_550nm')['end_times']
-# latitudes
-ts.data('AODGT1_550nm')['latitudes']
-# longitudes
-ts.data('AODGT1_550nm')['longitudes']
-# altitudes
-ts.data('AODGT1_550nm')['altitudes']
-# values
-ts.data('AODGT1_550nm')['values']
+with pyaro.open_timeseries("aeronetsdareader", TEST_URL, filters=[], fill_country_flag=False) as ts:
+    print(ts.variables())
+    data = ts.data('AODGT1_550nm')
+    # stations
+    data.stations
+    # start_times
+    data.start_times
+    # stop_times
+    data.end_times
+    # latitudes
+    data.latitudes
+    # longitudes
+    data.longitudes
+    # altitudes
+    data.altitudes
+    # values
+    data.values
+```
+
+### ascii2netcdf
+```python
+import pyaro
+TEST_URL = "/lustre/storeB/project/fou/kl/emep/Auxiliary/NILU/"
+with pyaro.open_timeseries(
+    'ascii2netcdf', EBAS_URL, resolution="daily", filters=[]
+) as ts:
+    data = ts.data("sulphur_dioxide_in_air")
+    data.units # ug
+    # stations
+    data.stations
+    # start_times
+    data.start_times
+    # stop_times
+    data.end_times
+    # latitudes
+    data.latitudes
+    # longitudes
+    data.longitudes
+    # altitudes
+    data.altitudes
+    # values
+    data.values
 
 ```
+
 
 ### geocoder_reverse_natural_earth
 geocoder_reverse_natural_earth is small helper to identify country codes for obs networks that don't mention the
