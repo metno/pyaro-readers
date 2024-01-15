@@ -22,16 +22,17 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "pyaro @git+https://github.com/metno/pyaro",
+    "pyaro >=0.0.6",
     "requests",
     "fiona",
+    "netCDF4",
     "shapely",
     "rtree",
     "tqdm",
 ]
 
 [tool.setuptools]
-packages = ["pyaro_readers.aeronetsunreader", "pyaro_readers.aeronetsdareader","geocoder_reverse_natural_earth", pyaro_readers.ascii2netcdf]
+packages = ["pyaro_readers.aeronetsunreader", "pyaro_readers.aeronetsdareader","geocoder_reverse_natural_earth", "pyaro_readers.ascii2netcdf"]
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
@@ -44,7 +45,7 @@ geocoder_reverse_natural_earth = ["*.zip"]
 [project.entry-points."pyaro.timeseries"]
 "aeronetsunreader" = "pyaro_readers.aeronetsunreader:AeronetSunTimeseriesEngine"
 "aeronetsdareader" = "pyaro_readers.aeronetsdareader:AeronetSdaTimeseriesEngine"
-"niluascii2netcdf" = "pyaro_readers.ascii2netcdf:Ascii2NetcdfTimeseriesEngine"
+"ascii2netcdf" = "pyaro_readers.ascii2netcdf:Ascii2NetcdfTimeseriesEngine"
 
 [tool.mypy]
 python_version = "3.9"
