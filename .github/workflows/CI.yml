@@ -11,6 +11,8 @@ jobs:
       PYTHON: 3.9
     steps:
     - uses: actions/checkout@v3
+      with:
+        lfs: 'true'
     - name: Set up Python ${{ env.PYTHON }}
       uses: actions/setup-python@v4
       with:
@@ -39,6 +41,8 @@ jobs:
         os: [ ubuntu-22.04 ]
     steps:
       - uses: actions/checkout@v3
+        with:
+          lfs: 'true'
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
