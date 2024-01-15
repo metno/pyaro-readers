@@ -2,16 +2,16 @@
 implementations of readers for the pyaerocom project using pyaro as interface
 
 ## Installation
-`python -m pip install 'pyaro-readers@git+https://github.com/metno/pyaro-readers.git'`   
+`python -m pip install 'pyaro-readers@git+https://github.com/metno/pyaro-readers.git'`
 
 This will install pyaro and pyaro-readers and all their dependencies.
 
 ## Supported readers
-* aeronetsunreader  
-Reader for aeronet sun version 3 data.  
+* aeronetsunreader
+Reader for aeronet sun version 3 data.
 The reader supports reading from an uncompressed local file and from an URL providing a zip file or an
-uncompressed file.  
-If a zip file URL is provided, only the 1st file in there is used (since the 
+uncompressed file.
+If a zip file URL is provided, only the 1st file in there is used (since the
 Aeronet provided zip contains all data in a single file)
 
 ## Usage
@@ -26,7 +26,7 @@ ts.data('AOD_550nm')['stations']
 # start_times
 ts.data('AOD_550nm')['start_times']
 # stop_times
-ts.data('AOD_550nm')['stop_times']
+ts.data('AOD_550nm')['end_times']
 # latitudes
 ts.data('AOD_550nm')['latitudes']
 # longitudes
