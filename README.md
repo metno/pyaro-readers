@@ -2,9 +2,20 @@
 implementations of readers for the pyaerocom project using pyaro as interface
 
 ## Installation
-`python -m pip install 'pyaro-readers@git+https://github.com/metno/pyaro-readers.git'`   
+`python -m pip install 'pyaro-readers@git+https://github.com/metno/pyaro-readers.git'`
 
 This will install pyaro and pyaro-readers and all their dependencies.
+
+In case the installation failed, your pip might be too old. You can update that via: 
+
+`python3 -m venv --upgrade-deps --prompt pyaero pyaero-env`
+
+(installs in a new virtual environment named `pyaero-env` in the current directory)
+
+Then activate the virtual environment via `pyaero-env/bin/activate` and install as above.
+
+Detailed documentation about virtual environments in Python and how to use them can be found [here](https://docs.python.org/3/library/venv.html).
+
 
 ## Supported readers
 ### aeronetsunreader  
