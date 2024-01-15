@@ -31,3 +31,15 @@ class TestAscii2NetcdfTimeSeriesReader(unittest.TestCase):
             self.assertIn("AM0001", data.stations)
             self.assertGreater(np.sum(data.values), 10000)
             self.assertEqual(data.units, "ug")
+
+    def test_3read(self):
+        with pyaro.open_timeseries(
+            self.engine, EBAS_URL, resolution="daily", filters={'stations': {'include': ['NO0002']},} # Birkenes2
+                                                                # time-bounds bug in pyaro 0.0.6
+                                                                #'time_bounds': {'start_include': [('2021-01-01 00:00:00', '2021-12-31 23:59:59')]}}
+        ) as ts:
+            data = ts.data("sulphur_dioxide_in_air")
+            self.assertIn("NO0002", data.stations)
+            self.assertGreater(len(data), 360)
+            self.assertEqual(data.units, "ug")
+            self.assertEqual(len(data.values[data.values > 4]), 1) # one day (21.05. with extreme SO2)
