@@ -3,6 +3,7 @@ from pyaro.timeseries import AutoFilterReaderEngine, Station, Data, NpStructured
 import logging
 import os
 import xarray as xr
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -15,15 +16,11 @@ class HARPReaderException(Exception):
 
 
 class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
-    def __init__(self, directory: str):
-        if os.path.isdir(directory):
-            self._directory = directory
+    def __init__(self, file: str):
+        if os.path.isfile(file):
+            self._file = file
         else:
-            raise HARPReaderException(f"No such directory: {directory}")
-
-        self._files = []
-        for file in glob.iglob(f"{FOLDER}*"):
-            self._files.append(file)
+            raise HARPReaderException(f"No such file: {file}")
 
         self._variables = self._read_file_variables()
 
@@ -49,23 +46,41 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
 
         """
         variables = {}
-        for f in self._files:
-            logger.info(f"Processing {f}...")
-            if not os.path.exists(f):
-                logger.info(f"Data file {f}...")
-                continue
-
-            with xr.open_dataset(f, decode_cf=False) as d:
-                # decode_cf ensures that xarray does not attempt to decode units according
-                # to CF conventions.
-                for vname, var in d.data_vars.items():
-                    # TODO: If necessary, translate variable names to pyaerocom, similar to what
-                    # is done in Ascii2NetcdfTimeseries.py
-                    # TODO: Translate units of the form 'days since 2000-01-01' (?)
-
-                    variables[vname] = var.attrs["units"]
+        with xr.open_dataset(self._file, decode_cf=False) as d:
+            for vname, var in d.data_vars.items():
+                # TODO: If necessary, translate variable names to pyaerocom, similar to what
+                # is done in Ascii2NetcdfTimeseries.py
+                # TODO: Translate units of the form 'days since 2000-01-01' (?)
+                variables[vname] = var.attrs["units"]
 
         return variables
+
+    def _unfiltered_data(self, varname: str) -> NpStructuredData:
+        units = self._variables[varname]
+        data = NpStructuredData(varname, units)
+
+        dt = xr.open_dataset(self._file)
+
+        values = dt[varname]
+
+        values_length = len(values)
+        start_time = np.asarray([dt["datetime_start"]] * values_length)
+        stop_time = np.asarray([dt["datetime_stop"]] * values_length)
+        lat = np.asarray([dt["latitude"]] * values_length)
+        long = np.asarray([dt["longitude"]] * values_length)
+        station = np.asarray(["test"] * values_length)
+        altitude = np.asarray([dt["altitude"]] * values_length)
+
+        data.append(
+            value=values,
+            station=station,
+            latitude=lat,
+            longitude=long,
+            altitude=altitude,
+            start_time=start_time,
+            end_time=stop_time,
+        )
+        return data
 
 
 class AeronetHARPEngine(AutoFilterReaderEngine.AutoFilterEngine):
@@ -83,6 +98,7 @@ class AeronetHARPEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
 
 if __name__ == "__main__":
-    print("Test")
     FOLDER = "/home/thlun8736/Documents/data/aggregated/"
-    r = AeronetHARPReader(FOLDER)
+    r = AeronetHARPReader(f"{FOLDER}sinca-surface-157-999999-001.nc")
+
+    print(r._unfiltered_data("PM10_density"))
