@@ -64,23 +64,29 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
         values = dt[varname]
 
         values_length = len(values)
-        start_time = np.asarray([dt["datetime_start"]] * values_length)
-        stop_time = np.asarray([dt["datetime_stop"]] * values_length)
-        lat = np.asarray([dt["latitude"]] * values_length)
-        long = np.asarray([dt["longitude"]] * values_length)
-        station = np.asarray(["test"] * values_length)
-        altitude = np.asarray([dt["altitude"]] * values_length)
+        # start_time = np.asarray([dt["datetime_start"]] * values_length)
+        # stop_time = np.asarray([dt["datetime_stop"]] * values_length)
+        # lat = np.asarray([dt["latitude"]] * values_length)
+        # long = np.asarray([dt["longitude"]] * values_length)
+        # station = np.nan
+        # altitude = np.asarray([dt["altitude"]] * values_length)
 
-        data.append(
-            value=values,
-            station=station,
-            latitude=lat,
-            longitude=long,
-            altitude=altitude,
-            start_time=start_time,
-            end_time=stop_time,
-        )
-        return data
+        # data.append(
+        #    value=values,
+        #    station=station,
+        #    latitude=lat,
+        #    longitude=long,
+        #    altitude=altitude,
+        #    start_time=start_time,
+        #    end_time=stop_time,
+        # )
+
+        start_time = dt["datetime_start"]
+        stop_time = dt["datetime_stop"]
+        lat = dt["latitude"]
+        long = dt["longitude"]
+        station = np.nan
+        altitude = dt["altitude"]
 
 
 class AeronetHARPEngine(AutoFilterReaderEngine.AutoFilterEngine):
