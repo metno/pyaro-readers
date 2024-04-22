@@ -33,6 +33,10 @@ The MSC-W database contains the EBAS database for 1990-2021 and the EEA_Airquip 
 contain already hourly data if enough hours have been measured. Therefore, `resolution` is a
 required parameter.
 
+### harp
+Reader for NetCDF files that follow the [HARP](http://stcorp.github.io/harp/doc/html/conventions/)
+conventions.
+
 
 ## Usage
 ### aeronetsunreader

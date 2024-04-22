@@ -40,6 +40,10 @@ jobs:
         experimental: [ false ]
         os: [ ubuntu-22.04 ]
     steps:
+      - name: Install system packages
+        run: |
+          sudo apt update
+          sudo apt install libudunits2-dev
       - uses: actions/checkout@v3
         with:
           lfs: 'true'
