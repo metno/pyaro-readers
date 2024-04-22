@@ -1,4 +1,5 @@
 import glob
+import inspect
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Station,
@@ -69,11 +70,19 @@ class HARPReaderException(Exception):
 
 
 class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
+    """
+    Reader for netCDF files which follow the HARP convention.
+    """
+
     def __init__(self, file: str):
         if os.path.isfile(file):
             self._file = file
         else:
             raise HARPReaderException(f"No such file: {file}")
+
+        with xr.open_dataset(self._file) as harp:
+            if harp.attrs.get("Conventions", None) != "HARP-1.0":
+                raise ValueError(f"File is not a HARP file.")
 
         self._variables = self._read_file_variables()
 
@@ -103,6 +112,20 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
         return variables
 
     def _unfiltered_data(self, varname: str) -> NpStructuredData:
+        """Returns unfiltered data for a variable.
+
+        Parameters:
+        -----------
+        varname : str
+            The variable name for which to return the data.
+
+        Returns:
+        --------
+        NpStructuredArray
+            The data.
+
+        """
+
         units = self._variables[varname]
         data = NpStructuredData(varname, units)
 
@@ -127,7 +150,7 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
             altitude=altitude,
             start_time=start_time,
             end_time=stop_time,
-            # TODO: Don't assume all observations are valid, maybe (?)
+            # TODO: Currently assuming that all observations are valid.
             flag=flags,
             standard_deviation=np.asarray([np.nan] * values_length),
         )
@@ -135,6 +158,12 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
         return data
 
     def _unfiltered_variables(self) -> list[str]:
+        """Returns a list of the variable names.
+
+        Returns:
+        list[str]
+            The list of variable names.
+        """
         return list(self._variables.keys())
 
     def close(self):
@@ -149,7 +178,7 @@ class AeronetHARPEngine(AutoFilterReaderEngine.AutoFilterEngine):
         return self.reader_class()(filename, *args, **kwargs)
 
     def description(self):
-        "Simple reader of HARP-files using the pyaro infrastructure"
+        return inspect.doc(self)
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
