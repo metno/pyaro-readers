@@ -29,6 +29,8 @@ dependencies = [
     "shapely",
     "rtree",
     "tqdm",
+    "xarray",
+    "cfunits"
 ]
 
 [tool.setuptools]

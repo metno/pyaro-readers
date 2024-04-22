@@ -13,56 +13,9 @@ import xarray as xr
 import numpy as np
 from collections import namedtuple
 import re
+import cfunits
 
 logger = logging.getLogger(__name__)
-
-HARP_CONVENTION_STRING = "HARP-1.0"
-HARP_DATA_MODEL = "NETCDF4"
-
-UnitsInformation = namedtuple("UnitsInformation", ["reference_datetime", "unit"])
-
-
-def extract_unit_information(unit_str: str) -> UnitsInformation:
-    """
-    Extracts units of the form "days since 2000-01-01" which are part of the HARP convention.
-    Returns a tuple with the reference date, and the base unit.
-
-    Parameters:
-    unit_str : str
-        The unit string to be converted, eg. "days since 2000-01-01"
-
-    Returns:
-    --------
-    tuple:
-        A named tuple where reference_datetime is the reference date. And unit is the base unit (eg. days).
-
-    Note:
-    Currently only converts days, because that's the files used by pyaerocom. May break with more
-    complicated date strings.
-
-    Note:
-    -----
-    http://stcorp.github.io/harp/doc/html/conventions/datetime.html
-
-
-    """
-
-    if not re.match("^[a-z]+ since ", unit_str):
-        raise ValueError(
-            f"Unit string, {unit_str} could not be parsed. Pattern matching failed."
-        )
-
-    split = unit_str.split(" ")
-    if not split[0] in ["days"]:
-        raise ValueError(
-            f"Unit string, {unit_str} could not be parsed. {split[0]} is not a recognized unit."
-        )
-    try:
-        return UnitsInformation(np.datetime64(split[2]), split[0])
-    except:
-        raise ValueError(
-            f"Unit string, {unit_str} could not be parsed. Date conversion failed."
-        )
 
 
 class HARPReaderException(Exception):
@@ -104,10 +57,7 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
         variables = {}
         with xr.open_dataset(self._file, decode_cf=False) as d:
             for vname, var in d.data_vars.items():
-                try:
-                    variables[vname] = extract_unit_information(var.attrs["units"])
-                except:
-                    variables[vname] = var.attrs["units"]
+                variables[vname] = cfunits.Units(var.attrs["units"])
 
         return variables
 
