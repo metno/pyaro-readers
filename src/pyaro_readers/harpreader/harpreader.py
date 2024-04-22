@@ -14,6 +14,7 @@ import numpy as np
 from collections import namedtuple
 import re
 import cfunits
+import pyaro
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
     """
 
     def __init__(self, file: str):
+        self._filters = []
         if os.path.isfile(file):
             self._file = file
         else:
@@ -140,3 +142,5 @@ if __name__ == "__main__":
 
     print(r._variables)
     print(r._unfiltered_data("PM10_density"))
+
+    print(pyaro.list_timeseries_engines())
