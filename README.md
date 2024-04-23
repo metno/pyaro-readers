@@ -88,29 +88,34 @@ with pyaro.open_timeseries("aeronetsdareader", TEST_URL, filters=[], fill_countr
 ### ascii2netcdf
 ```python
 import pyaro
-TEST_URL = "/lustre/storeB/project/fou/kl/emep/Auxiliary/NILU/"
-with pyaro.open_timeseries(
-    'ascii2netcdf', EBAS_URL, resolution="daily", filters=[]
-) as ts:
-    data = ts.data("sulphur_dioxide_in_air")
-    data.units # ug
-    # stations
-    data.stations
-    # start_times
-    data.start_times
-    # stop_times
-    data.end_times
-    # latitudes
-    data.latitudes
-    # longitudes
-    data.longitudes
-    # altitudes
-    data.altitudes
-    # values
-    data.values
+TEST_FILE = "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/CNEMC/aggregated/sinca-surface-157-999999-001.nc"
 
+with pyaro.open_timeseries("harp", TEST_FILE) as ts:
+    data = ts.data("CO_volume_mixing_ratio")
+
+    print(data.units) # ppm
+    # stations
+    print(data.stations)
+    # start_times
+    print(data.start_times)
+    # stop_times
+    print(data.end_times)
+    # latitudes
+    print(data.latitudes)
+    # longitudes
+    print(data.longitudes)
+    # altitudes
+    print(data.altitudes)
+    # values
+    print(data.values)
 ```
 
+### harpreader
+```python
+import pyaro
+TEST_FILE = "/lustre/"
+
+```
 
 ### geocoder_reverse_natural_earth
 geocoder_reverse_natural_earth is small helper to identify country codes for obs networks that don't mention the
