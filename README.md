@@ -88,32 +88,52 @@ with pyaro.open_timeseries("aeronetsdareader", TEST_URL, filters=[], fill_countr
 ### ascii2netcdf
 ```python
 import pyaro
-TEST_FILE = "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/CNEMC/aggregated/sinca-surface-157-999999-001.nc"
-
-with pyaro.open_timeseries("harp", TEST_FILE) as ts:
-    data = ts.data("CO_volume_mixing_ratio")
-
-    print(data.units) # ppm
+TEST_URL = "/lustre/storeB/project/fou/kl/emep/Auxiliary/NILU/"
+with pyaro.open_timeseries(
+    'ascii2netcdf', TEST_URL, resolution="daily", filters=[]
+) as ts:
+    data = ts.data("sulphur_dioxide_in_air")
+    data.units # ug
     # stations
-    print(data.stations)
+    data.stations
     # start_times
-    print(data.start_times)
+    data.start_times
     # stop_times
-    print(data.end_times)
+    data.end_times
     # latitudes
-    print(data.latitudes)
+    data.latitudes
     # longitudes
-    print(data.longitudes)
+    data.longitudes
     # altitudes
-    print(data.altitudes)
+    data.altitudes
     # values
-    print(data.values)
+    data.values
 ```
 
 ### harpreader
 ```python
 import pyaro
-TEST_FILE = "/lustre/"
+
+TEST_URL = "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/CNEMC/aggregated/sinca-surface-157-999999-001.nc"
+with pyaro.open_timeseries(
+    'harp', TEST_URL
+) as ts:
+    data = ts.data("CO_volume_mixing_ratio")
+    data.units # ppm
+    # stations
+    data.stations
+    # start_times
+    data.start_times
+    # stop_times
+    data.end_times
+    # latitudes
+    data.latitudes
+    # longitudes
+    data.longitudes
+    # altitudes
+    data.altitudes
+    # values
+    data.values
 
 ```
 
