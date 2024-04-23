@@ -81,7 +81,33 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
         units = self._variables[varname]
         data = NpStructuredData(varname, units)
 
-        dt = xr.open_dataset(self._file)
+        pattern = ""
+        if os.path.isdir(self._file):
+            pattern = os.path.join(self._file, "*.nc")
+        else:
+            pattern = self._file
+
+        for f in glob.glob(pattern):
+            self._get_data_from_single_file(f, varname, data)
+
+        return data
+
+    def _get_data_from_single_file(
+        self, file: str, varname: str, data: NpStructuredData
+    ) -> None:
+        """Loads data for a variable from a single file.
+
+        Parameters:
+        -----------
+        file : str
+            The file path.
+        varname : str
+            The variable name.
+        data : NpStructuredData
+            Data instance to which the data will be appended to in-place.
+
+        """
+        dt = xr.open_dataset(file)
 
         values = dt[varname].to_numpy()
 
@@ -106,8 +132,6 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
             flag=flags,
             standard_deviation=np.asarray([np.nan] * values_length),
         )
-
-        return data
 
     def _unfiltered_variables(self) -> list[str]:
         """Returns a list of the variable names.
