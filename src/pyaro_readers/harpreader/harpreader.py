@@ -134,13 +134,3 @@ class AeronetHARPEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
-
-
-if __name__ == "__main__":
-    FOLDER = "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/CNEMC/aggregated/"
-    r = AeronetHARPReader(f"{FOLDER}sinca-surface-157-999999-001.nc")
-
-    print(r._variables)
-    print(r._unfiltered_data("PM10_density"))
-
-    print(pyaro.list_timeseries_engines())

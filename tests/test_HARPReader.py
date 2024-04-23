@@ -1,5 +1,4 @@
 import unittest
-from src.pyaro_readers.harpreader.harpreader import *
 import pyaro
 import pyaro.timeseries
 import cfunits
