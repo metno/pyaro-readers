@@ -132,7 +132,7 @@ class NasaAmesHeader:
     # conversion methods for first 13 header lines of
     CONV_STR = lambda l: str(l.strip())
     CONV_PI = lambda l: "; ".join([x.strip() for x in l.split(";")])
-    CONV_MULTIINT = lambda l: [int(x) for x in l.strip().split()]
+    CONV_MULTIINT = lambda l: [int(x) for x in l.replace(",", "").strip().split()]
     CONV_MULTIFLOAT = lambda l: [float(x) for x in l.strip().split()]
     CONV_INT = lambda l: int(l.strip())
     CONV_FLOAT = lambda l: float(l.strip())
