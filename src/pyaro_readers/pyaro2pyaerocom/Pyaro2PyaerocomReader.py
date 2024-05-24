@@ -1,4 +1,11 @@
+# for class type hints before class is defined
+from __future__ import annotations
+
 import logging
+import glob
+import os
+from typing import Any
+
 import numpy as np
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
@@ -19,28 +26,52 @@ FILL_COUNTRY_FLAG = False
 FILE_MASK = "*.nas"
 FIELDS_TO_SKIP = ["start_time of measurement", "end_time of measurement"]
 
+INI_MASK = "*.ini"
+
 
 class Pyaro2PyaerocomReaderException(Exception):
     pass
 
 
 class Pyaro2PyaerocomTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
+    """Reader class for a pyaerocom to pyaro reading interface for the case
+    where there's not a direct connection between the pyaerocom variable and
+    a pyro variable
+
+    This class uses an ini file named as the corresponding pyaro reader to define
+    a reading order of the pyaro variable(s) that should be read as a pyaerocom
+    variable
+
+    The input variables are the pyaerocom names only."""
+
     def __init__(
         self,
-        filename: [Path, str],
+        pyaro_opts: PyaroReadOptions,
+        # pyaro_opts: dict[str, Any],
+        # filename: [Path, str],
         filters=[],
         tqdm_desc: [str, None] = None,
         filemask: str = FILE_MASK,
         vars_to_read: list[str] = None,
+        reader_config: dict[str, Any] = None,
     ):
         self._filters = filters
         self._stations = {}
         self._data = {}  # var -> {data-array}
         self._set_filters(filters)
         self._header = []
-        self._opts = {"default": ReadEbasOptions()}
+        self._opts = pyaro_opts
         self._variables = {}
         self._metadata = {}
+        blubb = PyaroReadOptions()
+
+        # find ini files in current directory for a list of supported readers
+        local_path = os.path.dirname(os.path.realpath(__file__))
+        pattern = os.path.join(local_path, INI_MASK)
+        ini_files = glob.glob(pattern)
+        self.supported_readers = []
+        for _ini in ini_files:
+            self.supported_readers.append(os.path.basename(_ini).replace(".ini", ""))
 
         # variable include filter comes like this
         # {'variables': {'include': ['PM10_density']}}
@@ -50,50 +81,6 @@ class Pyaro2PyaerocomTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 vars_to_read = filters["variables"]["include"]
                 self._vars_to_read = vars_to_read
                 logger.info(f"applying variable include filter {vars_to_read}...")
-
-        realpath = Path(filename).resolve()
-
-        if Path(realpath).is_dir():
-            # search directory for files
-            files = list(realpath.glob(filemask))
-            bar = tqdm(desc=tqdm_desc, total=len(files))
-
-            for _ridx, file in enumerate(files):
-                bar.update(1)
-                logger.info(file)
-                self.read_file(file, vars_to_read=vars_to_read)
-                if _ridx > 30:
-                    assert True
-
-            bar.close()
-        elif Path(realpath).is_file():
-            self.read_file(realpath)
-        else:
-            # filename is something else
-            raise Pyaro2PyaerocomReaderException(
-                f"No such file or directory: {filename}"
-            )
-
-    def read_file_basic(
-        self,
-        filename: [Path, str],
-    ):
-        """Read EBAS NASA Ames file
-
-        Parameters
-        ----------
-        filename : str
-            absolute path to filename to read
-
-        Returns
-        -------
-        EbasNasaAmesFile
-            dict-like object containing results
-        """
-        # data_out = EbasNasaAmesFile(filename)
-        data_out = None
-
-        return data_out
 
     def read_file(self, filename: [Path, str], vars_to_read: list[str] = None):
         """Read EBAS NASA Ames file and put the data in the object"""
@@ -125,8 +112,10 @@ class Pyaro2PyaerocomTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
     def reader_class(self):
         return Pyaro2PyaerocomTimeseriesReader
 
-    def open(self, filename, *args, **kwargs) -> Pyaro2PyaerocomTimeseriesReader:
-        return self.reader_class()(filename, *args, **kwargs)
+    # def open(self, filename, *args, **kwargs) -> Pyaro2PyaerocomTimeseriesReader:
+    def open(self, opts, *args, **kwargs) -> Pyaro2PyaerocomTimeseriesReader:
+        # return self.reader_class()(filename, *args, **kwargs)
+        return self.reader_class()(opts, *args, **kwargs)
 
     def description(self):
         return "Simple reader of EBAS NASA-Ames files using the pyaro infrastructure"
@@ -135,7 +124,7 @@ class Pyaro2PyaerocomTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
         return "https://github.com/metno/pyaro-readers"
 
 
-class ReadEbasOptions(dict):
+class PyaroReadOptions(dict):
     """Options for EBAS reading routine
 
     Attributes
