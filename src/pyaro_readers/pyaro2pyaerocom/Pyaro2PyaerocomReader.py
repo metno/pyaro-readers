@@ -16,6 +16,7 @@ from pyaro.timeseries import (
 )
 from tqdm import tqdm
 from pyaro_readers.units_helpers import UALIASES
+import configparser
 
 from pathlib import Path
 import re
@@ -27,6 +28,8 @@ FILE_MASK = "*.nas"
 FIELDS_TO_SKIP = ["start_time of measurement", "end_time of measurement"]
 
 INI_MASK = "*.ini"
+
+VAR_INI = "variables.ini"
 
 
 class Pyaro2PyaerocomReaderException(Exception):
@@ -63,6 +66,7 @@ class Pyaro2PyaerocomTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._opts = pyaro_opts
         self._variables = {}
         self._metadata = {}
+        self.reader_config = {}
         blubb = PyaroReadOptions()
 
         # find ini files in current directory for a list of supported readers
@@ -71,7 +75,20 @@ class Pyaro2PyaerocomTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         ini_files = glob.glob(pattern)
         self.supported_readers = []
         for _ini in ini_files:
-            self.supported_readers.append(os.path.basename(_ini).replace(".ini", ""))
+            if os.path.basename(_ini) == VAR_INI:
+                self.var_config = self._ini_to_dict(_ini)
+            else:
+                _reader_name = os.path.basename(_ini).replace(".ini", "")
+                self.supported_readers.append(_reader_name)
+                self.reader_config[_reader_name] = self._ini_to_dict(_ini)
+        # Now add the units to the reader config
+        for _reader in self.reader_config:
+            for _var in self.reader_config[_reader]:
+                if "unit" not in self.reader_config[_reader][_var]:
+                    try:
+                       self.reader_config[_reader][_var]["unit"] = self.var_config[_var]["unit"]
+                    except KeyError:
+                        pass
 
         # variable include filter comes like this
         # {'variables': {'include': ['PM10_density']}}
@@ -87,6 +104,24 @@ class Pyaro2PyaerocomTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         pass
         return None
+
+    def _ini_to_dict(self, filename: [Path, str]) -> dict[str, Any]:
+        # read configurations
+        _config_ini = configparser.ConfigParser()
+        _config_ini.read(filename)
+        _reader_name = os.path.basename(filename).replace(".ini", "")
+        # convert to dict for simplicity
+        ret_data = {}
+        # ret_data[_reader_name] = {}
+        for _section in _config_ini.sections():
+            ret_data[_section] = {}
+            _items = _config_ini.items(_section)
+            for _item in _items:
+                ret_data[_section][_item[0]] = _item[
+                    1
+                ].split(",")
+
+        return ret_data
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]

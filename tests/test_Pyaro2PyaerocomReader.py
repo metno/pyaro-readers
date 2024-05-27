@@ -31,6 +31,7 @@ class TestPyaro2PyaerocomTimeSeriesReader(unittest.TestCase):
         with pyaro.open_timeseries(self.engine, read_options, filters=[]) as ts:
             self.assertGreaterEqual(len(ts.supported_readers), 1)
             assert "nilupmfebas" in ts.supported_readers
+            assert "nilupmfebas" in ts.reader_config
 
     # def test_1open_single_file(self):
     #     with pyaro.open_timeseries(self.engine, self.file, filters=[]) as ts:
