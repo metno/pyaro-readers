@@ -1,4 +1,4 @@
 from .ActrisEbasReader import  (
-    ActrisEbasReader,
-    ActrisEbasTimeseriesEngine,
+    ActrisEbasTimeSeriesReader,
+    ActrisEbasTimeSeriesEngine,
 )
