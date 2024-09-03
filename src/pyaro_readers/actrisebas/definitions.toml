@@ -1,0 +1,21 @@
+# connection between pyaerocom and ACTRIS-EBAS variables
+[variables]
+#prototype
+# the order in the list below is preserved and determines the order the data is read
+#[variables.<var name>]
+#actris_variable = [<list of actris variables>]
+#actris_matrix = [<list of actris matrixes>]
+#ebas_component = [<list of ebas component names>]
+#ebas_matrix = [<lust of ebas matrix names>]
+
+[variables.vmro3]
+actris_variable = ["ozone mass concentration", "ozone amount fraction"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ozone"]
+ebas_matrix = ["air"]
+
+[variables.concso4]
+actris_variable = ["aerosol particle sulphate mass concentration"]
+actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
+ebas_component = ["sulphate_corrected", "sulphate_total"]
+ebas_matrix = ["aerosol", "pm10", "pm25"]
