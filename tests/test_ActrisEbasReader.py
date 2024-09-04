@@ -6,7 +6,8 @@ import pyaro
 import pyaro.timeseries
 from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
-TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv"
+TEST_URL = "https://prod-actris-md.nilu.no/Version"
+VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
 TEST_ZIP_URL = (
     "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv.zip"
 )
@@ -14,13 +15,17 @@ AERONETSUN_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Dai
 
 
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
-    file = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        "testdata",
-        "aeronetsun_testdata.csv",
-    )
 
-    # def external_resource_available(self, url):
+    def test_api_online(self, url=TEST_URL):
+        try:
+            req = urllib.request.Request(TEST_URL, method="HEAD")
+            resp = urllib.request.urlopen(req)
+            resp.url
+            return True
+        except:
+            return False
+
+    # def test_vocabulary(self, url=TEST_URL):
     #     try:
     #         req = urllib.request.Request(TEST_URL, method="HEAD")
     #         resp = urllib.request.urlopen(req)
@@ -29,75 +34,20 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     #     except:
     #         return False
     #
-    # def test_dl_data_unzipped(self):
-    #     if not self.external_resource_available(TEST_URL):
-    #         self.skipTest(f"external resource not available: {TEST_URL}")
-    #     engine = pyaro.list_timeseries_engines()["actrisebasreader"]
-    #     with engine.open(
-    #         TEST_URL,
-    #         filters=[],
-    #         fill_country_flag=False,
-    #         tqdm_desc="test_dl_data_unzipped",
-    #     ) as ts:
-    #         count = 0
-    #         for var in ts.variables():
-    #             count += len(ts.data(var))
-    #         self.assertEqual(count, 49965)
-    #         self.assertEqual(len(ts.stations()), 4)
-    #         self.assertGreaterEqual(int(ts.metadata()["revision"]), 220622120000)
-    #
-    # def test_dl_data_zipped(self):
-    #     if not self.external_resource_available(TEST_ZIP_URL):
-    #         self.skipTest(f"external resource not available: {TEST_ZIP_URL}")
-    #     engine = pyaro.list_timeseries_engines()["actrisebasreader"]
-    #     with engine.open(
-    #         TEST_ZIP_URL,
-    #         filters=[],
-    #         fill_country_flag=False,
-    #         tqdm_desc="test_dl_data_zipped",
-    #     ) as ts:
-    #         count = 0
-    #         for var in ts.variables():
-    #             count += len(ts.data(var))
-    #         self.assertEqual(count, 49965)
-    #         self.assertEqual(len(ts.stations()), 4)
-    #         self.assertGreaterEqual(int(ts.metadata()["revision"]), 220622120000)
-    #
-    # def test_aeronet_data_zipped(self):
-    #     if not os.path.exists("/lustre"):
-    #         self.skipTest(f"lustre not available; skipping Aeronet download on CI")
-    #
-    #     if not self.external_resource_available(AERONETSUN_URL):
-    #         self.skipTest(f"external resource not available: {AERONETSUN_URL}")
-    #     engine = pyaro.list_timeseries_engines()["actrisebasreader"]
-    #     with engine.open(
-    #         AERONETSUN_URL,
-    #         filters=[],
-    #         fill_country_flag=False,
-    #         tqdm_desc="aeronet data zipped",
-    #     ) as ts:
-    #         count = 0
-    #         for var in ts.variables():
-    #             count += len(ts.data(var))
-    #         self.assertGreaterEqual(count, 49965)
-    #         self.assertGreaterEqual(len(ts.stations()), 4)
-    #         self.assertGreaterEqual(int(ts.metadata()["revision"]), 240523120000)
 
     def test_init(self):
         engine = pyaro.list_timeseries_engines()["actrisebas"]
         self.assertEqual(engine.url(), "https://github.com/metno/pyaro-readers")
         # just see that it doesn't fail
         engine.description()
-        engine.args()
-        # with engine.open(
-        #     self.file, filters=[], fill_country_flag=True, tqdm_desc="test_init"
-        # ) as ts:
-        #     count = 0
-        #     for var in ts.variables():
-        #         count += len(ts.data(var))
-        #     self.assertEqual(count, 49965)
-        #     self.assertEqual(len(ts.stations()), 4)
+        assert engine.args()
 
+    def test_api_reading(self):
+        # test access to the EBAS API
+        engine = pyaro.list_timeseries_engines()["actrisebas"]
+        with engine.open(var_name="ozone mass concentration", filters=[]) as ts:
+            # test that the definitions file could be read properly
+            self.assertGreaterEqual((len(ts._def_data)['variables'], 2))
     # def test_stationfilter(self):
     #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
     #     sfilter = pyaro.timeseries.filters.get("stations", exclude=["Cuiaba"])
