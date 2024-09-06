@@ -3,6 +3,8 @@ import tomllib
 from io import BytesIO
 from urllib.parse import urlparse, quote
 from urllib.request import urlopen
+
+from matplotlib.font_manager import json_load
 from urllib3.util.retry import Retry
 from urllib3.poolmanager import PoolManager
 
@@ -38,39 +40,78 @@ DEFINITION_FILE = os.path.join(
 # number of times an api  request is tried before we consider it failed
 MAX_RETRIES = 2
 
+# name of the root key containing the download information
+DISTRIBUTION_ROOT_KEY = "md_distribution_information"
+DISTRIBUTION_PROTOCOL_KEY = "protocol"
+DISTRIBUTION_PROTOCOL_NAME = "OPeNDAP"
+DISTRIBUTION_URL_KEY = "dataset_url"
+
+# some info to get to station name and location
+LOCATION_ROOT_KEY = "md_data_identification"
+LOCATION_FACILITY_KEY = "facility"
+LOCATION_NAME_KEY = "name"
+LOCATION_LAT_KEY = "lat"
+LOCATION_LON_KEY = "lon"
+LOCATION_ALT_KEY = "alt"
+
+# name of netcdf time variable in the netcdf files
+# should be "time" as of CF convention, but other names can be added here
+TIME_VAR_NAME = ["time"]
 
 class ActrisEbasRetryException(Exception):
+    pass
+
+class ActrisEbasTestDataNotFoundException(Exception):
     pass
 
 
 class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
-        self,
+            self,
             # filename,
-        filters=[],
-            var_name="ozone mass concentration",
-        tqdm_desc: str | None = None,
-        ts_type: str = "daily",
+            filters=[],
+            vars_to_read: str = "ozone mass concentration",
+            tqdm_desc: str | None = None,
+            ts_type: str = "daily",
+            test_flag: bool = True,
+            sites_to_read: list[str] = None, # for testing
     ):
         """ """
         self._filename = None
         self._stations = {}
-        self._data = {}  # var -> {data-array}
+        self._urls_to_dl = {}
+        self._data = {} # var -> {data-array}
         self._set_filters(filters)
         self._header = []
         _laststatstr = ""
         self._revision = datetime.datetime.min
         # read config file
         self._def_data = self._read_definitions(file=DEFINITION_FILE)
-        if not isinstance(var_name, list):
-            var_name = [var_name]
+        if not isinstance(vars_to_read, list):
+            vars_to_read = [vars_to_read]
 
-        for var in var_name:
-            # search for variable metadata
-            query_url = f"{VAR_QUERY_URL}{quote(var)}"
-            retries = Retry(connect=5, read=2, redirect=5)
-            http = PoolManager(retries=retries)
-            response = http.request("GET", query_url)
+        for var in vars_to_read:
+            # for testing since the API is error-prone and slow
+            if test_flag:
+                test_file = os.path.join(
+                    os.path.dirname(os.path.realpath(__file__)),
+                    "..", "..", "..", "tests", "testdata", "ACTRIS_EBAS",
+                                                  f"{var}.json",
+                )
+                if not os.path.exists(test_file):
+                    raise ActrisEbasTestDataNotFoundException(f"test file not found: {test_file}")
+                json_resp = json_load(test_file)
+            else:
+                # search for variable metadata
+                query_url = f"{VAR_QUERY_URL}{quote(var)}"
+                retries = Retry(connect=5, read=2, redirect=5)
+                http = PoolManager(retries=retries)
+                response = http.request("GET", query_url)
+
+                json_resp = json.loads(response.data.decode("utf-8"))
+
+            self._urls_to_dl[var] = self.extract_urls(json_resp, sites_to_read=sites_to_read)
+            self._data[var] = self.read_data(self._urls_to_dl[var])
 
             # retry_counter = MAX_RETRIES
             # while retry_counter > 0:
@@ -81,14 +122,83 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             #         print(f"Error: {err}")
 
             # text_resp = response.data.decode('utf-8')
-            json_resp = json.loads(response.data.decode("utf-8"))
-            print(json_resp)
 
-        bar = tqdm(desc=tqdm_desc, total=len(lines))
-        bar.close()
 
     def metadata(self):
         return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
+
+
+    def read_data(self, urls_to_dl: dict, tqdm_desc="file reading", sites_to_read: list[str] = None):
+        '''
+        read the data from EBAS threadds server
+
+        '''
+        bar = tqdm(desc=tqdm_desc, total=len(urls_to_dl))
+        for s_idx, site_name in enumerate(urls_to_dl):
+            for f_idx, url in enumerate(urls_to_dl[site_name]):
+                tmp_data = xr.open_dataset(url)
+                # create times...
+                start_time = np.asarray(tmp_data["time_bnds"][:,0])
+                end_time = np.asarray(tmp_data["time_bnds"][:,1])
+                ts_no = len(start_time)
+                lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
+                long = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
+                station = np.full(ts_no, tmp_data.attrs["ebas_station_name"])
+                altitude = np.full(ts_no, tmp_data.attrs["geospatial_vertical_min"])
+                standard_deviation = np.full(ts_no, np.NAN)
+
+                # put all data variables in the data struct for the moment
+                for _data_var in self._get_ebas_data_vars(tmp_data):
+                    vals = tmp_data[_data_var].values
+                    flags = np.full(ts_no, Flag.VALID)
+                    if _data_var not in self._data:
+                        self._data[_data_var] = []
+                    
+
+            bar.update(1)
+        bar.close()
+
+
+    def _get_ebas_data_vars(self, tmp_data, actris_var:str = None, units:str = None):
+        '''
+        small helper method to isolate potential data variables
+        since the variable names have no meaning (even if it seems otherwise)
+
+        Selects potential data variables based on which dimension they depend on
+        Data variables depend on the time dimension only
+        '''
+
+        data_vars = []
+        for data_var in tmp_data.data_vars:
+            if len(tmp_data[data_var].dims) != 1:
+                continue
+            elif tmp_data[data_var].dims[0] in TIME_VAR_NAME:
+                data_vars.append(data_var)
+
+        return data_vars
+
+    def extract_urls(self, json_resp: dict, sites_to_read: list[str]=None) -> dict:
+        '''
+        small helper method to extract URLs to download from json reponse from the EBAS API
+        '''
+        urls_to_dl = {}
+        # highest hierachy is a list
+        for site_idx, site_data in enumerate(json_resp):
+            site_name = site_data[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][LOCATION_NAME_KEY]
+            # temporary
+            if sites_to_read is not None and site_name in sites_to_read:
+                if site_name not in urls_to_dl:
+                    urls_to_dl[site_name] = []
+
+                # site_data[DISTRIBUTION_ROOT_KEY] is also a list
+                # search for protocol DISTRIBUTION_PROTOCOL_NAME
+                for url_idx, distribution_data in enumerate(site_data[DISTRIBUTION_ROOT_KEY]):
+                    if distribution_data[DISTRIBUTION_PROTOCOL_KEY] != DISTRIBUTION_PROTOCOL_NAME:
+                        continue
+                    else:
+                        urls_to_dl[site_name].append(distribution_data[DISTRIBUTION_URL_KEY])
+                        break
+        return urls_to_dl
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]

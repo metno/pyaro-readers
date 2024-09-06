@@ -13,9 +13,11 @@ actris_variable = ["ozone mass concentration", "ozone amount fraction"]
 actris_matrix = ["gas phase"]
 ebas_component = ["ozone"]
 ebas_matrix = ["air"]
+ebas_unit = "ug/m3"
 
 [variables.concso4]
 actris_variable = ["aerosol particle sulphate mass concentration"]
 actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
 ebas_component = ["sulphate_corrected", "sulphate_total"]
 ebas_matrix = ["aerosol", "pm10", "pm25"]
+ebas_unit = "ug/m3"

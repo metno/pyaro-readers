@@ -48,6 +48,15 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         with engine.open(var_name="ozone mass concentration", filters=[]) as ts:
             # test that the definitions file could be read properly
             self.assertGreaterEqual((len(ts._def_data)['variables'], 2))
+
+    def test_api_reading_Birkenes(self):
+        # test access to the EBAS API
+        engine = pyaro.list_timeseries_engines()["actrisebas"]
+        # sfilter = pyaro.timeseries.filters.get("stations", include=["Birkenes II"])
+        with engine.open(vars_to_read="ozone mass concentration", filters=[], sites_to_read=["Birkenes II"]) as ts:
+            # test that the definitions file could be read properly
+            self.assertGreaterEqual((len(ts._def_data)['variables'], 2))
+
     # def test_stationfilter(self):
     #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
     #     sfilter = pyaro.timeseries.filters.get("stations", exclude=["Cuiaba"])
