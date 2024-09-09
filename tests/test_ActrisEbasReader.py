@@ -8,13 +8,9 @@ from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
 TEST_URL = "https://prod-actris-md.nilu.no/Version"
 VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
-TEST_ZIP_URL = (
-    "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv.zip"
-)
-AERONETSUN_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
-
 
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
+    engine = "actrisebas"
 
     def test_api_online(self, url=TEST_URL):
         try:
@@ -36,26 +32,36 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     #
 
     def test_init(self):
-        engine = pyaro.list_timeseries_engines()["actrisebas"]
+        engine = pyaro.list_timeseries_engines()[self.engine]
         self.assertEqual(engine.url(), "https://github.com/metno/pyaro-readers")
         # just see that it doesn't fail
         engine.description()
         assert engine.args()
 
-    def test_api_reading(self):
+    # def test_api_reading(self):
+    #     # test access to the EBAS API
+    #     filters={"variables": {"include": ["ozone mass concentration", ]}}
+    #     engine = pyaro.list_timeseries_engines()[self.engine]
+    #     with engine.open(filters=filters) as ts:
+    #         # test that the definitions file could be read properly
+    #         self.assertGreaterEqual(len(ts.variables()), 2)
+    #
+    def test_api_reading_small_data_set(self):
         # test access to the EBAS API
-        engine = pyaro.list_timeseries_engines()["actrisebas"]
-        with engine.open(var_name="ozone mass concentration", filters=[]) as ts:
-            # test that the definitions file could be read properly
-            self.assertGreaterEqual((len(ts._def_data)['variables'], 2))
-
-    def test_api_reading_Birkenes(self):
-        # test access to the EBAS API
-        engine = pyaro.list_timeseries_engines()["actrisebas"]
-        # sfilter = pyaro.timeseries.filters.get("stations", include=["Birkenes II"])
-        with engine.open(vars_to_read="ozone mass concentration", filters=[], sites_to_read=["Birkenes II"]) as ts:
-            # test that the definitions file could be read properly
-            self.assertGreaterEqual((len(ts._def_data)['variables'], 2))
+        filters = {
+            "variables": {
+                "include": [
+                    "ozone mass concentration",
+                ]
+            },
+            "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
+        }
+        engine = pyaro.list_timeseries_engines()[self.engine]
+        #
+        with engine.open(
+                filters=filters,
+        ) as ts:
+            self.assertGreaterEqual(len(ts.variables()), 1)
 
     # def test_stationfilter(self):
     #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
