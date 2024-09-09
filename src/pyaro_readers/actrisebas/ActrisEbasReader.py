@@ -83,14 +83,18 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._data = {} # var -> {data-array}
         self._set_filters(filters)
         self._header = []
+        self._metadata = {}
         _laststatstr = ""
         self._revision = datetime.datetime.min
+        self._metadata['revision'] = datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S")
+
         # read config file
         self._def_data = self._read_definitions(file=DEFINITION_FILE)
         if not isinstance(vars_to_read, list):
             vars_to_read = [vars_to_read]
 
         for var in vars_to_read:
+            self._metadata[var] = {}
             # for testing since the API is error-prone and slow
             if test_flag:
                 test_file = os.path.join(
@@ -110,6 +114,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
                 json_resp = json.loads(response.data.decode("utf-8"))
 
+            self._metadata[var] = json_resp
             self._urls_to_dl[var] = self.extract_urls(json_resp, sites_to_read=sites_to_read)
             self._data[var] = self.read_data(self._urls_to_dl[var])
 
@@ -125,7 +130,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
 
     def metadata(self):
-        return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
+        return self._metadata
 
 
     def read_data(self, urls_to_dl: dict, tqdm_desc="file reading", sites_to_read: list[str] = None):
