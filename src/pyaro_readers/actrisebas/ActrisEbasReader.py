@@ -89,25 +89,25 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         )
 
         try:
-            vars_to_read = filters["variables"]["include"]
+            self.vars_to_read = filters["variables"]["include"]
         except KeyError:
             raise ValueError(
                 f"As of now, you have to give the species you want to read in filter.variables.include"
             )
 
         try:
-            sites_to_read = filters["stations"]["include"]
+            self.sites_to_read = filters["stations"]["include"]
         except KeyError:
-            sites_to_read = []
+            self.sites_to_read = []
 
         try:
-            sites_to_exclude = filters["stations"]["exclude"]
+            self.sites_to_exclude = filters["stations"]["exclude"]
         except KeyError:
-            sites_to_exclude = []
+            self.sites_to_exclude = []
 
         # read config file
         self._def_data = self._read_definitions(file=DEFINITION_FILE)
-        for var in vars_to_read:
+        for var in self.vars_to_read:
             self._metadata[var] = {}
             # for testing since the API is error-prone and slow at the time of this writing
             test_file = os.path.join(
@@ -129,8 +129,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             self._metadata[var] = json_resp
             self._urls_to_dl[var] = self.extract_urls(
                 json_resp,
-                sites_to_read=sites_to_read,
-                sites_to_exclude=sites_to_exclude,
+                sites_to_read=self.sites_to_read,
+                sites_to_exclude=self.sites_to_exclude,
             )
             self._data[var] = self.read_data(self._urls_to_dl[var])
 
@@ -141,7 +141,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             self,
             urls_to_dl: dict,
             tqdm_desc="reading stations",
-            sites_to_read: list[str] = None,
     ):
         """
         read the data from EBAS thredds server
@@ -150,7 +149,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         for s_idx, site_name in enumerate(urls_to_dl):
             for f_idx, url in enumerate(urls_to_dl[site_name]):
                 tmp_data = xr.open_dataset(url)
-                # create times...
+                # create variables valid for all measured variables...
                 start_time = np.asarray(tmp_data["time_bnds"][:, 0])
                 stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
                 ts_no = len(start_time)
@@ -161,7 +160,16 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 standard_deviation = np.full(ts_no, np.nan)
 
                 # put all data variables in the data struct for the moment
-                for _data_var in self._get_ebas_data_vars(tmp_data):
+                for d_idx, _data_var in enumerate(
+                        self._get_ebas_data_vars(
+                            tmp_data,
+                        )
+                ):
+                    # the naming of the variable in the file does not reflect the vocabulary naming ot pyaerocom's
+                    # naming
+                    ret_data_var = _data_var.copy()
+                    # if ret_data_var not in self.vars_to_read and :
+                    #     # we need
                     vals = tmp_data[_data_var].values
                     flags = np.full(ts_no, Flag.VALID)
                     if _data_var not in self._data:
@@ -181,6 +189,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         flag=flags,
                         standard_deviation=standard_deviation,
                     )
+                    # make sure to return something in the user given variable name for now
+                    try:
+                        if _data_var != self.vars_to_read[d_idx]:
+                            self._data[self.vars_to_read[d_idx]] = self._data[_data_var]
+                    except IndexError:
+                        pass
             if not site_name in self._stations:
                 self._stations[site_name] = Station(
                     {
@@ -219,7 +233,16 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             if len(tmp_data[data_var].dims) != 1:
                 continue
             elif tmp_data[data_var].dims[0] in TIME_VAR_NAME:
-                data_vars.append(data_var)
+                # check for standard unit
+                try:
+                    # if defined, return only names that match
+                    if (
+                            tmp_data[data_var].attrs["units"]
+                            == self._def_data["actris_std_units"][data_var]
+                    ):
+                        data_vars.append(data_var)
+                except KeyError:
+                    data_vars.append(data_var)
 
         return data_vars
 
@@ -292,9 +315,7 @@ class ActrisEbasTimeSeriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
     def reader_class(self):
         return ActrisEbasTimeSeriesReader
 
-    # def open(self, filename, *args, **kwargs) -> ActrisEbasTimeSeriesReader:
     def open(self, *args, **kwargs) -> ActrisEbasTimeSeriesReader:
-        # return self.reader_class()(filename, *args, **kwargs)
         return self.reader_class()(*args, **kwargs)
 
     def description(self):

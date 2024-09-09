@@ -8,12 +8,19 @@
 #ebas_component = [<list of ebas component names>]
 #ebas_matrix = [<lust of ebas matrix names>]
 
-[variables.vmro3]
+[variables.conco3]
 actris_variable = ["ozone mass concentration", "ozone amount fraction"]
 actris_matrix = ["gas phase"]
 ebas_component = ["ozone"]
 ebas_matrix = ["air"]
 ebas_unit = "ug/m3"
+
+[variables.vmro3]
+actris_variable = ["ozone mass concentration", "ozone amount fraction"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ozone"]
+ebas_matrix = ["air"]
+ebas_unit = "nmol/mol"
 
 [variables.concso4]
 actris_variable = ["aerosol particle sulphate mass concentration"]
@@ -21,3 +28,12 @@ actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
 ebas_component = ["sulphate_corrected", "sulphate_total"]
 ebas_matrix = ["aerosol", "pm10", "pm25"]
 ebas_unit = "ug/m3"
+
+[actris_std_units]
+# tell the reader which unit shall be returned in case the same property is available in several units
+# e.g. ozone mass concentration is available in the files in [ug/m3] and [nmol/mol]
+# make sure to use ACTRIS-EBAS unit notation since this is a simple string match
+# For variables not noted here, we will return the first unit found inb the first data file
+"ozone mass concentration" = "nmol/mol"
+"ozone amount fraction" = "nmol/mol"
+"aerosol particle sulphate mass concentration" = "ug/m3"

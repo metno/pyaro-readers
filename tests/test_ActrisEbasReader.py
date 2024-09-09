@@ -64,17 +64,23 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
 
-    # def test_stationfilter(self):
-    #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-    #     sfilter = pyaro.timeseries.filters.get("stations", exclude=["Cuiaba"])
-    #     with engine.open(
-    #         self.file, filters=[sfilter], tqdm_desc="test_stationfilter"
-    #     ) as ts:
-    #         count = 0
-    #         for var in ts.variables():
-    #             count += len(ts.data(var))
-    #         self.assertEqual(count, 48775)
-    #         self.assertEqual(len(ts.stations()), 3)
+    def test_api_reading_pyaerocom_naming(self):
+        # test access to the EBAS API
+        filters = {
+            "variables": {
+                "include": [
+                    "vmro3",
+                ]
+            },
+            "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
+        }
+        engine = pyaro.list_timeseries_engines()[self.engine]
+        #
+        with engine.open(
+                filters=filters,
+        ) as ts:
+            self.assertGreaterEqual(len(ts.variables()), 1)
+
     #
     # def test_wrappers(self):
     #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
@@ -85,16 +91,6 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     #         self.assertEqual(ts.data(new_var_name).variable, new_var_name)
     #     pass
     #
-    # def test_variables_filter(self):
-    #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-    #     new_var_name = "od550aer"
-    #     vfilter = pyaro.timeseries.filters.get(
-    #         "variables", reader_to_new={"AOD_550nm": new_var_name}
-    #     )
-    #     with engine.open(
-    #         self.file, filters=[vfilter], tqdm_desc="test_variables_filter"
-    #     ) as ts:
-    #         self.assertEqual(ts.data(new_var_name).variable, new_var_name)
 
 
 if __name__ == "__main__":
