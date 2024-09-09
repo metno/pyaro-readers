@@ -109,22 +109,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._def_data = self._read_definitions(file=DEFINITION_FILE)
         for var in vars_to_read:
             self._metadata[var] = {}
-            # for testing since the API is error-prone and slow
-            if test_flag:
-                test_file = os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)),
-                    "..",
-                    "..",
-                    "..",
-                    "tests",
-                    "testdata",
-                    "ACTRIS_EBAS",
-                    f"{var}.json",
-                )
-                if not os.path.exists(test_file):
-                    raise ActrisEbasTestDataNotFoundException(
-                        f"test file not found: {test_file}"
-                    )
+            # for testing since the API is error-prone and slow at the time of this writing
+            test_file = os.path.join(
+                os.path.dirname(os.path.realpath(__file__)),
+                f"{var}.json",
+            )
+            if os.path.exists(test_file) and test_flag:
                 with open(test_file, "r") as f:
                     json_resp = json.load(f)
             else:
