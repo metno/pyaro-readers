@@ -9,6 +9,7 @@ from pyaro.timeseries.Wrappers import VariableNameChangingReader
 TEST_URL = "https://prod-actris-md.nilu.no/Version"
 VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
 
+
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     engine = "actrisebas"
 
