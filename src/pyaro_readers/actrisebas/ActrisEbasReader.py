@@ -158,7 +158,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
                 station = np.full(ts_no, tmp_data.attrs["ebas_station_name"])
                 altitude = np.full(ts_no, tmp_data.attrs["geospatial_vertical_min"])
-                standard_deviation = np.full(ts_no, np.NAN)
+                standard_deviation = np.full(ts_no, np.nan)
 
                 # put all data variables in the data struct for the moment
                 for _data_var in self._get_ebas_data_vars(tmp_data):
