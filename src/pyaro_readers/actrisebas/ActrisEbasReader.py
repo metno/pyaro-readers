@@ -64,11 +64,11 @@ class ActrisEbasTestDataNotFoundException(Exception):
 
 class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
-            self,
-            filters=[],
-            tqdm_desc: str | None = None,
-            ts_type: str = "daily",
-            test_flag: bool = True,
+        self,
+        filters=[],
+        tqdm_desc: str | None = None,
+        ts_type: str = "daily",
+        test_flag: bool = True,
     ):
         """ """
         self._filename = None
@@ -134,9 +134,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return self._metadata
 
     def read_data(
-            self,
-            urls_to_dl: dict,
-            tqdm_desc="reading stations",
+        self,
+        urls_to_dl: dict,
+        tqdm_desc="reading stations",
     ):
         """
         read the data from EBAS thredds server
@@ -158,9 +158,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
                 # put all data variables in the data struct for the moment
                 for d_idx, _data_var in enumerate(
-                        self._get_ebas_data_vars(
-                            tmp_data,
-                        )
+                    self._get_ebas_data_vars(
+                        tmp_data,
+                    )
                 ):
                     # the naming of the variable in the file does not reflect the vocabulary naming ot pyaerocom's
                     # naming
@@ -234,8 +234,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 try:
                     # if defined, return only names that match
                     if (
-                            tmp_data[data_var].attrs["units"]
-                            == self._def_data["actris_std_units"][data_var]
+                        tmp_data[data_var].attrs["units"]
+                        == self._def_data["actris_std_units"][data_var]
                     ):
                         data_vars.append(data_var)
                 except KeyError:
@@ -244,10 +244,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return data_vars
 
     def extract_urls(
-            self,
-            json_resp: dict,
-            sites_to_read: list[str] = [],
-            sites_to_exclude: list[str] = [],
+        self,
+        json_resp: dict,
+        sites_to_read: list[str] = [],
+        sites_to_exclude: list[str] = [],
     ) -> dict:
         """
         small helper method to extract URLs to download from json reponse from the EBAS API
@@ -267,11 +267,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 # site_data[DISTRIBUTION_ROOT_KEY] is also a list
                 # search for protocol DISTRIBUTION_PROTOCOL_NAME
                 for url_idx, distribution_data in enumerate(
-                        site_data[DISTRIBUTION_ROOT_KEY]
+                    site_data[DISTRIBUTION_ROOT_KEY]
                 ):
                     if (
-                            distribution_data[DISTRIBUTION_PROTOCOL_KEY]
-                            != DISTRIBUTION_PROTOCOL_NAME
+                        distribution_data[DISTRIBUTION_PROTOCOL_KEY]
+                        != DISTRIBUTION_PROTOCOL_NAME
                     ):
                         continue
                     else:

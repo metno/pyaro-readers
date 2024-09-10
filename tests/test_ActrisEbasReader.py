@@ -58,7 +58,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()[self.engine]
         #
         with engine.open(
-                filters=filters,
+            filters=filters,
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
 
@@ -75,7 +75,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()[self.engine]
         #
         with engine.open(
-                filters=filters,
+            filters=filters,
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
 
