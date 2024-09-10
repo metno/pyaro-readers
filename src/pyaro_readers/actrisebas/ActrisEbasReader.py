@@ -1,15 +1,12 @@
+import datetime
+import json
 import logging
+import os
 import tomllib
-from io import BytesIO
 from urllib.parse import urlparse, quote
-from urllib.request import urlopen
-
-from urllib3.util.retry import Retry
-from urllib3.poolmanager import PoolManager
 
 import numpy as np
-import requests
-import json
+import xarray as xr
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -18,9 +15,8 @@ from pyaro.timeseries import (
     Station,
 )
 from tqdm import tqdm
-import datetime
-import xarray as xr
-import os
+from urllib3.poolmanager import PoolManager
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 

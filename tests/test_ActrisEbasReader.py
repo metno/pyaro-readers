@@ -1,10 +1,8 @@
 import unittest
 import urllib.request
-import os
 
 import pyaro
 import pyaro.timeseries
-from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
 TEST_URL = "https://prod-actris-md.nilu.no/Version"
 VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
