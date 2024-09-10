@@ -145,13 +145,14 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         for s_idx, site_name in enumerate(urls_to_dl):
             for f_idx, url in enumerate(urls_to_dl[site_name]):
                 tmp_data = xr.open_dataset(url)
+                long_name = tmp_data.attrs["ebas_station_name"]
                 # create variables valid for all measured variables...
                 start_time = np.asarray(tmp_data["time_bnds"][:, 0])
                 stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
                 ts_no = len(start_time)
                 lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
                 lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
-                station = np.full(ts_no, tmp_data.attrs["ebas_station_name"])
+                station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
                 altitude = np.full(ts_no, tmp_data.attrs["geospatial_vertical_min"])
                 standard_deviation = np.full(ts_no, np.nan)
 
