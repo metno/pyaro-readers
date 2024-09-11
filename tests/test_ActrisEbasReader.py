@@ -3,6 +3,7 @@ import urllib.request
 
 import pyaro
 import pyaro.timeseries
+from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
 TEST_URL = "https://prod-actris-md.nilu.no/Version"
 VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
@@ -10,6 +11,11 @@ VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
 
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     engine = "actrisebas"
+
+    station_filter = {
+        "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
+    }
+    vars_to_read = ["ozone mass concentration"]
 
     def test_api_online(self, url=TEST_URL):
         try:
@@ -48,19 +54,16 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     def test_api_reading_small_data_set(self):
         # test access to the EBAS API
         filters = {
-            "variables": {
-                "include": [
-                    "ozone mass concentration",
-                ]
-            },
             "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
         }
         engine = pyaro.list_timeseries_engines()[self.engine]
         #
         with engine.open(
-            filters=filters,
+                filters=filters, vars_to_read=["ozone mass concentration"],
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
+            self.assertEqual(len(ts.stations()), 2)
+            self.assertIn("revision", ts.metadata())
 
     def test_api_reading_pyaerocom_naming(self):
         # test access to the EBAS API
@@ -76,18 +79,20 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         #
         with engine.open(
             filters=filters,
+                vars_to_read=["vmro3"],
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
 
     #
-    # def test_wrappers(self):
-    #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-    #     new_var_name = "od500aer"
-    #     with VariableNameChangingReader(
-    #         engine.open(self.file, filters=[]), {"AOD_500nm": new_var_name}
-    #     ) as ts:
-    #         self.assertEqual(ts.data(new_var_name).variable, new_var_name)
-    #     pass
+    def test_wrappers(self):
+        engine = pyaro.list_timeseries_engines()[self.engine]
+        new_var_name = "vmro3"
+        with VariableNameChangingReader(
+                engine.open(vars_to_read=self.vars_to_read, filters=self.station_filter),
+                {self.vars_to_read[0]: new_var_name}
+        ) as ts:
+            self.assertEqual(ts.data(new_var_name).variable, new_var_name)
+        pass
     #
 
 
