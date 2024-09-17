@@ -76,7 +76,7 @@ class ActrisEbasTestDataNotFoundException(Exception):
 class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
         self,
-            vars_to_read: list[str] = None,
+        vars_to_read: list[str] = None,
         filters=[],
         tqdm_desc: str | None = None,
         ts_type: str = "daily",
@@ -193,7 +193,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
     def read_data(
         self,
-            actris_variable: str,
+        actris_variable: str,
         urls_to_dl: dict,
         tqdm_desc="reading stations",
     ):
@@ -225,8 +225,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 ):
                     # look for a standard_name match and return only that variable
                     if (
-                            self.get_ebas_data_standard_name(tmp_data, _data_var)
-                            not in self._standard_names[actris_variable]
+                        self.get_ebas_data_standard_name(tmp_data, _data_var)
+                        not in self._standard_names[actris_variable]
                     ):
                         logger.info(
                             f"station {site_name}, file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
