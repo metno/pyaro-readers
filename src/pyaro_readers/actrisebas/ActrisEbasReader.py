@@ -237,6 +237,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         continue
 
                     vals = tmp_data[_data_var].values
+                    # apply flags
+                    ebas_qc_var = self.get_ebas_data_qc_variable(tmp_data, _data_var)
+
                     flags = np.full(ts_no, Flag.VALID)
                     if actris_variable not in self._data:
                         self._data[actris_variable] = NpStructuredData(
@@ -293,7 +296,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         These contain the data flags (hopefully always ending with "_qc" and additional metedata
         (hopefully always ending with "_ebasmetadata" for each time step
         """
-        ret_data = tmp_data[var_name].attrs["ancillary_variables"]
+        ret_data = tmp_data[var_name].attrs["ancillary_variables"].split()
         return ret_data
 
     def get_ebas_data_qc_variable(self, tmp_data, var_name):
@@ -307,13 +310,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         for var in self.get_ebas_data_ancillary_variables(tmp_data, var_name):
             for time_name in TIME_VAR_NAME:
                 if time_name in tmp_data[var_name].dims:
-                    ret_data = var_name
-                    break
+                    return var
         if ret_data is None:
             raise ActrisEbasQcVariableNotFoundException(
                 f"Error: no flag data for variable {var_name} found!"
             )
-        return ret_data
+        return ""
 
     def get_ebas_data_country_code(self, tmp_data):
         """small helper method to get the ebas country code from the data file"""
