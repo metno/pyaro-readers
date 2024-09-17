@@ -13,33 +13,27 @@ actris_variable = ["ozone mass concentration"]
 actris_matrix = ["gas phase"]
 ebas_component = ["ozone"]
 ebas_matrix = ["air"]
-ebas_unit = "ug/m3"
-standard_name = "mass_concentration_of_ozone_in_air"
 
 [variables.vmro3]
-actris_variable = ["ozone mass concentration", "ozone amount fraction"]
+actris_variable = ["ozone amount fraction"]
 actris_matrix = ["gas phase"]
 ebas_component = ["ozone"]
 ebas_matrix = ["air"]
-ebas_unit = "nmol/mol"
-standard_name = "mole_fraction_of_ozone_in_air"
 
 [variables.concso4]
 actris_variable = ["aerosol particle sulphate mass concentration"]
 actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
 ebas_component = ["sulphate_corrected", "sulphate_total"]
 ebas_matrix = ["aerosol", "pm10", "pm25"]
-ebas_unit = "ug/m3"
-standard_name = "mass_concentration_of_sulfate_aerosol_in_air"
 
-[actris_std_units]
+#[actris_std_units]
 # tell the reader which unit shall be returned in case the same property is available in several units
 # e.g. ozone mass concentration is available in the files in [ug/m3] and [nmol/mol]
 # make sure to use ACTRIS-EBAS unit notation since this is a simple string match
-# For variables not noted here, we will return the first unit found inb the first data file
-"ozone mass concentration" = "ug/m3"
-"ozone amount fraction" = "nmol/mol"
-"aerosol particle sulphate mass concentration" = "ug/m3"
+# For variables not noted here, we will return the first unit found in the first data file
+#"ozone mass concentration" = "ug/m3"
+#"ozone amount fraction" = "nmol/mol"
+#"aerosol particle sulphate mass concentration" = "ug/m3"
 
 [actris_standard_names]
 # match between ACTRIS vocabulary and CF standard name
