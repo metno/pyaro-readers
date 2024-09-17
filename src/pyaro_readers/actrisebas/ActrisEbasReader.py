@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import tomllib
+from copy import deepcopy
 from urllib.parse import urlparse, quote
 
 import numpy as np
@@ -54,7 +55,6 @@ LOCATION_ALT_KEY = "alt"
 # name of netcdf time variable in the netcdf files
 # should be "time" as of CF convention, but other names can be added here
 TIME_VAR_NAME = ["time"]
-
 
 
 class ActrisEbasRetryException(Exception):
@@ -148,7 +148,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 sites_to_exclude=self.sites_to_exclude,
             )
             self.read_data(var, self._urls_to_dl[var])
-        # assert self.data(self.vars_to_read[0])
+        assert self._data[self.vars_to_read[0]]
 
     def metadata(self):
         return self._metadata
@@ -167,13 +167,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             for f_idx, url in enumerate(urls_to_dl[site_name]):
                 tmp_data = xr.open_dataset(url)
                 long_name = tmp_data.attrs["ebas_station_name"]
+                stat_code = tmp_data.attrs["ebas_station_code"]
                 # create variables valid for all measured variables...
                 start_time = np.asarray(tmp_data["time_bnds"][:, 0])
                 stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
                 ts_no = len(start_time)
                 lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
                 lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
-                station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
+                # station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
+                station = np.full(ts_no, long_name)
                 altitude = np.full(ts_no, tmp_data.attrs["geospatial_vertical_min"])
                 standard_deviation = np.full(ts_no, np.nan)
 
@@ -190,17 +192,24 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     #     # we need
 
                     # look for a standard_name match and return only that variable
-                    std_name = self._standard_names[actris_variable]
-                    if self.get_ebas_data_standard_name(tmp_data, _data_var) != self._standard_names[actris_variable]:
-                        logger.info(f"file #{d_idx: }skipping variable {_data_var} due to wrong standard name")
-                        print(f"file #{d_idx: } skipping variable {_data_var} due to wrong standard name")
+                    if (
+                            self.get_ebas_data_standard_name(tmp_data, _data_var)
+                            != self._standard_names[actris_variable]
+                    ):
+                        logger.info(
+                            f"station {site_name}, file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
+                        )
+                        print(
+                            f"station {site_name},file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
+                        )
                         continue
 
                     vals = tmp_data[_data_var].values
                     flags = np.full(ts_no, Flag.VALID)
                     if actris_variable not in self._data:
                         self._data[actris_variable] = NpStructuredData(
-                            actris_variable, self.get_ebas_data_units(tmp_data, _data_var)
+                            actris_variable,
+                            self.get_ebas_data_units(tmp_data, _data_var),
                         )
 
                     self._data[actris_variable].append(
@@ -230,7 +239,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         "altitude": altitude[0],
                         "country": self.get_ebas_data_country_code(tmp_data),
                         "url": "",
-                        "long_name": long_name,
+                        "long_name": stat_code,
                     }
                 )
             bar.update(1)
@@ -269,7 +278,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     ret_data = var_name
                     break
         if ret_data is None:
-            raise ActrisEbasQcVariableNotFoundException(f"Error: no flag data for variable {var_name} found!")
+            raise ActrisEbasQcVariableNotFoundException(
+                f"Error: no flag data for variable {var_name} found!"
+            )
         return ret_data
 
     def get_ebas_data_country_code(self, tmp_data):
@@ -281,7 +292,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         try:
             return self._def_data[STD_NAME_SECTION_NAME][actris_var_name]
         except KeyError:
-            raise ActrisEbasStdNameNotFoundException(f"Error: no CF standard name for {actris_var_name} found!")
+            raise ActrisEbasStdNameNotFoundException(
+                f"Error: no CF standard name for {actris_var_name} found!"
+            )
 
     def _get_ebas_data_vars(self, tmp_data, actris_var: str = None, units: str = None):
         """
@@ -349,7 +362,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return urls_to_dl
 
     def _unfiltered_data(self, varname) -> Data:
-        return self._data[varname]
+        ret_data = deepcopy(self._data[varname])
+        return ret_data
+        # return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
         return self._stations
