@@ -16,6 +16,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
     }
     vars_to_read = ["ozone mass concentration"]
+    pyaerocom_vars_to_read = ["conco3"]
 
     def test_api_online(self, url=TEST_URL):
         try:
@@ -72,23 +73,26 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
 
             self.assertIn("revision", ts.metadata())
 
-    # def test_api_reading_pyaerocom_naming(self):
-    #     # test access to the EBAS API
-    #     filters = {
-    #         "variables": {
-    #             "include": [
-    #                 "vmro3",
-    #             ]
-    #         },
-    #         "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
-    #     }
-    #     engine = pyaro.list_timeseries_engines()[self.engine]
-    #     #
-    #     with engine.open(
-    #         filters=filters,
-    #             vars_to_read=["vmro3"],
-    #     ) as ts:
-    #         self.assertGreaterEqual(len(ts.variables()), 1)
+    def test_api_reading_pyaerocom_naming(self):
+        # test access to the EBAS API
+        filters = {
+            "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
+            # "variables": {
+            #     "include": self.vars_to_read,
+            # },
+        }
+        engine = pyaro.list_timeseries_engines()[self.engine]
+        #
+        with engine.open(
+                filters=filters,
+                vars_to_read=self.pyaerocom_vars_to_read,
+                test_flag=True,
+        ) as ts:
+            self.assertGreaterEqual(len(ts.variables()), 1)
+            self.assertEqual(len(ts.stations()), 2)
+            self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
+            self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
+
     #
     # #
     # def test_wrappers(self):

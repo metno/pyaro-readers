@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # BASE_API_URL = "https://prod-actris-md.nilu.no/Vocabulary/categories"
 BASE_API_URL = "https://prod-actris-md.nilu.no/"
 # base URL to query for data for a certain variable
-VAR_QUERY_URL = f"{BASE_API_URL}Metadata/content/"
+VAR_QUERY_URL = f"{BASE_API_URL}metadata/content/"
 # basename of definitions.toml which connects the pyaerocom variable names with the ACTRIS variable names
 DEFINITION_FILE_BASENAME = "definitions.toml"
 
@@ -89,26 +89,25 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._urls_to_dl = {}
         self._data = {}  # var -> {data-array}
         self._set_filters(filters)
-        self._header = []
+        # self._header = []
         self._metadata = {}
+        # used for variable matching in the EBAS data files
+        # gives a mapping between the EBAS or pyaerocom variable name
+        # and the CF standard name found in the EBAS data files
+        # Due to standard_names aliases, the values are a list
         self._standard_names = {}
-        _laststatstr = ""
+        # _laststatstr = ""
         self._revision = datetime.datetime.now()
         self._metadata["revision"] = datetime.datetime.strftime(
             self._revision, "%y%m%d%H%M%S"
         )
 
-        if "variables" in filters:
-            if "include" in filters["variables"]:
-                self.vars_to_read = filters["variables"]["include"]
-                logger.info(f"applying variable include filter {vars_to_read}...")
-        # try:
-        #     self.vars_to_read = filters["variables"]["include"]
-        # except KeyError:
-        #     raise ValueError(
-        #         f"As of now, you have to give the species you want to read in filter.variables.include"
-        #     )
+        # if "variables" in filters:
+        #     if "include" in filters["variables"]:
+        #         self.vars_to_read = filters["variables"]["include"]
+        #         logger.info(f"applying variable include filter {vars_to_read}...")
 
+        # read only stations according to the station filter
         try:
             self.sites_to_read = filters["stations"]["include"]
         except KeyError:
@@ -121,34 +120,73 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         # read config file
         self._def_data = self._read_definitions(file=DEFINITION_FILE)
+        # Because the user might have given a pyaerocom name, build self._actris_vars_to_read with a list
+        # of ACTRIS variables to read. values are a list
+        self._actris_vars_to_read = {}
         for var in self.vars_to_read:
             self._metadata[var] = {}
-            self._standard_names[var] = self.get_actris_standard_name(var)
-            # for testing since the API is error-prone and slow at the time of this writing
-            test_file = os.path.join(
-                os.path.dirname(os.path.realpath(__file__)),
-                f"{var}.json",
-            )
-            if os.path.exists(test_file) and test_flag:
-                with open(test_file, "r") as f:
-                    json_resp = json.load(f)
+            # handle pyaerocom variables here:
+            # if a given variable name is in the list of pyaerocom variable names in definitions.toml
+            self._actris_vars_to_read[var] = []
+            if var in self._def_data["variables"]:
+                # use gave a pyaerocom variable name
+                self._actris_vars_to_read[var] = self._def_data["variables"][var][
+                    "actris_variable"
+                ]
+                for _actris_var in self._actris_vars_to_read[var]:
+                    try:
+                        self._standard_names[var].extend(
+                            self.get_actris_standard_name(_actris_var)
+                        )
+                        self._standard_names[_actris_var].extend(
+                            self.get_actris_standard_name(_actris_var)
+                        )
+                    except KeyError:
+                        self._standard_names[var] = [
+                            self.get_actris_standard_name(_actris_var)
+                        ]
+                        self._standard_names[_actris_var] = [
+                            self.get_actris_standard_name(_actris_var)
+                        ]
             else:
-                # search for variable metadata
-                query_url = f"{VAR_QUERY_URL}{quote(var)}"
-                retries = Retry(connect=5, read=2, redirect=5)
-                http = PoolManager(retries=retries)
-                response = http.request("GET", query_url)
+                # user gave ACTRIS name
+                self._actris_vars_to_read[var].append(var)
+                self._standard_names[var] = self.get_actris_standard_name(var)
 
-                json_resp = json.loads(response.data.decode("utf-8"))
+        for _pyaro_var in self._actris_vars_to_read:
+            self._metadata[_pyaro_var] = {}
+            for _actris_var in self._actris_vars_to_read[_pyaro_var]:
+                # for testing since the API is error-prone and slow at the time of this writing
+                test_file = os.path.join(
+                    os.path.dirname(os.path.realpath(__file__)),
+                    f"{_actris_var}.json",
+                )
+                if os.path.exists(test_file) and test_flag:
+                    with open(test_file, "r") as f:
+                        json_resp = json.load(f)
+                else:
+                    # search for variable metadata
+                    query_url = (
+                        f"{VAR_QUERY_URL}{quote(self._actris_vars_to_read[_pyaro_var])}"
+                    )
+                    retries = Retry(connect=5, read=2, redirect=5)
+                    http = PoolManager(retries=retries)
+                    response = http.request("GET", query_url)
+                    json_resp = json.loads(response.data.decode("utf-8"))
 
-            self._metadata[var] = json_resp
-            self._urls_to_dl[var] = self.extract_urls(
-                json_resp,
-                sites_to_read=self.sites_to_read,
-                sites_to_exclude=self.sites_to_exclude,
-            )
-            self.read_data(var, self._urls_to_dl[var])
-        assert self._data[self.vars_to_read[0]]
+                self._metadata[_pyaro_var][_actris_var] = json_resp
+                self._urls_to_dl[_actris_var] = self.extract_urls(
+                    json_resp,
+                    sites_to_read=self.sites_to_read,
+                    sites_to_exclude=self.sites_to_exclude,
+                )
+                # The following needs some refinement once we read pyaerocom variables that hold more than
+                # one EBAS variable
+                # we need to decide per station which EBAS variable to return at a certain station and potentially time
+                self.read_data(
+                    actris_variable=_pyaro_var, urls_to_dl=self._urls_to_dl[_actris_var]
+                )
+                assert self._data[_pyaro_var]
 
     def metadata(self):
         return self._metadata
@@ -185,16 +223,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         tmp_data,
                     )
                 ):
-                    # the naming of the variable in the file does not reflect the vocabulary naming ot pyaerocom's
-                    # naming
-                    # ret_data_var = _data_var.copy()
-                    # if ret_data_var not in self.vars_to_read and :
-                    #     # we need
-
                     # look for a standard_name match and return only that variable
                     if (
                             self.get_ebas_data_standard_name(tmp_data, _data_var)
-                            != self._standard_names[actris_variable]
+                            not in self._standard_names[actris_variable]
                     ):
                         logger.info(
                             f"station {site_name}, file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
@@ -362,9 +394,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return urls_to_dl
 
     def _unfiltered_data(self, varname) -> Data:
-        ret_data = deepcopy(self._data[varname])
-        return ret_data
-        # return self._data[varname]
+        return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
         return self._stations
