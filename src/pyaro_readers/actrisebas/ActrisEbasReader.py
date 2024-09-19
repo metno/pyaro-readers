@@ -9,7 +9,6 @@ from urllib.parse import urlparse, quote
 import numpy as np
 import polars
 import xarray as xr
-from gpxpy.gpx import var_name
 from tqdm import tqdm
 from urllib3.poolmanager import PoolManager
 from urllib3.util.retry import Retry
