@@ -9,6 +9,7 @@ from urllib.parse import urlparse, quote
 import numpy as np
 import polars
 import xarray as xr
+from gpxpy.gpx import var_name
 from tqdm import tqdm
 from urllib3.poolmanager import PoolManager
 from urllib3.util.retry import Retry
@@ -176,7 +177,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     while len(json_resp_tmp) != 0:
                         # search for variable metadata
                         query_url = f"{VAR_QUERY_URL}{quote(self._actris_vars_to_read[_pyaro_var][0])}/page/{page_no}"
-                        print(query_url)
+                        logger.info(query_url)
                         retries = Retry(connect=5, read=2, redirect=5)
                         http = PoolManager(retries=retries)
                         response = http.request("GET", query_url)
@@ -234,17 +235,16 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     )
                 ):
                     # look for a standard_name match and return only that variable
-                    if (
-                        self.get_ebas_data_standard_name(tmp_data, _data_var)
-                        not in self._standard_names[actris_variable]
-                    ):
-                        logger.info(
-                            f"station {site_name}, file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
-                        )
-                        print(
-                            f"station {site_name},file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
-                        )
+                    std_name = self.get_ebas_data_standard_name(tmp_data, _data_var)
+                    if std_name not in self._standard_names[actris_variable]:
+                        # logger.info(
+                        #     f"station {site_name}, file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
+                        # )
                         continue
+                    else:
+                        logger.info(
+                            f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
+                        )
 
                     vals = tmp_data[_data_var].values
                     # apply flags
