@@ -17,6 +17,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     }
     vars_to_read = ["ozone mass concentration"]
     pyaerocom_vars_to_read = ["conco3"]
+    # pyaerocom_vars_to_read = ["vmro3"]
 
     def test_api_online(self, url=TEST_URL):
         try:
@@ -39,6 +40,14 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
 
     def test_init(self):
         engine = pyaro.list_timeseries_engines()[self.engine]
+        self.assertEqual(engine.url(), "https://github.com/metno/pyaro-readers")
+        # just see that it doesn't fail
+        engine.description()
+        assert engine.args()
+
+    def test_flag_list_online(self):
+        engine = pyaro.list_timeseries_engines()[self.engine]
+
         self.assertEqual(engine.url(), "https://github.com/metno/pyaro-readers")
         # just see that it doesn't fail
         engine.description()

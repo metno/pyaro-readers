@@ -3,11 +3,16 @@ import json
 import logging
 import os
 import tomllib
-from copy import deepcopy
+
 from urllib.parse import urlparse, quote
 
 import numpy as np
+import polars
 import xarray as xr
+from tqdm import tqdm
+from urllib3.poolmanager import PoolManager
+from urllib3.util.retry import Retry
+
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -15,19 +20,18 @@ from pyaro.timeseries import (
     NpStructuredData,
     Station,
 )
-from tqdm import tqdm
-from urllib3.poolmanager import PoolManager
-from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
 # default API URL base
 # BASE_API_URL = "https://prod-actris-md.nilu.no/Vocabulary/categories"
-BASE_API_URL = "https://prod-actris-md.nilu.no/"
+BASE_API_URL = "https://dev-actris-md.nilu.no/"
 # base URL to query for data for a certain variable
 VAR_QUERY_URL = f"{BASE_API_URL}metadata/content/"
 # basename of definitions.toml which connects the pyaerocom variable names with the ACTRIS variable names
 DEFINITION_FILE_BASENAME = "definitions.toml"
+# online ressource of ebas flags
+EBAS_FLAG_URL = "https://folk.nilu.no/~ebas/EBAS_Masterdata/ebas_flags.csv"
 
 DEFINITION_FILE = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), DEFINITION_FILE_BASENAME
@@ -80,7 +84,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         filters=[],
         tqdm_desc: str | None = None,
         ts_type: str = "daily",
-        test_flag: bool = True,
+        test_flag: bool = False,
     ):
         """ """
         self._filename = None
@@ -101,6 +105,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._metadata["revision"] = datetime.datetime.strftime(
             self._revision, "%y%m%d%H%M%S"
         )
+        self.ebas_flags = self.get_ebas_flags()
 
         # if "variables" in filters:
         #     if "include" in filters["variables"]:
@@ -165,14 +170,19 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     with open(test_file, "r") as f:
                         json_resp = json.load(f)
                 else:
-                    # search for variable metadata
-                    query_url = (
-                        f"{VAR_QUERY_URL}{quote(self._actris_vars_to_read[_pyaro_var])}"
-                    )
-                    retries = Retry(connect=5, read=2, redirect=5)
-                    http = PoolManager(retries=retries)
-                    response = http.request("GET", query_url)
-                    json_resp = json.loads(response.data.decode("utf-8"))
+                    page_no = 0
+                    json_resp_tmp = "bla"
+                    json_resp = []
+                    while len(json_resp_tmp) != 0:
+                        # search for variable metadata
+                        query_url = f"{VAR_QUERY_URL}{quote(self._actris_vars_to_read[_pyaro_var][0])}/page/{page_no}"
+                        print(query_url)
+                        retries = Retry(connect=5, read=2, redirect=5)
+                        http = PoolManager(retries=retries)
+                        response = http.request("GET", query_url)
+                        json_resp_tmp = json.loads(response.data.decode("utf-8"))
+                        json_resp.extend(json_resp_tmp)
+                        page_no += 1
 
                 self._metadata[_pyaro_var][_actris_var] = json_resp
                 self._urls_to_dl[_actris_var] = self.extract_urls(
@@ -280,6 +290,22 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             bar.update(1)
         bar.close()
 
+    def get_ebas_flags(self, url: str = EBAS_FLAG_URL) -> dict:
+        """small helper to download the bas flag file from NILU"""
+
+        df = polars.read_csv(url)
+        # return this as a python dict for now
+        ret_data = {}
+        for var in df.columns:
+            ret_data[var] = df[var].to_numpy()
+
+        # for simplicity add a dict entry listing the valis flags
+        # last column is the explanation ("V" for valid)
+        ret_data["valid"] = ret_data["Flag"][var == "V"]
+
+        return ret_data
+
+    # decoded_content = download.content.decode('utf-8')
     def get_ebas_data_units(self, tmp_data, var_name):
         """small helper method to get the ebas unit from the data file"""
         unit = tmp_data[var_name].attrs["units"]
