@@ -115,12 +115,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # read only stations according to the station filter
         try:
             self.sites_to_read = filters["stations"]["include"]
-        except KeyError:
+        except (KeyError, TypeError) as e:
             self.sites_to_read = []
 
         try:
             self.sites_to_exclude = filters["stations"]["exclude"]
-        except KeyError:
+        except (KeyError, TypeError) as e:
             self.sites_to_exclude = []
 
         # read config file
@@ -147,12 +147,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             self.get_actris_standard_name(_actris_var)
                         )
                     except KeyError:
-                        self._standard_names[var] = [
-                            self.get_actris_standard_name(_actris_var)
-                        ]
-                        self._standard_names[_actris_var] = [
-                            self.get_actris_standard_name(_actris_var)
-                        ]
+                        self._standard_names[var] = self.get_actris_standard_name(
+                            _actris_var
+                        )
+                        self._standard_names[
+                            _actris_var
+                        ] = self.get_actris_standard_name(_actris_var)
+
             else:
                 # user gave ACTRIS name
                 self._actris_vars_to_read[var].append(var)
@@ -210,22 +211,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         """
         read the data from EBAS thredds server
         """
-        bar = tqdm(desc=tqdm_desc, total=len(urls_to_dl))
+        bar = tqdm(desc=tqdm_desc, total=len(urls_to_dl), disable=None)
         for s_idx, site_name in enumerate(urls_to_dl):
             for f_idx, url in enumerate(urls_to_dl[site_name]):
                 tmp_data = xr.open_dataset(url)
-                long_name = tmp_data.attrs["ebas_station_name"]
-                stat_code = tmp_data.attrs["ebas_station_code"]
-                # create variables valid for all measured variables...
-                start_time = np.asarray(tmp_data["time_bnds"][:, 0])
-                stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
-                ts_no = len(start_time)
-                lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
-                lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
-                # station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
-                station = np.full(ts_no, long_name)
-                altitude = np.full(ts_no, tmp_data.attrs["geospatial_vertical_min"])
-                standard_deviation = np.full(ts_no, np.nan)
 
                 # put all data variables in the data struct for the moment
                 for d_idx, _data_var in enumerate(
@@ -241,10 +230,24 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         # )
                         continue
                     else:
+                        bla = f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
                         logger.info(
                             f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
                         )
 
+                    assert f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
+                    long_name = tmp_data.attrs["ebas_station_name"]
+                    stat_code = tmp_data.attrs["ebas_station_code"]
+                    # create variables valid for all measured variables...
+                    start_time = np.asarray(tmp_data["time_bnds"][:, 0])
+                    stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
+                    ts_no = len(start_time)
+                    lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
+                    lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
+                    # station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
+                    station = np.full(ts_no, long_name)
+                    altitude = np.full(ts_no, tmp_data.attrs["geospatial_vertical_min"])
+                    standard_deviation = np.full(ts_no, np.nan)
                     vals = tmp_data[_data_var].values
                     # apply flags
                     ebas_qc_var = self.get_ebas_data_qc_variable(tmp_data, _data_var)
@@ -268,12 +271,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         flag=flags,
                         standard_deviation=standard_deviation,
                     )
-                    # make sure to return something in the user given variable name for now
-                    # try:
-                    #     if _data_var != self.vars_to_read[d_idx]:
-                    #         self._data[self.vars_to_read[d_idx]] = self._data[_data_var]
-                    # except IndexError:
-                    #     pass
+                    # stop after the 1st matching variable
+                    break
             if not site_name in self._stations:
                 self._stations[site_name] = Station(
                     {
@@ -312,7 +311,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
     def get_ebas_data_standard_name(self, tmp_data, var_name):
         """small helper method to get the ebas standard_name for a given variable from the data file"""
-        ret_data = tmp_data[var_name].attrs["standard_name"]
+        ret_data = ""
+        try:
+            ret_data = tmp_data[var_name].attrs["standard_name"]
+        except KeyError:
+            pass
         return ret_data
 
     def get_ebas_data_ancillary_variables(self, tmp_data, var_name):

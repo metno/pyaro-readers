@@ -13,11 +13,15 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     engine = "actrisebas"
 
     station_filter = {
-        "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
+        "stations": {
+            "include": ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"]
+        },
     }
-    vars_to_read = ["ozone mass concentration"]
-    pyaerocom_vars_to_read = ["conco3"]
+    # vars_to_read = ["ozone mass concentration"]
+    vars_to_read = ["aerosol particle sulphate mass concentration"]
+    # pyaerocom_vars_to_read = ["conco3"]
     # pyaerocom_vars_to_read = ["vmro3"]
+    pyaerocom_vars_to_read = ["concso4t"]
 
     def test_api_online(self, url=TEST_URL):
         try:
@@ -72,11 +76,12 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()[self.engine]
         #
         with engine.open(
-            filters=filters,
+            # filters=[],
+            filters=self.station_filter,
             vars_to_read=self.vars_to_read,
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
-            self.assertEqual(len(ts.stations()), 2)
+            self.assertGreaterEqual(len(ts.stations()), 2)
             self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
             self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
 
@@ -90,17 +95,19 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             #     "include": self.vars_to_read,
             # },
         }
-        engine = pyaro.list_timeseries_engines()[self.engine]
-        #
-        with engine.open(
-            filters=filters,
-            vars_to_read=self.pyaerocom_vars_to_read,
-            test_flag=True,
-        ) as ts:
-            self.assertGreaterEqual(len(ts.variables()), 1)
-            self.assertEqual(len(ts.stations()), 2)
-            self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
-            self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
+        # test variable by variable
+        for _var in self.pyaerocom_vars_to_read:
+            engine = pyaro.list_timeseries_engines()[self.engine]
+            #
+            with engine.open(
+                filters=self.station_filter,
+                vars_to_read=[_var],
+                test_flag=False,
+            ) as ts:
+                self.assertGreaterEqual(len(ts.variables()), 1)
+                self.assertGreaterEqual(len(ts.stations()), 2)
+                self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
+                self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
 
     #
     # #

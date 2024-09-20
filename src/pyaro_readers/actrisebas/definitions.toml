@@ -13,18 +13,33 @@ actris_variable = ["ozone mass concentration"]
 actris_matrix = ["gas phase"]
 ebas_component = ["ozone"]
 ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_ozone_in_air"]
 
 [variables.vmro3]
 actris_variable = ["ozone amount fraction"]
 actris_matrix = ["gas phase"]
 ebas_component = ["ozone"]
 ebas_matrix = ["air"]
+standard_names = ["mole_fraction_of_ozone_in_air"]
 
-[variables.concso4]
+
+[variables.concso4t]
 actris_variable = ["aerosol particle sulphate mass concentration"]
 actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
-ebas_component = ["sulphate_corrected", "sulphate_total"]
+ebas_component = ["sulphate_total"]
 ebas_matrix = ["aerosol", "pm10", "pm25"]
+standard_names = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_dry_aerosol_particles_in_air",
+    "mass_concentration_of_sulphate_total_in_pm10_in_air",
+    "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
+
+[variables.concso4c]
+actris_variable = ["aerosol particle sulphate mass concentration"]
+actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
+ebas_component = ["sulphate_corrected"]
+ebas_matrix = ["aerosol", "pm10", "pm25"]
+standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_dry_aerosol_particles_in_air",
+    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm10_in_air",
+    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm2p5_in_air", ]
 
 #[actris_std_units]
 # tell the reader which unit shall be returned in case the same property is available in several units
@@ -38,6 +53,12 @@ ebas_matrix = ["aerosol", "pm10", "pm25"]
 [actris_standard_names]
 # match between ACTRIS vocabulary and CF standard name
 # needed to match the variables in multicolumn files since the netcdf variable name has no meaning
-"ozone mass concentration" = "mass_concentration_of_ozone_in_air"
-"ozone amount fraction" = "mole_fraction_of_ozone_in_air"
-"aerosol particle sulphate mass concentration" = "mass_concentration_of_sulfate_aerosol_in_air"
+# the standard_names are not unique for a given ACTRIS species, therefore a list
+"ozone mass concentration" = ["mass_concentration_of_ozone_in_air"]
+"ozone amount fraction" = ["mole_fraction_of_ozone_in_air"]
+"aerosol particle sulphate mass concentration" = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_dry_aerosol_particles_in_air",
+    "mass_concentration_of_sulphate_total_in_pm10_in_air",
+    "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
+#"" = "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_dry_aerosol_particles_in_air"
+#"" = ""
+#"" = ""
