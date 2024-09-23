@@ -18,7 +18,8 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         },
     }
     # vars_to_read = ["ozone mass concentration"]
-    vars_to_read = ["aerosol particle sulphate mass concentration"]
+    # vars_to_read = ["aerosol particle sulphate mass concentration"]
+    vars_to_read = ["aerosol particle elemental carbon mass concentration"]
     # pyaerocom_vars_to_read = ["conco3"]
     # pyaerocom_vars_to_read = ["vmro3"]
     pyaerocom_vars_to_read = ["concso4t"]

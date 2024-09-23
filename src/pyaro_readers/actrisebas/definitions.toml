@@ -41,6 +41,22 @@ standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_express
     "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm10_in_air",
     "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm2p5_in_air", ]
 
+[variables.concCecpm25]
+actris_variable = ["aerosol particle elemental carbon mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["elemental_carbon"]
+ebas_matrix = ["pm25", "pm1"]
+standard_names = ["mass_concentration_of_elemental_carbon_in_pm2p5_in_air",
+    "mass_concentration_of_elemental_carbon_in_pm1_in_air", ]
+
+[variables.concCsopm25]
+actris_variable = ["aerosol particle organic carbon mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["organic_carbon"]
+ebas_matrix = ["pm25", "pm1"]
+standard_names = ["mass_concentration_of_organic_carbon_in_pm2p5_in_air",
+    "mass_concentration_of_organic_carbon_in_pm1_in_air", ]
+
 #[actris_std_units]
 # tell the reader which unit shall be returned in case the same property is available in several units
 # e.g. ozone mass concentration is available in the files in [ug/m3] and [nmol/mol]
@@ -62,3 +78,7 @@ standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_express
 #"" = "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_dry_aerosol_particles_in_air"
 #"" = ""
 #"" = ""
+"aerosol particle elemental carbon mass concentration" = ["mass_concentration_of_elemental_carbon_in_pm2p5_in_air",
+    "mass_concentration_of_elemental_carbon_in_pm1_in_air", ]
+"aerosol particle organic carbon mass concentration" = ["mass_concentration_of_organic_carbon_in_pm2p5_in_air",
+    "mass_concentration_of_organic_carbon_in_pm1_in_air", ]
