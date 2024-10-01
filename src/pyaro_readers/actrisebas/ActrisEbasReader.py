@@ -24,8 +24,8 @@ from pyaro.timeseries import (
 logger = logging.getLogger(__name__)
 
 # default API URL base
-# BASE_API_URL = "https://prod-actris-md.nilu.no/Vocabulary/categories"
 BASE_API_URL = "https://dev-actris-md.nilu.no/"
+# BASE_API_URL = "https://prod-actris-md.nilu.no/"
 # base URL to query for data for a certain variable
 VAR_QUERY_URL = f"{BASE_API_URL}metadata/content/"
 # basename of definitions.toml which connects the pyaerocom variable names with the ACTRIS variable names
@@ -181,9 +181,19 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         retries = Retry(connect=5, read=2, redirect=5)
                         http = PoolManager(retries=retries)
                         response = http.request("GET", query_url)
-                        json_resp_tmp = json.loads(response.data.decode("utf-8"))
-                        json_resp.extend(json_resp_tmp)
-                        page_no += 1
+                        if len(response.data) > 0:
+                            try:
+                                json_resp_tmp = json.loads(
+                                    response.data.decode("utf-8")
+                                )
+                            except json.decoder.JSONDecodeError:
+                                json_resp_tmp = json.loads(response.data)
+
+                            json_resp.extend(json_resp_tmp)
+                            page_no += 1
+                        else:
+                            json_resp_tmp = ""
+                            continue
 
                 self._metadata[_pyaro_var][_actris_var] = json_resp
                 self._urls_to_dl[_actris_var] = self.extract_urls(
@@ -401,6 +411,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 LOCATION_NAME_KEY
             ]
             if site_name in sites_to_exclude:
+                logger.info(f"site {site_name} excluded due to exclusion filter")
                 continue
             if site_name in sites_to_read or len(sites_to_read) == 0:
                 if site_name not in urls_to_dl:
@@ -415,10 +426,16 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         distribution_data[DISTRIBUTION_PROTOCOL_KEY]
                         != DISTRIBUTION_PROTOCOL_NAME
                     ):
+                        logger.info(
+                            f"skipping site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]}"
+                        )
                         continue
                     else:
                         urls_to_dl[site_name].append(
                             distribution_data[DISTRIBUTION_URL_KEY]
+                        )
+                        logger.info(
+                            f"site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
                         )
                         break
         return urls_to_dl
