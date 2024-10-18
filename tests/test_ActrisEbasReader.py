@@ -75,18 +75,16 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             # },
         }
         engine = pyaro.list_timeseries_engines()[self.engine]
-        #
-        with engine.open(
-            # filters=[],
-            filters=self.station_filter,
-            vars_to_read=self.vars_to_read,
-        ) as ts:
-            self.assertGreaterEqual(len(ts.variables()), 1)
-            self.assertGreaterEqual(len(ts.stations()), 2)
-            self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
-            self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
-
-            self.assertIn("revision", ts.metadata())
+        read_obj = engine.open(
+            filters=self.station_filter, vars_to_read=self.vars_to_read
+        )
+        read_obj.read()
+        self.assertGreaterEqual(len(read_obj.variables()), 1)
+        self.assertGreaterEqual(len(read_obj.stations()), 2)
+        self.assertGreaterEqual(len(read_obj._data[read_obj.variables()[0]]), 1000)
+        self.assertGreaterEqual(len(read_obj.data(read_obj.variables()[0])), 1000)
+        self.assertGreaterEqual(len(read_obj.variables()), 1)
+        self.assertIn("revision", read_obj.metadata())
 
     def test_api_reading_pyaerocom_naming(self):
         # test access to the EBAS API
@@ -99,16 +97,15 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         # test variable by variable
         for _var in self.pyaerocom_vars_to_read:
             engine = pyaro.list_timeseries_engines()[self.engine]
-            #
-            with engine.open(
-                filters=self.station_filter,
-                vars_to_read=[_var],
-                test_flag=False,
-            ) as ts:
-                self.assertGreaterEqual(len(ts.variables()), 1)
-                self.assertGreaterEqual(len(ts.stations()), 2)
-                self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
-                self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
+            read_obj = engine.open(filters=self.station_filter, vars_to_read=[_var])
+            read_obj.read()
+            self.assertGreaterEqual(len(read_obj.variables()), 1)
+            self.assertGreaterEqual(len(read_obj.stations()), 2)
+            self.assertGreaterEqual(len(read_obj._data[read_obj.variables()[0]]), 1000)
+            self.assertGreaterEqual(len(read_obj.data(read_obj.variables()[0])), 1000)
+            self.assertGreaterEqual(len(read_obj.variables()), 1)
+            self.assertIn("revision", read_obj.metadata())
+
 
     #
     # #
