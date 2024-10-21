@@ -78,13 +78,33 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         read_obj = engine.open(
             filters=self.station_filter, vars_to_read=self.vars_to_read
         )
-        read_obj.read()
-        self.assertGreaterEqual(len(read_obj.variables()), 1)
-        self.assertGreaterEqual(len(read_obj.stations()), 2)
-        self.assertGreaterEqual(len(read_obj._data[read_obj.variables()[0]]), 1000)
-        self.assertGreaterEqual(len(read_obj.data(read_obj.variables()[0])), 1000)
-        self.assertGreaterEqual(len(read_obj.variables()), 1)
-        self.assertIn("revision", read_obj.metadata())
+        with read_obj.read() as ts:
+            self.assertGreaterEqual(len(ts.variables()), 1)
+            self.assertGreaterEqual(len(read_obj.stations()), 2)
+            self.assertGreaterEqual(len(read_obj._data[read_obj.variables()[0]]), 1000)
+            self.assertGreaterEqual(len(read_obj.data(read_obj.variables()[0])), 1000)
+            self.assertGreaterEqual(len(read_obj.variables()), 1)
+            self.assertIn("revision", read_obj.metadata())
+
+    # def test_api_reading_small_data_set_without_cm(self):
+    #     # test access to the EBAS API
+    #     filters = {
+    #         "stations": {"include": ["Birkenes II", "Jungfraujoch"]},
+    #         # "variables": {
+    #         #     "include": self.vars_to_read,
+    #         # },
+    #     }
+    #     engine = pyaro.list_timeseries_engines()[self.engine]
+    #     read_obj = engine.open(
+    #         filters=self.station_filter, vars_to_read=self.vars_to_read
+    #     )
+    #     read_obj.read()
+    #     self.assertGreaterEqual(len(read_obj.variables()), 1)
+    #     self.assertGreaterEqual(len(read_obj.stations()), 2)
+    #     self.assertGreaterEqual(len(read_obj._data[read_obj.variables()[0]]), 1000)
+    #     self.assertGreaterEqual(len(read_obj.data(read_obj.variables()[0])), 1000)
+    #     self.assertGreaterEqual(len(read_obj.variables()), 1)
+    #     self.assertIn("revision", read_obj.metadata())
 
     def test_api_reading_pyaerocom_naming(self):
         # test access to the EBAS API
@@ -98,13 +118,13 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         for _var in self.pyaerocom_vars_to_read:
             engine = pyaro.list_timeseries_engines()[self.engine]
             read_obj = engine.open(filters=self.station_filter, vars_to_read=[_var])
-            read_obj.read()
-            self.assertGreaterEqual(len(read_obj.variables()), 1)
-            self.assertGreaterEqual(len(read_obj.stations()), 2)
-            self.assertGreaterEqual(len(read_obj._data[read_obj.variables()[0]]), 1000)
-            self.assertGreaterEqual(len(read_obj.data(read_obj.variables()[0])), 1000)
-            self.assertGreaterEqual(len(read_obj.variables()), 1)
-            self.assertIn("revision", read_obj.metadata())
+            with read_obj.read() as ts:
+                self.assertGreaterEqual(len(ts.variables()), 1)
+                self.assertGreaterEqual(len(ts.stations()), 2)
+                self.assertGreaterEqual(len(ts._data[read_obj.variables()[0]]), 1000)
+                self.assertGreaterEqual(len(ts.data(read_obj.variables()[0])), 1000)
+                self.assertGreaterEqual(len(ts.variables()), 1)
+                self.assertIn("revision", ts.metadata())
 
 
     #

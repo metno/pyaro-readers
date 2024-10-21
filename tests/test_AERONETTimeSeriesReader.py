@@ -33,12 +33,13 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         if not self.external_resource_available(TEST_URL):
             self.skipTest(f"external resource not available: {TEST_URL}")
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-        with engine.open(
+        read_obj = engine.open(
             TEST_URL,
             filters=[],
             fill_country_flag=False,
             tqdm_desc="test_dl_data_unzipped",
-        ) as ts:
+        )
+        with read_obj.read() as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -46,16 +47,34 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             self.assertEqual(len(ts.stations()), 4)
             self.assertGreaterEqual(int(ts.metadata()["revision"]), 220622120000)
 
+    # def test_dl_data_unzipped(self):
+    #     if not self.external_resource_available(TEST_URL):
+    #         self.skipTest(f"external resource not available: {TEST_URL}")
+    #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+    #     with engine.open(
+    #         TEST_URL,
+    #         filters=[],
+    #         fill_country_flag=False,
+    #         tqdm_desc="test_dl_data_unzipped",
+    #     ) as ts:
+    #         count = 0
+    #         for var in ts.variables():
+    #             count += len(ts.data(var))
+    #         self.assertEqual(count, 49965)
+    #         self.assertEqual(len(ts.stations()), 4)
+    #         self.assertGreaterEqual(int(ts.metadata()["revision"]), 220622120000)
+    #
     def test_dl_data_zipped(self):
         if not self.external_resource_available(TEST_ZIP_URL):
             self.skipTest(f"external resource not available: {TEST_ZIP_URL}")
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-        with engine.open(
+        read_obj = engine.open(
             TEST_ZIP_URL,
             filters=[],
             fill_country_flag=False,
             tqdm_desc="test_dl_data_zipped",
-        ) as ts:
+        )
+        with read_obj.read() as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -70,12 +89,13 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         if not self.external_resource_available(AERONETSUN_URL):
             self.skipTest(f"external resource not available: {AERONETSUN_URL}")
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
-        with engine.open(
+        read_obj = engine.open(
             AERONETSUN_URL,
             filters=[],
             fill_country_flag=False,
             tqdm_desc="aeronet data zipped",
-        ) as ts:
+        )
+        with read_obj.read() as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -89,9 +109,10 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         # just see that it doesn't fail
         engine.description()
         engine.args()
-        with engine.open(
+        read_obj = engine.open(
             self.file, filters=[], fill_country_flag=True, tqdm_desc="test_init"
-        ) as ts:
+        )
+        with read_obj.read() as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -101,9 +122,10 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
     def test_stationfilter(self):
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
         sfilter = pyaro.timeseries.filters.get("stations", exclude=["Cuiaba"])
-        with engine.open(
+        read_obj = engine.open(
             self.file, filters=[sfilter], tqdm_desc="test_stationfilter"
-        ) as ts:
+        )
+        with read_obj.read() as ts:
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -113,9 +135,10 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
     def test_wrappers(self):
         engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
         new_var_name = "od500aer"
-        with VariableNameChangingReader(
+        read_obj = VariableNameChangingReader(
             engine.open(self.file, filters=[]), {"AOD_500nm": new_var_name}
-        ) as ts:
+        )
+        with read_obj.read() as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
         pass
 
@@ -125,9 +148,10 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         vfilter = pyaro.timeseries.filters.get(
             "variables", reader_to_new={"AOD_550nm": new_var_name}
         )
-        with engine.open(
+        read_obj = engine.open(
             self.file, filters=[vfilter], tqdm_desc="test_variables_filter"
-        ) as ts:
+        )
+        with read_obj.read() as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
 
 

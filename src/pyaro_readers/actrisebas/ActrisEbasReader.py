@@ -5,6 +5,7 @@ import os
 import tomllib
 
 from urllib.parse import urlparse, quote
+from contextlib import contextmanager
 
 import numpy as np
 import polars
@@ -213,6 +214,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def metadata(self):
         return self._metadata
 
+    @contextmanager
     def read(
         self,
         tqdm_desc="reading stations",
@@ -310,6 +312,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                     bar.update(1)
                 bar.close()
+                yield self
 
     def get_ebas_flags(self, url: str = EBAS_FLAG_URL) -> dict:
         """small helper to download the bas flag file from NILU"""

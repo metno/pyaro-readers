@@ -3,6 +3,7 @@ from io import BytesIO
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
+from contextlib import contextmanager
 
 from geocoder_reverse_natural_earth import (
     Geocoder_Reverse_NE,
@@ -90,9 +91,19 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._data = {}  # var -> {data-array}
         self._set_filters(filters)
         self._header = []
-        _laststatstr = ""
+
         self._revision = datetime.datetime.min
+        self.fill_country_flag = fill_country_flag
+        self.ts_type = ts_type
+
+
+    @contextmanager
+    def read(
+            self,
+            tqdm_desc="reading stations",
+    ):
         # check if file is a URL
+        _laststatstr = ""
         if self.is_valid_url(self._filename):
             # try to open as zipfile
             try:
@@ -128,7 +139,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 lon = float(row[LON_NAME])
                 lat = float(row[LAT_NAME])
                 alt = float(row["Site_Elevation(m)"])
-                if fill_country_flag:
+                if self.fill_country_flag:
                     try:
                         country = gcd.lookup(lat, lon)["ISO_A2_EH"]
                     except Geocoder_Reverse_Exception:
@@ -173,8 +184,8 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 ]
             )
             time_dummy = np.datetime64(datestring)
-            start = time_dummy - TS_TYPE_DIFFS[ts_type]
-            end = time_dummy + TS_TYPE_DIFFS[ts_type]
+            start = time_dummy - TS_TYPE_DIFFS[self.ts_type]
+            end = time_dummy + TS_TYPE_DIFFS[self.ts_type]
 
             ts_dummy_data = {}
             for variable in DATA_VARS:
@@ -198,6 +209,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
                 )
         bar.close()
+        yield self
 
     def metadata(self):
         return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
@@ -272,6 +284,9 @@ class AeronetSunTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def description(self):
         return "Simple reader of AeronetSun-files using the pyaro infrastructure"
+
+    def read(self):
+        return self.reader_class().read(*args, **kwargs)
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"

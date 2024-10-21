@@ -5,6 +5,8 @@ from io import BytesIO
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
+from contextlib import contextmanager
+
 import datetime
 
 import numpy as np
@@ -101,10 +103,12 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._data = {}  # var -> {data-array}
         self._set_filters(filters)
         self._header = []
-        _laststatstr = ""
         self._revision = datetime.datetime.min
+        self.fill_country_flag = fill_country_flag
+        self.ts_type = ts_type
 
         # check if file is a URL
+        _laststatstr = ""
         if self.is_valid_url(self._filename):
             # try to open as zipfile
             try:
