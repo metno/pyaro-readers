@@ -139,7 +139,17 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     #         self.assertEqual(ts.data(new_var_name).variable, new_var_name)
     #     pass
     # #
-
+    def test_wrappers(self):
+        engine = pyaro.list_timeseries_engines()[self.engine]
+        new_var_name = "vmro3"
+        ebas_var_name = "ozone mass concentration"
+        # read_obj = engine.open(filters=self.station_filter, vars_to_read=[ebas_var_name])
+        blubb = VariableNameChangingReader(engine.open(filters=self.station_filter, vars_to_read=[ebas_var_name]), reader_to_new={ebas_var_name: new_var_name})
+        # with VariableNameChangingReader.
+        # with blubb.reader.read() as ts:
+        with blubb.read() as ts:
+            self.assertEqual(ts.data(new_var_name).variable, new_var_name)
+        pass
 
 if __name__ == "__main__":
     unittest.main()
