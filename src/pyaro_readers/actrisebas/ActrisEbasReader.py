@@ -496,5 +496,7 @@ class ActrisEbasTimeSeriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
     def url(self):
         return "https://github.com/metno/pyaro-readers"
 
+    @contextmanager
     def read(self):
-        return reader_class().reader.read
+        with self.reader_class().read() as ts:
+            yield ts
