@@ -3,9 +3,7 @@ import json
 import logging
 import os
 import tomllib
-
 from urllib.parse import urlparse, quote
-from contextlib import contextmanager
 
 import numpy as np
 import polars
@@ -80,12 +78,12 @@ class ActrisEbasTestDataNotFoundException(Exception):
 
 class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
-        self,
-        vars_to_read: list[str] = None,
-        filters=[],
-        tqdm_desc: str | None = None,
-        ts_type: str = "daily",
-        test_flag: bool = False,
+            self,
+            vars_to_read: list[str] = None,
+            filters=[],
+            tqdm_desc: str | None = None,
+            ts_type: str = "daily",
+            test_flag: bool = False,
     ):
         """ """
         self._filename = None
@@ -214,10 +212,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def metadata(self):
         return self._metadata
 
-    @contextmanager
     def read(
-        self,
-        tqdm_desc="reading stations",
+            self,
+            tqdm_desc="reading stations",
     ):
         """
         read the data from EBAS thredds server
@@ -226,7 +223,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # for pyaerocom vocabulary they are not (key is pyaerocom variable name there)!
         for _var in self.actris_vars_to_read:
             for actris_variable in self.actris_vars_to_read[_var]:
-            # actris_variable = self.actris_vars_to_read[_var][0]
+                # actris_variable = self.actris_vars_to_read[_var][0]
 
                 urls_to_dl = self.urls_to_dl[actris_variable]
                 bar = tqdm(desc=tqdm_desc, total=len(urls_to_dl), disable=None)
@@ -237,9 +234,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
                         # put all data variables in the data struct for the moment
                         for d_idx, _data_var in enumerate(
-                            self._get_ebas_data_vars(
-                                tmp_data,
-                            )
+                                self._get_ebas_data_vars(
+                                    tmp_data,
+                                )
                         ):
                             # look for a standard_name match and return only that variable
                             std_name = self.get_ebas_data_standard_name(tmp_data, _data_var)
@@ -312,7 +309,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                     bar.update(1)
                 bar.close()
-                yield self
 
     def get_ebas_flags(self, url: str = EBAS_FLAG_URL) -> dict:
         """small helper to download the bas flag file from NILU"""
@@ -323,7 +319,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         for var in df.columns:
             ret_data[var] = df[var].to_numpy()
 
-        # for simplicity add a dict entry listing the valis flags
+        # for simplicity add a dict entry listing the valid flags
         # last column is the explanation ("V" for valid)
         ret_data["valid"] = ret_data["Flag"][var == "V"]
 
@@ -402,8 +398,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 try:
                     # if defined, return only names that match
                     if (
-                        tmp_data[data_var].attrs["units"]
-                        == self.def_data["actris_std_units"][data_var]
+                            tmp_data[data_var].attrs["units"]
+                            == self.def_data["actris_std_units"][data_var]
                     ):
                         data_vars.append(data_var)
                 except KeyError:
@@ -412,10 +408,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return data_vars
 
     def extract_urls(
-        self,
-        json_resp: dict,
-        sites_to_read: list[str] = [],
-        sites_to_exclude: list[str] = [],
+            self,
+            json_resp: dict,
+            sites_to_read: list[str] = [],
+            sites_to_exclude: list[str] = [],
     ) -> dict:
         """
         small helper method to extract URLs to download from json reponse from the EBAS API
@@ -436,11 +432,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 # site_data[DISTRIBUTION_ROOT_KEY] is also a list
                 # search for protocol DISTRIBUTION_PROTOCOL_NAME
                 for url_idx, distribution_data in enumerate(
-                    site_data[DISTRIBUTION_ROOT_KEY]
+                        site_data[DISTRIBUTION_ROOT_KEY]
                 ):
                     if (
-                        distribution_data[DISTRIBUTION_PROTOCOL_KEY]
-                        != DISTRIBUTION_PROTOCOL_NAME
+                            distribution_data[DISTRIBUTION_PROTOCOL_KEY]
+                            != DISTRIBUTION_PROTOCOL_NAME
                     ):
                         logger.info(
                             f"skipping site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]}"
@@ -496,7 +492,5 @@ class ActrisEbasTimeSeriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
     def url(self):
         return "https://github.com/metno/pyaro-readers"
 
-    @contextmanager
     def read(self):
-        with self.reader_class().read() as ts:
-            yield ts
+        return self.reader_class().read()

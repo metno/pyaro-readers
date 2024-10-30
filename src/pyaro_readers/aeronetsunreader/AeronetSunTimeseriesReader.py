@@ -1,16 +1,18 @@
 import csv
+import datetime
 from io import BytesIO
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
-from contextlib import contextmanager
 
+import numpy as np
+import requests
 from geocoder_reverse_natural_earth import (
     Geocoder_Reverse_NE,
     Geocoder_Reverse_Exception,
 )
-import numpy as np
-import requests
+from tqdm import tqdm
+
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -18,8 +20,6 @@ from pyaro.timeseries import (
     NpStructuredData,
     Station,
 )
-from tqdm import tqdm
-import datetime
 
 # default URL
 BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
@@ -60,12 +60,12 @@ TS_TYPE_DIFFS = {
 
 class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
-        self,
-        filename,
-        filters=[],
-        fill_country_flag: bool = FILL_COUNTRY_FLAG,
-        tqdm_desc: str | None = None,
-        ts_type: str = "daily",
+            self,
+            filename,
+            filters=[],
+            fill_country_flag: bool = FILL_COUNTRY_FLAG,
+            tqdm_desc: str | None = None,
+            ts_type: str = "daily",
     ):
         """open a new Aeronet timeseries-reader
 
@@ -96,8 +96,6 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.fill_country_flag = fill_country_flag
         self.ts_type = ts_type
 
-
-    @contextmanager
     def read(
             self,
             tqdm_desc="reading stations",
@@ -209,7 +207,6 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     value, station, lat, lon, alt, start, end, Flag.VALID, np.nan
                 )
         bar.close()
-        yield self
 
     def metadata(self):
         return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
@@ -227,7 +224,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         pass
 
     def compute_od_from_angstromexp(
-        self, to_lambda: float, od_ref: float, lambda_ref: float, angstrom_coeff: float
+            self, to_lambda: float, od_ref: float, lambda_ref: float, angstrom_coeff: float
     ) -> float:
         """Compute AOD at specified wavelength
 
@@ -254,7 +251,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return od_ref * (lambda_ref / to_lambda) ** angstrom_coeff
 
     def calc_angstroem_coeff(
-        self, od1: float, od2: float, wl1: float, wl2: float
+            self, od1: float, od2: float, wl1: float, wl2: float
     ) -> float:
         """
         small helper method to calculate angstroem coefficient
@@ -285,8 +282,8 @@ class AeronetSunTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
     def description(self):
         return "Simple reader of AeronetSun-files using the pyaro infrastructure"
 
-    def read(self):
-        return self.reader_class().read(*args, **kwargs)
-
     def url(self):
         return "https://github.com/metno/pyaro-readers"
+
+    def read(self):
+        return self.reader_class().read()

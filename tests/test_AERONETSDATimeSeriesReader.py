@@ -42,6 +42,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             fill_country_flag=False,
             tqdm_desc="test_sda_dl_data_tared",
         ) as ts:
+            ts.read()
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -60,6 +61,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             fill_country_flag=False,
             tqdm_desc="test_sda_dl_data_unzipped",
         ) as ts:
+            ts.read()
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -78,6 +80,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             fill_country_flag=False,
             tqdm_desc="test_sda_dl_data_zipped",
         ) as ts:
+            ts.read()
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -100,6 +103,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             fill_country_flag=False,
             tqdm_desc="aeronet SDA data zipped",
         ) as ts:
+            ts.read()
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -118,6 +122,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         with engine.open(
             self.file, filters=[], fill_country_flag=True, tqdm_desc="test_init"
         ) as ts:
+            ts.read()
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -130,6 +135,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         with engine.open(
             self.file, filters=[sfilter], tqdm_desc="test_stationfilter"
         ) as ts:
+            ts.read()
             count = 0
             for var in ts.variables():
                 count += len(ts.data(var))
@@ -143,6 +149,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             engine.open(self.file, filters=[]),
             {"Coarse_Mode_AOD_500nm[tau_c]": new_var_name},
         ) as ts:
+            ts.read()
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
         pass
 
@@ -155,6 +162,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         with engine.open(
             self.file, filters=[vfilter], tqdm_desc="test_sda_variables_filter"
         ) as ts:
+            ts.read()
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
 
 
