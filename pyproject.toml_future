@@ -22,7 +22,7 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "pyaro >=0.0.6",
+    "pyaro[optional] >=0.0.6",
     "requests",
     "fiona",
     "netCDF4",
