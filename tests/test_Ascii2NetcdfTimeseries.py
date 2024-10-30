@@ -20,6 +20,7 @@ class TestAscii2NetcdfTimeSeriesReader(unittest.TestCase):
         with pyaro.open_timeseries(
             self.engine, EBAS_URL, resolution="daily", filters=[]
         ) as ts:
+            ts.read()
             self.assertGreater(len(ts.variables()), 70)
             self.assertGreater(len(ts.stations()), 300)
 
@@ -29,6 +30,7 @@ class TestAscii2NetcdfTimeSeriesReader(unittest.TestCase):
         with pyaro.open_timeseries(
             self.engine, EBAS_URL, resolution="daily", filters=[]
         ) as ts:
+            ts.read()
             data = ts.data("sulphur_dioxide_in_air")
             self.assertIn("AM0001", data.stations)
             self.assertGreater(np.sum(data.values), 10000)
@@ -45,6 +47,7 @@ class TestAscii2NetcdfTimeSeriesReader(unittest.TestCase):
                 "stations": {"include": ["NO0002"]},
             },  # Birkenes2
         ) as ts:
+            ts.read()
             data = ts.data("sulphur_dioxide_in_air")
             self.assertIn("NO0002", data.stations)
             self.assertGreater(len(data), 360)
