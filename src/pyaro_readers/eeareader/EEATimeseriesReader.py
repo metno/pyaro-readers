@@ -1,26 +1,26 @@
 import logging
 from os import path
+from datetime import datetime, timedelta
+import sys
+from pathlib import Path
+from typing import Tuple
+import functools
 
 from tqdm import tqdm
-from datetime import datetime, timedelta
-
-from geocoder_reverse_natural_earth import (
-    Geocoder_Reverse_NE,
-    Geocoder_Reverse_Exception,
-)
 import numpy as np
-from pathlib import Path
 import polars
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
     NpStructuredData,
     Station,
+    Reader
 )
+import pyaro.timeseries
 
-try:
+if sys.version_info >= (3, 11):  # pragma: no cover
     import tomllib
-except ImportError:  # python <3.11
+else:  # pragma: no cover
     import tomli as tomllib
 
 
@@ -88,7 +88,7 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def _read_polars(self, filters, filename) -> None:
         try:
             species = filters["variables"]["include"]
-        except:
+        except Exception:
             species = []
 
         filter_time = False
@@ -104,13 +104,13 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         if len(species) == 0:
             raise ValueError(
-                f"As of now, you have to give the species you want to read in filter.variables.include"
+                "As of now, you have to give the species you want to read in filter.variables.include"
             )
 
         filename = Path(filename)
         if not filename.is_dir():
             raise ValueError(
-                f"The filename must be an existing path where the data is found in folders with the country code as name"
+                "The filename must be an existing path where the data is found in folders with the country code as name"
             )
         for s in species:
             files = self._create_file_list(filename, s)
@@ -174,7 +174,7 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 df = lf
                 try:
                     station_metadata = self.metadata[df.row(0)[0].split("/")[-1]]
-                except:
+                except Exception:
                     logger.info(
                         f'Could not extract the metadata for {df.row(0)[0].split("/")[-1]}'
                     )
@@ -242,7 +242,7 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         filename = Path(folder) / "metadata.csv"
         if not filename.exists():
             raise FileExistsError(f"Metadata file could not be found in {folder}")
-        with open(filename, "r") as f:
+        with filename.open("r") as f:
             f.readline()
             for line in f:
                 words = line.split(", ")
@@ -250,7 +250,7 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     lon = float(words[3])
                     lat = float(words[4])
                     alt = float(words[5])
-                except:
+                except Exception:
                     logger.info(
                         f"Could not interpret lat, lon, alt for line {line} in metadata. Skipping"
                     )
@@ -298,3 +298,293 @@ class EEATimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
+
+
+class EEAData(Data):
+    def __init__(self, data, variable: str) -> None:
+        self._data = data
+        self._variable = variable
+
+    @property
+    def units(self) -> str:
+        units = self._data["Unit"].unique()
+        if len(units) != 1:
+            raise Exception("Multiple different units present in this dataset")
+        return units[0]
+
+    def keys(self):
+        raise NotImplementedError
+
+    def slice(self, index):
+        return EEAData(self._data[index], self._variable)
+
+    @property
+    def values(self) -> np.ndarray:
+        return np.array(self._data["Value"], dtype=float)
+
+    @property
+    def stations(self) -> np.ndarray:
+        return np.array(self._data["Samplingpoint"], dtype=float)
+
+    @property
+    def latitudes(self) -> np.ndarray:
+        return np.array(self._data["Latitude"], dtype=float)
+
+    @property
+    def longitudes(self) -> np.ndarray:
+        return np.array(self._data["Longitude"], dtype=float)
+
+    @property
+    def altitudes(self) -> np.ndarray:
+        return np.array(self._data["Altitude"], dtype=float)
+
+    @property
+    def start_times(self) -> np.ndarray:
+        return np.array(self._data["Start"])
+
+    @property
+    def end_times(self) -> np.ndarray:
+        return np.array(self._data["End"])
+
+    @property
+    def flags(self) -> np.ndarray:
+        def mapper(value: int) -> int:
+            if value == 1:
+                return pyaro.timeseries.Flag.VALID
+            elif value == 2 or value == 3:
+                return pyaro.timeseries.Flag.BELOW_THRESHOLD
+            else:
+                return pyaro.timeseries.Flag.INVALID
+        valid = self._data["Validity"].map_elements(mapper, return_dtype=int)
+        return np.array(valid)
+
+    @property
+    def standard_deviations(self) -> np.ndarray:
+        return np.repeat(np.nan, self._nrecords())
+
+    def _nrecords(self) -> int:
+        return self._data.shape[0]
+
+
+class EEATimeSeriesReader2(Reader):
+    def __init__(self, filename_or_obj_or_url, filters=None):
+        data_directory = Path(filename_or_obj_or_url)
+        # TODO: Update official metadata file
+        metadata_file = data_directory.joinpath("metadata.csv")
+        metadata_file = Path("DataExtract.csv")
+        self._metadata = polars.read_csv(metadata_file)
+        pollutant_file = Path("pollutant.csv")
+        self._metadata_pollutant = polars.read_csv(pollutant_file).with_columns(
+            polars.col("URI").str.strip_prefix("http://dd.eionet.europa.eu/vocabulary/aq/pollutant/").cast(polars.Int32).alias("Id"),
+        )
+        assert len(self._metadata_pollutant["Id"].unique()) == len(self._metadata_pollutant), "Pollutants are not unique"
+
+        self._filters = []
+        if filters is not None:
+            for filter in filters:
+                if filter.name() in self.supported_filters():
+                    self._filters.append(filter)
+                else:
+                    raise NotImplementedError(f"This reader does not support filter {filter.name()}")
+        self._data_directory = data_directory
+
+    def supported_filters(self) -> list[str]:
+        # TODO: support more filters
+        return [
+            # "variables",
+            "time_bounds",
+            # time_resolution,
+            "stations",
+            "countries",
+            # flags,
+            # altitude,
+        ]
+
+    def metadata(self) -> dict[str, str]:
+        metadata = dict()
+        metadata["what"] = "EEA reader"
+        metadata["download_url"] = "https://eeadmz1-downloads-webapp.azurewebsites.net/"
+        return metadata
+
+    def data(self, varname: str) -> Data:
+        data = self._read(varname, "GB", (datetime(2002, 1, 1), datetime(2004, 12, 31)))
+        return EEAData(data, varname)
+
+    def _read(self, variable: str, countrycode: str, timerange: Tuple[datetime, datetime] | None = None) -> polars.DataFrame:
+        # https://dd.eionet.europa.eu/vocabulary/aq/pollutant
+        pollutant_candidates = self._metadata_pollutant.filter(polars.col("Notation").eq(variable))
+        if len(pollutant_candidates) == 0:
+            raise Exception(f"No variable ID found for {variable}")
+
+        # Might be more than one, but we choose the first one
+        variable_id = pollutant_candidates["Id"][0]
+
+        # historical_path = self._data_directory.joinpath("historical")
+        # verified_path = self._data_directory.joinpath("verified")
+        unverified_path = self._data_directory.joinpath("unverified")
+
+        # TODO: Enable depending on data wanted from e.g. time requested
+        searchpaths = [unverified_path]
+
+        # Filter data directly on read where possible (or avoid reading at all)
+        pollutant_filter = ("Pollutant", "=", variable_id)
+        validity_filter = ("Validity", "=", 1)
+
+        pyarrow_filters = [pollutant_filter, validity_filter]
+        country_filter = None
+        for filter in self._filters:
+            if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
+                args = filter.init_kwargs()
+            elif isinstance(filter, pyaro.timeseries.Filter.StationFilter):
+                args = filter.init_kwargs()
+                include = args["include"]
+                exclude = args["exclude"]
+                if len(include) > 0:
+                    pyarrow_filters.append(("Samplingpoint", "in", include))
+                if len(exclude) > 0:
+                    pyarrow_filters.append(("Samplingpoint", "not in", exclude))
+            elif isinstance(filter, pyaro.timeseries.Filter.CountryFilter):
+                country_filter = filter
+            else:
+                raise NotImplementedError(f"Filter {filter.name()} not supported")
+
+        dataset = polars.DataFrame(schema={
+            "Samplingpoint": str,
+            "Pollutant": polars.Int32,
+            "Start": polars.Datetime("ns"),
+            "End": polars.Datetime("ns"),
+            "Value": polars.Float32,
+            "Unit": str,
+            # "AggType": str,
+            "Validity": polars.Int32,
+            # "Verification": polars.Int32,
+            # "ResultTime": datetime,
+            # "DataCapture": datetime,
+            # "FkObservationLog": str,
+        })
+        countries = self._country_code_mappings_eea.values()
+
+        assert set(i.name for i in unverified_path.iterdir()).issubset(countries), "Some directories has an unknown country code"
+
+        paths = []
+        for countrycode in countries:
+            if country_filter is not None:
+                # Reverse map EEA countrycode to ISO countrycode
+                iso_countrycode = None
+                for key, val in self._country_code_mappings_eea.items():
+                    if val == countrycode:
+                        iso_countrycode = self._country_code(key)
+                        break
+                assert iso_countrycode is not None
+                if not country_filter.has_country(iso_countrycode):
+                    continue
+
+            for searchpath in searchpaths:
+                countrypath = searchpath.joinpath(countrycode)
+                if not countrypath.exists():
+                    continue
+                countrypaths = countrypath.iterdir()
+                paths.extend(sorted(countrypaths))
+
+        pbar = tqdm(paths)
+        for file in pbar:
+            pbar.set_description(f"Processing {file.name:>34}")
+            ds = polars.read_parquet(file, use_pyarrow=True, pyarrow_options={"filters": pyarrow_filters}, columns=["Samplingpoint", "Pollutant", "Start", "End", "Value", "Unit", "Validity"])
+            if ds.shape[0] == 0:
+                continue
+            dataset.vstack(ds.cast({"Value": polars.Float32}), in_place=True)
+            del ds
+
+        dataset = dataset.rechunk()
+
+        # Join with metadata table to get latitude, longitude and altitude
+        md = self._metadata.with_columns(
+            (polars.col("Country").map_elements(self._country_code_eea, return_dtype=str)
+             + "/" + polars.col("Sampling Point Id")).alias("selector")
+        ).select([
+            "selector", "Altitude", "Longitude", "Latitude",
+        ])
+
+        joined = dataset.join(md, left_on="Samplingpoint", right_on="selector", how="left")
+        assert joined.filter(polars.col("Longitude").is_null()).shape[0] == 0, "Some stations does not have a suitable left join"
+
+        return joined
+
+    def variables(self) -> list[str]:
+        # Todo: Filtering
+        pollutants = self._metadata["Air Pollutant"].unique()
+        return list(pollutants)
+
+    def stations(self) -> list[str]:
+        stations = self._metadata.with_columns(
+            (polars.col("Country").map_elements(self._country_code_eea, return_dtype=str)
+             + "/" + polars.col("Sampling Point Id")).alias("selector")
+        )["selector"]
+        return list(stations)
+
+    # ISO 3166-1 alpha-2 for countries in EEA
+    @functools.cached_property
+    def _country_code_mappings(self) -> dict[str, str]:
+        return {
+            'Albania': "AL",
+            'Andorra': "AD",
+            'Austria': "AT",
+            'Belgium': "BE",
+            'Bosnia and Herzegovina': "BA",
+            'Bulgaria': "BG",
+            'Croatia': "HR",
+            'Cyprus': "CY",
+            'Czechia': "CZ",
+            'Denmark': "DK",
+            'Estonia': "EE",
+            'Finland': "FI",
+            'France': "FR",
+            'Georgia': "GE",
+            'Germany': "DE",
+            'Greece': "GR",
+            'Hungary': "HU",
+            'Iceland': "IS",
+            'Ireland': "IE",
+            'Italy': "IT",
+            'Kosovo under UNSCR 1244/99': "XK",
+            'Latvia': "LV",
+            'Lithuania': "LT",
+            'Luxembourg': "LU",
+            'Malta': "MT",
+            'Montenegro': "ME",
+            'Netherlands': "NL",
+            'North Macedonia': "MK",
+            'Norway': "NO",
+            'Poland': "PL",
+            'Portugal': "PT",
+            'Romania': "RO",
+            'Serbia': "RS",
+            'Slovakia': "SK",
+            'Slovenia': "SI",
+            'Spain': "ES",
+            'Sweden': "SE",
+            'Switzerland': "CH",
+            'Türkiye': "TR",
+            'Ukraine': "UA",
+            'United Kingdom': "UK",
+        }
+
+    # ISO 3166-1 alpha-2 for countries in EEA
+    def _country_code(self, country: str) -> str | None:
+        return self._country_code_mappings.get(country)
+
+    # Country codes used in "Samplingpoint" provided by each country
+    @functools.cached_property
+    def _country_code_mappings_eea(self) -> dict[str, str]:
+        mappings = self._country_code_mappings.copy()
+        mappings.update({
+            "United Kingdom": "GB",
+        })
+        return mappings
+
+    # Country codes used in "Samplingpoint" provided by each country
+    def _country_code_eea(self, country: str) -> str | None:
+        return self._country_code_mappings_eea.get(country)
+
+    def close(self) -> None:
+        pass
