@@ -53,10 +53,13 @@ def test_eea_reader2():
     reader = EEATimeSeriesReader2(
         "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download",
         filters=filters,
+        enable_progressbar=True,
     )
 
     _ = reader.stations()
-    _ = reader.variables()
+    eea_variables = reader.variables()
+    known_variables = {"PM2.5", "PM10", "NO2"}
+    assert known_variables.issubset(eea_variables)
 
     data = reader.data("PM2.5")
     _ = data.altitudes

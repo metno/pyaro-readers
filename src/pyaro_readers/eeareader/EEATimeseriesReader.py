@@ -369,9 +369,11 @@ class EEAData(Data):
 
 
 class EEATimeSeriesReader2(Reader):
-    def __init__(self, filename_or_obj_or_url, filters=None):
+    def __init__(
+        self, filename_or_obj_or_url, filters=None, enable_progressbar: bool = False
+    ):
         data_directory = Path(filename_or_obj_or_url)
-        # TODO: Update official metadata file
+        # TODO: Update metadata file on lustre
         metadata_file = data_directory.joinpath("metadata.csv")
         metadata_file = Path("DataExtract.csv")
         self._metadata = polars.read_csv(metadata_file)
@@ -400,6 +402,7 @@ class EEATimeSeriesReader2(Reader):
                         f"This reader does not support filter {filter.name()}"
                     )
         self._data_directory = data_directory
+        self._progressbar_enabled = enable_progressbar
 
     def supported_filters(self) -> list[str]:
         # TODO: support more filters
@@ -420,14 +423,12 @@ class EEATimeSeriesReader2(Reader):
         return metadata
 
     def data(self, varname: str) -> Data:
-        data = self._read(varname, "GB", (datetime(2002, 1, 1), datetime(2004, 12, 31)))
+        data = self._read(varname)
         return EEAData(data, varname)
 
     def _read(
         self,
         variable: str,
-        countrycode: str,
-        timerange: Tuple[datetime, datetime] | None = None,
     ) -> polars.DataFrame:
         # https://dd.eionet.europa.eu/vocabulary/aq/pollutant
         pollutant_candidates = self._metadata_pollutant.filter(
@@ -510,7 +511,7 @@ class EEATimeSeriesReader2(Reader):
                 countrypaths = countrypath.iterdir()
                 paths.extend(sorted(countrypaths))
 
-        pbar = tqdm(paths)
+        pbar = tqdm(paths, disable=not self._progressbar_enabled)
         for file in pbar:
             pbar.set_description(f"Processing {file.name:>34}")
             ds = polars.read_parquet(
@@ -529,6 +530,7 @@ class EEATimeSeriesReader2(Reader):
             )
             if ds.shape[0] == 0:
                 continue
+            # TODO: Timezone fixup??
             dataset.vstack(ds.cast({"Value": polars.Float32}), in_place=True)
             del ds
 
@@ -562,9 +564,10 @@ class EEATimeSeriesReader2(Reader):
         return joined
 
     def variables(self) -> list[str]:
-        # Todo: Filtering
+        # Todo: Filtering might affect available variables
         pollutants = self._metadata["Air Pollutant"].unique()
-        return list(pollutants)
+        pollutants_metadata = self._metadata_pollutant["Notation"].unique()
+        return list(sorted(set(pollutants).intersection(pollutants_metadata)))
 
     def stations(self) -> list[str]:
         stations = self._metadata.with_columns(
