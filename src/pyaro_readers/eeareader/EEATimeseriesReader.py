@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Tuple
 import functools
+import importlib.resources
 
 from tqdm import tqdm
 import numpy as np
@@ -374,8 +375,12 @@ class EEATimeSeriesReader2(Reader):
         metadata_file = data_directory.joinpath("metadata.csv")
         metadata_file = Path("DataExtract.csv")
         self._metadata = polars.read_csv(metadata_file)
-        pollutant_file = Path("pollutant.csv")
-        self._metadata_pollutant = polars.read_csv(pollutant_file).with_columns(
+
+        # Vocabulary as found at https://dd.eionet.europa.eu/vocabulary/aq/pollutant
+        pollutant_file_bytes = importlib.resources.files(
+            "pyaro_readers.eeareader"
+        ).joinpath("pollutant.csv")
+        self._metadata_pollutant = polars.read_csv(pollutant_file_bytes).with_columns(
             polars.col("URI")
             .str.strip_prefix("http://dd.eionet.europa.eu/vocabulary/aq/pollutant/")
             .cast(polars.Int32)
