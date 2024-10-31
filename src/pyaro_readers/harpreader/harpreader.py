@@ -73,6 +73,9 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
         else:
             self._files.append(file)
 
+    def read(self):
+        """reading method"""
+
         bar = tqdm(total=len(self._files))
 
         for f_idx, _file in enumerate(self._files):
@@ -84,7 +87,7 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
                 # skip coordinate names
                 if _var in self.COORD_NAMES:
                     continue
-                if vars_to_read is not None and _var not in vars_to_read:
+                if self._vars_to_read is not None and _var not in self._vars_to_read:
                     logger.info(f"Skipping {_var}")
                     continue
                 if _var not in self._data:
@@ -238,3 +241,6 @@ class AeronetHARPEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
+
+    def read(self):
+        return self.reader_class().read()
