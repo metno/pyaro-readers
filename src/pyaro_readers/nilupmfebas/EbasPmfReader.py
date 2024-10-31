@@ -45,6 +45,10 @@ class EbasPmfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._variables = {}
         self._metadata = {}
         self._revision = datetime.datetime.min
+        self._filename = filename
+        self._filemask = filemask
+        self._vars_to_read = vars_to_read
+        self._tqdm_desc = tqdm_desc
 
         # variable include filter comes like this
         # {'variables': {'include': ['PM10_density']}}
@@ -55,26 +59,29 @@ class EbasPmfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 self._vars_to_read = vars_to_read
                 logger.info(f"applying variable include filter {vars_to_read}...")
 
-        realpath = Path(filename).resolve()
+        self._realpath = Path(filename).resolve()
 
-        if Path(realpath).is_dir():
+    def read(self):
+        """read method"""
+
+        if Path(self._realpath).is_dir():
             # search directory for files
-            files = list(realpath.glob(filemask))
-            bar = tqdm(desc=tqdm_desc, total=len(files))
+            files = list(self._realpath.glob(self._filemask))
+            bar = tqdm(desc=self._tqdm_desc, total=len(files), disable=None)
 
             for _ridx, file in enumerate(files):
                 bar.update(1)
                 logger.info(file)
-                self.read_file(file, vars_to_read=vars_to_read)
+                self.read_file(file, vars_to_read=self._vars_to_read)
                 if _ridx > 30:
                     assert True
 
             bar.close()
-        elif Path(realpath).is_file():
-            self.read_file(realpath)
+        elif Path(self._realpath).is_file():
+            self.read_file(self._realpath)
         else:
             # filename is something else
-            raise EBASPMFReaderException(f"No such file or directory: {filename}")
+            raise EBASPMFReaderException(f"No such file or directory: {self._filename}")
 
     def metadata(self):
         metadata = dict()
@@ -265,6 +272,9 @@ class EbasPmfTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
+
+    def read(self):
+        return self.reader_class().read()
 
 
 class ReadEbasOptions(dict):

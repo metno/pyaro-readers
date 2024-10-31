@@ -30,6 +30,7 @@ class TestEEATimeSeriesReader(unittest.TestCase):
             self.testdata_dir,
             filters={"variables": {"include": ["PM10", "SO2"]}},
         ) as ts:
+            ts.read()
             self.assertGreaterEqual(len(ts.variables()), 2)
             self.assertGreaterEqual(len(ts.stations()), 2)
             for var in ts.variables():

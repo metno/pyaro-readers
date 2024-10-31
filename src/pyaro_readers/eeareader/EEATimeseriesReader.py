@@ -72,9 +72,15 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._data = {}  # var -> {data-array}
         self._set_filters(filters)
 
-        self.metadata = self._read_metadata(filename)
+        self._metadata = self._read_metadata(filename)
+        self._filters = filters
 
-        self._read_polars(filters, filename)
+    def read(self):
+        """reading method quick and dirty"""
+        self._read_polars(self._filters, self._filename)
+
+    def metadata(self) -> dict[str, str]:
+        return self._metadata
 
     def _read_polars(self, filters, filename) -> None:
         try:
@@ -163,7 +169,7 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     continue
                 df = lf
 
-                station_metadata = self.metadata[df.row(0)[0].split("/")[-1]]
+                station_metadata = self._metadata[df.row(0)[0].split("/")[-1]]
 
                 file_unit = df.row(0)[df.get_column_index("Unit")]
 
@@ -223,7 +229,7 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         )
 
     def _read_metadata(self, folder: str) -> dict:
-        metadata = {}
+        _metadata = {}
         filename = Path(folder) / "metadata.csv"
         if not filename.exists():
             raise FileExistsError(f"Metadata file could not be found in {folder}")
@@ -237,7 +243,7 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     alt = float(words[5])
                 except:
                     continue
-                metadata[words[0]] = {
+                _metadata[words[0]] = {
                     "lon": lon,
                     "lat": lat,
                     "alt": alt,
@@ -245,7 +251,7 @@ class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     "country": words[1],
                 }
 
-        return metadata
+        return _metadata
 
     def _unfiltered_data(self, varname) -> Data:
         return self._data[varname]
@@ -272,3 +278,6 @@ class EEATimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
+
+    def read(self):
+        return self.reader_class().read()

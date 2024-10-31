@@ -73,25 +73,31 @@ class NILUPMFAbsorptionReader(AutoFilterReaderEngine.AutoFilterReader):
         self._set_filters(filters)
         self._header = []
         self._revision = datetime.datetime.min
+        self._filename = filename
+        self._fill_country_flag = fill_country_flag
+        self._file_mask = file_mask
+        self._tqdm_desc = tqdm_desc
 
-        if Path(filename).is_file():
-            self._filename = filename
-            self._process_file(self._filename, fill_country_flag)
+    def read(self):
+        """ read method"""
 
-        elif Path(filename).is_dir():
-            files_pathlib = Path(filename).glob(file_mask)
+        if Path(self._filename).is_file():
+            self._process_file(self._filename, self._fill_country_flag)
+
+        elif Path(self._filename).is_dir():
+            files_pathlib = Path(self._filename).glob(self._file_mask)
             files = [x for x in files_pathlib if x.is_file()]
 
             if len(files) == 0:
                 raise ValueError(
                     f"Could not find any nas files in given folder {self._filename}"
                 )
-            bar = tqdm(desc=tqdm_desc, total=len(files))
+            bar = tqdm(desc=self._tqdm_desc, total=len(files), disable=None)
             for file in files:
                 bar.update(1)
-                self._process_file(file, fill_country_flag)
+                self._process_file(file, self._fill_country_flag)
         else:
-            raise ValueError(f"Given filename {filename} is neither a folder or a file")
+            raise ValueError(f"Given filename {self._filename} is neither a folder or a file")
 
     def _process_file(self, file: Path, fill_country_flag: bool = FILL_COUNTRY_FLAG):
         with open(file, newline="") as f:
@@ -231,3 +237,6 @@ class NILUPMFAbsorptionTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine)
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
+
+    def read(self):
+        return self.reader_class().read()

@@ -55,6 +55,9 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             else:
                 os.path.makedirs(filename)
 
+    def read(self):
+        """standard read method"""
+
         dataglob = os.path.join(self._directory, f"{self.ncfile_prefix}.????.nc")
         self._years = set()
         for file in glob.iglob(dataglob):
@@ -75,6 +78,7 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             file_path = os.path.join(self._directory, f"{self.ncfile_prefix}.{y}.nc")
             if os.path.exists(file_path):
                 yield file_path
+
 
     def metadata(self):
         metadata = dict()
@@ -371,3 +375,7 @@ class Netcdf_RWTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
+
+    def read(self):
+        return self.reader_class().read()
+
