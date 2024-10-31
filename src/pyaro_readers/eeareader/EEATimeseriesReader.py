@@ -14,7 +14,7 @@ from pyaro.timeseries import (
     Data,
     NpStructuredData,
     Station,
-    Reader
+    Reader,
 )
 import pyaro.timeseries
 
@@ -355,6 +355,7 @@ class EEAData(Data):
                 return pyaro.timeseries.Flag.BELOW_THRESHOLD
             else:
                 return pyaro.timeseries.Flag.INVALID
+
         valid = self._data["Validity"].map_elements(mapper, return_dtype=int)
         return np.array(valid)
 
@@ -375,9 +376,14 @@ class EEATimeSeriesReader2(Reader):
         self._metadata = polars.read_csv(metadata_file)
         pollutant_file = Path("pollutant.csv")
         self._metadata_pollutant = polars.read_csv(pollutant_file).with_columns(
-            polars.col("URI").str.strip_prefix("http://dd.eionet.europa.eu/vocabulary/aq/pollutant/").cast(polars.Int32).alias("Id"),
+            polars.col("URI")
+            .str.strip_prefix("http://dd.eionet.europa.eu/vocabulary/aq/pollutant/")
+            .cast(polars.Int32)
+            .alias("Id"),
         )
-        assert len(self._metadata_pollutant["Id"].unique()) == len(self._metadata_pollutant), "Pollutants are not unique"
+        assert len(self._metadata_pollutant["Id"].unique()) == len(
+            self._metadata_pollutant
+        ), "Pollutants are not unique"
 
         self._filters = []
         if filters is not None:
@@ -385,7 +391,9 @@ class EEATimeSeriesReader2(Reader):
                 if filter.name() in self.supported_filters():
                     self._filters.append(filter)
                 else:
-                    raise NotImplementedError(f"This reader does not support filter {filter.name()}")
+                    raise NotImplementedError(
+                        f"This reader does not support filter {filter.name()}"
+                    )
         self._data_directory = data_directory
 
     def supported_filters(self) -> list[str]:
@@ -410,9 +418,16 @@ class EEATimeSeriesReader2(Reader):
         data = self._read(varname, "GB", (datetime(2002, 1, 1), datetime(2004, 12, 31)))
         return EEAData(data, varname)
 
-    def _read(self, variable: str, countrycode: str, timerange: Tuple[datetime, datetime] | None = None) -> polars.DataFrame:
+    def _read(
+        self,
+        variable: str,
+        countrycode: str,
+        timerange: Tuple[datetime, datetime] | None = None,
+    ) -> polars.DataFrame:
         # https://dd.eionet.europa.eu/vocabulary/aq/pollutant
-        pollutant_candidates = self._metadata_pollutant.filter(polars.col("Notation").eq(variable))
+        pollutant_candidates = self._metadata_pollutant.filter(
+            polars.col("Notation").eq(variable)
+        )
         if len(pollutant_candidates) == 0:
             raise Exception(f"No variable ID found for {variable}")
 
@@ -448,23 +463,27 @@ class EEATimeSeriesReader2(Reader):
             else:
                 raise NotImplementedError(f"Filter {filter.name()} not supported")
 
-        dataset = polars.DataFrame(schema={
-            "Samplingpoint": str,
-            "Pollutant": polars.Int32,
-            "Start": polars.Datetime("ns"),
-            "End": polars.Datetime("ns"),
-            "Value": polars.Float32,
-            "Unit": str,
-            # "AggType": str,
-            "Validity": polars.Int32,
-            # "Verification": polars.Int32,
-            # "ResultTime": datetime,
-            # "DataCapture": datetime,
-            # "FkObservationLog": str,
-        })
+        dataset = polars.DataFrame(
+            schema={
+                "Samplingpoint": str,
+                "Pollutant": polars.Int32,
+                "Start": polars.Datetime("ns"),
+                "End": polars.Datetime("ns"),
+                "Value": polars.Float32,
+                "Unit": str,
+                # "AggType": str,
+                "Validity": polars.Int32,
+                # "Verification": polars.Int32,
+                # "ResultTime": datetime,
+                # "DataCapture": datetime,
+                # "FkObservationLog": str,
+            }
+        )
         countries = self._country_code_mappings_eea.values()
 
-        assert set(i.name for i in unverified_path.iterdir()).issubset(countries), "Some directories has an unknown country code"
+        assert set(i.name for i in unverified_path.iterdir()).issubset(
+            countries
+        ), "Some directories has an unknown country code"
 
         paths = []
         for countrycode in countries:
@@ -489,7 +508,20 @@ class EEATimeSeriesReader2(Reader):
         pbar = tqdm(paths)
         for file in pbar:
             pbar.set_description(f"Processing {file.name:>34}")
-            ds = polars.read_parquet(file, use_pyarrow=True, pyarrow_options={"filters": pyarrow_filters}, columns=["Samplingpoint", "Pollutant", "Start", "End", "Value", "Unit", "Validity"])
+            ds = polars.read_parquet(
+                file,
+                use_pyarrow=True,
+                pyarrow_options={"filters": pyarrow_filters},
+                columns=[
+                    "Samplingpoint",
+                    "Pollutant",
+                    "Start",
+                    "End",
+                    "Value",
+                    "Unit",
+                    "Validity",
+                ],
+            )
             if ds.shape[0] == 0:
                 continue
             dataset.vstack(ds.cast({"Value": polars.Float32}), in_place=True)
@@ -499,14 +531,28 @@ class EEATimeSeriesReader2(Reader):
 
         # Join with metadata table to get latitude, longitude and altitude
         md = self._metadata.with_columns(
-            (polars.col("Country").map_elements(self._country_code_eea, return_dtype=str)
-             + "/" + polars.col("Sampling Point Id")).alias("selector")
-        ).select([
-            "selector", "Altitude", "Longitude", "Latitude",
-        ])
+            (
+                polars.col("Country").map_elements(
+                    self._country_code_eea, return_dtype=str
+                )
+                + "/"
+                + polars.col("Sampling Point Id")
+            ).alias("selector")
+        ).select(
+            [
+                "selector",
+                "Altitude",
+                "Longitude",
+                "Latitude",
+            ]
+        )
 
-        joined = dataset.join(md, left_on="Samplingpoint", right_on="selector", how="left")
-        assert joined.filter(polars.col("Longitude").is_null()).shape[0] == 0, "Some stations does not have a suitable left join"
+        joined = dataset.join(
+            md, left_on="Samplingpoint", right_on="selector", how="left"
+        )
+        assert (
+            joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
+        ), "Some stations does not have a suitable left join"
 
         return joined
 
@@ -517,8 +563,13 @@ class EEATimeSeriesReader2(Reader):
 
     def stations(self) -> list[str]:
         stations = self._metadata.with_columns(
-            (polars.col("Country").map_elements(self._country_code_eea, return_dtype=str)
-             + "/" + polars.col("Sampling Point Id")).alias("selector")
+            (
+                polars.col("Country").map_elements(
+                    self._country_code_eea, return_dtype=str
+                )
+                + "/"
+                + polars.col("Sampling Point Id")
+            ).alias("selector")
         )["selector"]
         return list(stations)
 
@@ -526,47 +577,47 @@ class EEATimeSeriesReader2(Reader):
     @functools.cached_property
     def _country_code_mappings(self) -> dict[str, str]:
         return {
-            'Albania': "AL",
-            'Andorra': "AD",
-            'Austria': "AT",
-            'Belgium': "BE",
-            'Bosnia and Herzegovina': "BA",
-            'Bulgaria': "BG",
-            'Croatia': "HR",
-            'Cyprus': "CY",
-            'Czechia': "CZ",
-            'Denmark': "DK",
-            'Estonia': "EE",
-            'Finland': "FI",
-            'France': "FR",
-            'Georgia': "GE",
-            'Germany': "DE",
-            'Greece': "GR",
-            'Hungary': "HU",
-            'Iceland': "IS",
-            'Ireland': "IE",
-            'Italy': "IT",
-            'Kosovo under UNSCR 1244/99': "XK",
-            'Latvia': "LV",
-            'Lithuania': "LT",
-            'Luxembourg': "LU",
-            'Malta': "MT",
-            'Montenegro': "ME",
-            'Netherlands': "NL",
-            'North Macedonia': "MK",
-            'Norway': "NO",
-            'Poland': "PL",
-            'Portugal': "PT",
-            'Romania': "RO",
-            'Serbia': "RS",
-            'Slovakia': "SK",
-            'Slovenia': "SI",
-            'Spain': "ES",
-            'Sweden': "SE",
-            'Switzerland': "CH",
-            'Türkiye': "TR",
-            'Ukraine': "UA",
-            'United Kingdom': "UK",
+            "Albania": "AL",
+            "Andorra": "AD",
+            "Austria": "AT",
+            "Belgium": "BE",
+            "Bosnia and Herzegovina": "BA",
+            "Bulgaria": "BG",
+            "Croatia": "HR",
+            "Cyprus": "CY",
+            "Czechia": "CZ",
+            "Denmark": "DK",
+            "Estonia": "EE",
+            "Finland": "FI",
+            "France": "FR",
+            "Georgia": "GE",
+            "Germany": "DE",
+            "Greece": "GR",
+            "Hungary": "HU",
+            "Iceland": "IS",
+            "Ireland": "IE",
+            "Italy": "IT",
+            "Kosovo under UNSCR 1244/99": "XK",
+            "Latvia": "LV",
+            "Lithuania": "LT",
+            "Luxembourg": "LU",
+            "Malta": "MT",
+            "Montenegro": "ME",
+            "Netherlands": "NL",
+            "North Macedonia": "MK",
+            "Norway": "NO",
+            "Poland": "PL",
+            "Portugal": "PT",
+            "Romania": "RO",
+            "Serbia": "RS",
+            "Slovakia": "SK",
+            "Slovenia": "SI",
+            "Spain": "ES",
+            "Sweden": "SE",
+            "Switzerland": "CH",
+            "Türkiye": "TR",
+            "Ukraine": "UA",
+            "United Kingdom": "UK",
         }
 
     # ISO 3166-1 alpha-2 for countries in EEA
@@ -577,9 +628,11 @@ class EEATimeSeriesReader2(Reader):
     @functools.cached_property
     def _country_code_mappings_eea(self) -> dict[str, str]:
         mappings = self._country_code_mappings.copy()
-        mappings.update({
-            "United Kingdom": "GB",
-        })
+        mappings.update(
+            {
+                "United Kingdom": "GB",
+            }
+        )
         return mappings
 
     # Country codes used in "Samplingpoint" provided by each country

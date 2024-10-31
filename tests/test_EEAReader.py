@@ -40,13 +40,20 @@ def test_eea_reader2():
     from pyaro_readers.eeareader import EEATimeSeriesReader2
     import pyaro.timeseries
 
-    filters = pyaro.timeseries.FilterCollection({
-        # "time_bounds": {"start_include": [("2023-01-01 00:00:00", "2023-12-24 00:00:00")]},
-        "stations": {"exclude": ["GB/GB_SamplingPoint_61718", "GB/GB_SamplingPoint_99"]},
-        "countries": {"include": ["UK"]},
-    })
+    filters = pyaro.timeseries.FilterCollection(
+        {
+            # "time_bounds": {"start_include": [("2023-01-01 00:00:00", "2023-12-24 00:00:00")]},
+            "stations": {
+                "exclude": ["GB/GB_SamplingPoint_61718", "GB/GB_SamplingPoint_99"]
+            },
+            "countries": {"include": ["UK"]},
+        }
+    )
 
-    reader = EEATimeSeriesReader2("/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download", filters=filters)
+    reader = EEATimeSeriesReader2(
+        "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download",
+        filters=filters,
+    )
 
     _ = reader.stations()
     _ = reader.variables()

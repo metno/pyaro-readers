@@ -1,1 +1,5 @@
-from .EEATimeseriesReader import EEATimeseriesReader, EEATimeseriesEngine, EEATimeSeriesReader2
+from .EEATimeseriesReader import (
+    EEATimeseriesReader,
+    EEATimeseriesEngine,
+    EEATimeSeriesReader2,
+)
