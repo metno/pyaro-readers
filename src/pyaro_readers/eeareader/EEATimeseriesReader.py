@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from collections.abc import Iterable
@@ -11,9 +11,9 @@ import numpy as np
 import polars
 from pyaro.timeseries import (
     Data,
-    Station,
     Reader,
     Engine,
+    Filter,
 )
 import pyaro.timeseries
 
@@ -37,7 +37,7 @@ class EEAData(Data):
         raise NotImplementedError
 
     def slice(self, index):
-        return EEAData(self._data[index], self._variable)
+        return EEAData(self._data.filter(index), self._variable)
 
     @property
     def values(self) -> np.ndarray:
@@ -110,6 +110,21 @@ def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
 class _Filters():
     pyarrow: list[list[Any]]
     country: pyaro.timeseries.Filter.CountryFilter | None
+    time: pyaro.timeseries.Filter.TimeBoundsFilter | None
+
+
+def _pyarrow_timefilter(filter: pyaro.timeseries.Filter.TimeBoundsFilter) -> list[tuple[str, str, datetime]]:
+    # Time filtering might not be expressible as pyarrow filters alone,
+    # so we supply a coarse filter which should be filtered later on
+    # TODO: Make this support more filtering whilst reading
+    min_time, max_time = filter.envelope()
+
+    return [
+        ("Start", ">=", min_time),
+        ("Start", "<=", max_time),
+        ("End", ">=", min_time),
+        ("End", "<=", max_time)
+    ]
 
 
 def _transform_filters(filters: Iterable[pyaro.timeseries.Filter], variable_id: int) -> _Filters:
@@ -118,10 +133,12 @@ def _transform_filters(filters: Iterable[pyaro.timeseries.Filter], variable_id: 
 
     pyarrow_filters = [pollutant_filter, validity_filter]
     country_filter = None
+    time_filter = None
 
     for filter in filters:
         if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
-            args = filter.init_kwargs()
+            pyarrow_filters.extend(_pyarrow_timefilter(filter))
+            time_filter = filter
         elif isinstance(filter, pyaro.timeseries.Filter.StationFilter):
             args = filter.init_kwargs()
             include = args["include"]
@@ -137,7 +154,13 @@ def _transform_filters(filters: Iterable[pyaro.timeseries.Filter], variable_id: 
 
     # if country_filter is None:
     #     country_filter = pyaro.timeseries.CountryFilter(exclude=None)
-    return _Filters(pyarrow_filters, country_filter)
+    return _Filters(pyarrow_filters, country=country_filter, time=time_filter)
+
+
+@dataclasses.dataclass
+class _DataFrame:
+    frame: polars.DataFrame
+    postfilter_time: pyaro.timeseries.Filter.TimeBoundsFilter | None
 
 
 class EEATimeseriesReader(Reader):
@@ -192,13 +215,18 @@ class EEATimeseriesReader(Reader):
         return metadata
 
     def data(self, varname: str) -> Data:
-        data = self._read(varname)
-        return EEAData(data, varname)
+        dataframe = self._read(varname)
+        if dataframe.postfilter_time is None:
+            return EEAData(dataframe.frame, varname)
+        else:
+            stations = self.stations()
+            data = dataframe.frame
+            return dataframe.postfilter_time.filter_data(EEAData(data, varname), stations, varname)
 
     def _read(
         self,
         variable: str,
-    ) -> polars.DataFrame:
+    ) -> _DataFrame:
         # https://dd.eionet.europa.eu/vocabulary/aq/pollutant
         pollutant_candidates = self._metadata_pollutant.filter(
             polars.col("Notation").eq(variable)
@@ -259,7 +287,7 @@ class EEATimeseriesReader(Reader):
         for file in pbar:
             pbar.set_description(f"Processing {file.name:>34}")
 
-            dataset.vstack(_read(file, filters.pyarrow))
+            dataset.vstack(_read(file, filters.pyarrow), in_place=True)
 
         dataset = dataset.rechunk()
 
@@ -288,7 +316,7 @@ class EEATimeseriesReader(Reader):
             joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
         ), "Some stations does not have a suitable left join"
 
-        return joined
+        return _DataFrame(frame=joined, postfilter_time=filters.time)
 
     def variables(self) -> list[str]:
         # Todo: Filtering might affect available variables
@@ -298,6 +326,7 @@ class EEATimeseriesReader(Reader):
         common = set(pollutants).intersection(pollutants_metadata)
         return list(sorted(common))
 
+    # TODO: Should return dict[str, Station]
     def stations(self) -> list[str]:
         stations = self._metadata.with_columns(
             (

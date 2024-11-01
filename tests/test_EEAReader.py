@@ -43,7 +43,7 @@ def test_eea_reader2():
 
     filters = pyaro.timeseries.FilterCollection(
         {
-            # "time_bounds": {"start_include": [("2023-01-01 00:00:00", "2023-12-24 00:00:00")]},
+            "time_bounds": {"start_include": [("2019-01-01 00:00:00", "2019-12-24 00:00:00")]},
             "stations": {
                 "exclude": ["GB/GB_SamplingPoint_61718", "GB/GB_SamplingPoint_99"]
             },
