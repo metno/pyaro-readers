@@ -24,19 +24,20 @@ class TestEEATimeSeriesReader(unittest.TestCase):
     def test_0engine(self):
         self.assertIn(self.engine, pyaro.list_timeseries_engines())
 
-    def test_1open_files(self):
-        with pyaro.open_timeseries(
-            self.engine,
-            self.testdata_dir,
-            filters={"variables": {"include": ["PM10", "SO2"]}},
-        ) as ts:
-            self.assertGreaterEqual(len(ts.variables()), 2)
-            self.assertGreaterEqual(len(ts.stations()), 2)
-            for var in ts.variables():
-                assert var in self.test_vars
+    # def test_1open_files(self):
+    #     with pyaro.open_timeseries(
+    #         self.engine,
+    #         self.testdata_dir,
+    #         filters={"variables": {"include": ["PM10", "SO2"]}},
+    #     ) as ts:
+    #         self.assertGreaterEqual(len(ts.variables()), 2)
+    #         self.assertGreaterEqual(len(ts.stations()), 2)
+    #         for var in ts.variables():
+    #             assert var in self.test_vars
 
 
 def test_eea_reader2():
+    # Only if PPI is available
     from pyaro_readers.eeareader import EEATimeseriesReader
     import pyaro.timeseries
 

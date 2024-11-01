@@ -236,9 +236,9 @@ class EEATimeseriesReader(Reader):
         )
         countries = _country_code_mappings_eea.values()
 
-        # assert set(i.name for i in unverified_path.iterdir()).issubset(
-        #     countries
-        # ), "Some directories has an unknown country code"
+        assert set(i.name for i in unverified_path.iterdir()).issubset(
+            countries
+        ), "Some directories has an unknown country code"
 
         paths = []
         for countrycode in countries:
@@ -341,7 +341,7 @@ airbase unverified --path datadir/unverified/ -p SO2 -p PM10 -p O3 -p NO2 -p CO 
 """
     url: str = "https://github.com/metno/pyaro-readers"
 
-    def open(self, filename_or_obj_or_url, enable_progressbar, *, filters=None):
+    def open(self, filename_or_obj_or_url, enable_progressbar: bool = False, *, filters=None):
         return EEATimeseriesReader(filename_or_obj_or_url, enable_progressbar=enable_progressbar, filters=filters)
 
 
