@@ -108,7 +108,7 @@ def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
 
 @dataclasses.dataclass
 class _Filters:
-    pyarrow: list[list[Any]]
+    pyarrow: list[tuple[str, str, datetime]]
     country: pyaro.timeseries.Filter.CountryFilter | None
     time: pyaro.timeseries.Filter.TimeBoundsFilter | None
 
@@ -229,17 +229,21 @@ class EEATimeseriesReader(Reader):
 
     def _read(
         self,
-        variable: str,
+        variable: str | int,
     ) -> _DataFrame:
         # https://dd.eionet.europa.eu/vocabulary/aq/pollutant
-        pollutant_candidates = self._metadata_pollutant.filter(
-            polars.col("Notation").eq(variable)
-        )
-        if len(pollutant_candidates) == 0:
-            raise Exception(f"No variable ID found for {variable}")
+        if isinstance(variable, int):
+            variable_id = variable
+        else:
+            # Might be more than one, but we choose the first one
+            pollutant_candidates = self._metadata_pollutant.filter(
+                polars.col("Notation").eq(variable)
+            )
+            if len(pollutant_candidates) == 0:
+                raise Exception(f"No variable ID found for {variable}")
+            variable_id = pollutant_candidates["Id"][0]
 
-        # Might be more than one, but we choose the first one
-        variable_id = pollutant_candidates["Id"][0]
+        filters = _transform_filters(self._filters, variable_id)
 
         # historical_path = self._data_directory.joinpath("historical")
         # verified_path = self._data_directory.joinpath("verified")
@@ -247,8 +251,6 @@ class EEATimeseriesReader(Reader):
 
         # TODO: Enable depending on data wanted from e.g. time requested
         searchpaths = [unverified_path]
-
-        filters = _transform_filters(self._filters, variable_id)
 
         dataset = polars.DataFrame(
             schema={
@@ -268,10 +270,6 @@ class EEATimeseriesReader(Reader):
         )
         countries = _country_code_mappings_eea.values()
 
-        assert set(i.name for i in unverified_path.iterdir()).issubset(
-            countries
-        ), "Some directories has an unknown country code"
-
         paths = []
         for countrycode in countries:
             if filters.country is not None:
@@ -281,6 +279,9 @@ class EEATimeseriesReader(Reader):
                     continue
 
             for searchpath in searchpaths:
+                assert set(i.name for i in searchpath.iterdir()).issubset(
+                    countries
+                ), "Some directories has an unknown country code"
                 countrypath = searchpath.joinpath(countrycode)
                 if not countrypath.exists():
                     continue
