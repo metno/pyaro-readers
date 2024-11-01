@@ -45,7 +45,7 @@ class EEAData(Data):
 
     @property
     def stations(self) -> np.ndarray:
-        return np.array(self._data["Samplingpoint"], dtype=float)
+        return np.array(self._data["Samplingpoint"])
 
     @property
     def latitudes(self) -> np.ndarray:
@@ -156,8 +156,6 @@ def _transform_filters(
         else:
             raise NotImplementedError(f"Filter {filter.name()} not supported")
 
-    # if country_filter is None:
-    #     country_filter = pyaro.timeseries.CountryFilter(exclude=None)
     return _Filters(pyarrow_filters, country=country_filter, time=time_filter)
 
 
