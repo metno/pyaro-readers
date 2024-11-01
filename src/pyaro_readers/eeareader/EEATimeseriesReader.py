@@ -3,9 +3,11 @@ from os import path
 from datetime import datetime, timedelta
 import sys
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Any
+from collections.abc import Iterable
 import functools
 import importlib.resources
+import dataclasses
 
 from tqdm import tqdm
 import numpy as np
@@ -368,14 +370,64 @@ class EEAData(Data):
         return self._data.shape[0]
 
 
+def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
+    # TODO: Timezone fixup??
+    return polars.read_parquet(
+        filepath,
+        use_pyarrow=True,
+        pyarrow_options={"filters": pyarrow_filters},
+        columns=[
+            "Samplingpoint",
+            "Pollutant",
+            "Start",
+            "End",
+            "Value",
+            "Unit",
+            "Validity",
+        ],
+    ).cast({"Value": polars.Float32})
+
+
+@dataclasses.dataclass
+class _Filters():
+    pyarrow: list[list[Any]]
+    country: pyaro.timeseries.Filter.CountryFilter | None
+
+
+def _transform_filters(filters: Iterable[pyaro.timeseries.Filter], variable_id: int) -> _Filters:
+    pollutant_filter = ("Pollutant", "=", variable_id)
+    validity_filter = ("Validity", "=", 1)
+
+    pyarrow_filters = [pollutant_filter, validity_filter]
+    country_filter = None
+
+    for filter in filters:
+        if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
+            args = filter.init_kwargs()
+        elif isinstance(filter, pyaro.timeseries.Filter.StationFilter):
+            args = filter.init_kwargs()
+            include = args["include"]
+            exclude = args["exclude"]
+            if len(include) > 0:
+                pyarrow_filters.append(("Samplingpoint", "in", include))
+            if len(exclude) > 0:
+                pyarrow_filters.append(("Samplingpoint", "not in", exclude))
+        elif isinstance(filter, pyaro.timeseries.Filter.CountryFilter):
+            country_filter = filter
+        else:
+            raise NotImplementedError(f"Filter {filter.name()} not supported")
+
+    # if country_filter is None:
+    #     country_filter = pyaro.timeseries.CountryFilter(exclude=None)
+    return _Filters(pyarrow_filters, country_filter)
+
+
 class EEATimeSeriesReader2(Reader):
     def __init__(
         self, filename_or_obj_or_url, filters=None, enable_progressbar: bool = False
     ):
         data_directory = Path(filename_or_obj_or_url)
-        # TODO: Update metadata file on lustre
         metadata_file = data_directory.joinpath("metadata.csv")
-        metadata_file = Path("DataExtract.csv")
         self._metadata = polars.read_csv(metadata_file)
 
         # Vocabulary as found at https://dd.eionet.europa.eu/vocabulary/aq/pollutant
@@ -447,27 +499,7 @@ class EEATimeSeriesReader2(Reader):
         # TODO: Enable depending on data wanted from e.g. time requested
         searchpaths = [unverified_path]
 
-        # Filter data directly on read where possible (or avoid reading at all)
-        pollutant_filter = ("Pollutant", "=", variable_id)
-        validity_filter = ("Validity", "=", 1)
-
-        pyarrow_filters = [pollutant_filter, validity_filter]
-        country_filter = None
-        for filter in self._filters:
-            if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
-                args = filter.init_kwargs()
-            elif isinstance(filter, pyaro.timeseries.Filter.StationFilter):
-                args = filter.init_kwargs()
-                include = args["include"]
-                exclude = args["exclude"]
-                if len(include) > 0:
-                    pyarrow_filters.append(("Samplingpoint", "in", include))
-                if len(exclude) > 0:
-                    pyarrow_filters.append(("Samplingpoint", "not in", exclude))
-            elif isinstance(filter, pyaro.timeseries.Filter.CountryFilter):
-                country_filter = filter
-            else:
-                raise NotImplementedError(f"Filter {filter.name()} not supported")
+        filters = _transform_filters(self._filters, variable_id)
 
         dataset = polars.DataFrame(
             schema={
@@ -485,23 +517,18 @@ class EEATimeSeriesReader2(Reader):
                 # "FkObservationLog": str,
             }
         )
-        countries = self._country_code_mappings_eea.values()
+        countries = _country_code_mappings_eea.values()
 
-        assert set(i.name for i in unverified_path.iterdir()).issubset(
-            countries
-        ), "Some directories has an unknown country code"
+        # assert set(i.name for i in unverified_path.iterdir()).issubset(
+        #     countries
+        # ), "Some directories has an unknown country code"
 
         paths = []
         for countrycode in countries:
-            if country_filter is not None:
+            if filters.country is not None:
                 # Reverse map EEA countrycode to ISO countrycode
-                iso_countrycode = None
-                for key, val in self._country_code_mappings_eea.items():
-                    if val == countrycode:
-                        iso_countrycode = self._country_code(key)
-                        break
-                assert iso_countrycode is not None
-                if not country_filter.has_country(iso_countrycode):
+                iso_countrycode = _country_code_eea_to_iso(countrycode)
+                if not filters.country.has_country(iso_countrycode):
                     continue
 
             for searchpath in searchpaths:
@@ -514,33 +541,16 @@ class EEATimeSeriesReader2(Reader):
         pbar = tqdm(paths, disable=not self._progressbar_enabled)
         for file in pbar:
             pbar.set_description(f"Processing {file.name:>34}")
-            ds = polars.read_parquet(
-                file,
-                use_pyarrow=True,
-                pyarrow_options={"filters": pyarrow_filters},
-                columns=[
-                    "Samplingpoint",
-                    "Pollutant",
-                    "Start",
-                    "End",
-                    "Value",
-                    "Unit",
-                    "Validity",
-                ],
-            )
-            if ds.shape[0] == 0:
-                continue
-            # TODO: Timezone fixup??
-            dataset.vstack(ds.cast({"Value": polars.Float32}), in_place=True)
-            del ds
+
+            dataset.vstack(_read(file, filters.pyarrow))
 
         dataset = dataset.rechunk()
 
         # Join with metadata table to get latitude, longitude and altitude
-        md = self._metadata.with_columns(
+        metadata = self._metadata.with_columns(
             (
                 polars.col("Country").map_elements(
-                    self._country_code_eea, return_dtype=str
+                    _country_code_eea, return_dtype=str
                 )
                 + "/"
                 + polars.col("Sampling Point Id")
@@ -555,7 +565,7 @@ class EEATimeSeriesReader2(Reader):
         )
 
         joined = dataset.join(
-            md, left_on="Samplingpoint", right_on="selector", how="left"
+            metadata, left_on="Samplingpoint", right_on="selector", how="left"
         )
         assert (
             joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
@@ -567,13 +577,15 @@ class EEATimeSeriesReader2(Reader):
         # Todo: Filtering might affect available variables
         pollutants = self._metadata["Air Pollutant"].unique()
         pollutants_metadata = self._metadata_pollutant["Notation"].unique()
-        return list(sorted(set(pollutants).intersection(pollutants_metadata)))
+
+        common = set(pollutants).intersection(pollutants_metadata)
+        return list(sorted(common))
 
     def stations(self) -> list[str]:
         stations = self._metadata.with_columns(
             (
                 polars.col("Country").map_elements(
-                    self._country_code_eea, return_dtype=str
+                    _country_code_eea, return_dtype=str
                 )
                 + "/"
                 + polars.col("Sampling Point Id")
@@ -581,71 +593,76 @@ class EEATimeSeriesReader2(Reader):
         )["selector"]
         return list(stations)
 
-    # ISO 3166-1 alpha-2 for countries in EEA
-    @functools.cached_property
-    def _country_code_mappings(self) -> dict[str, str]:
-        return {
-            "Albania": "AL",
-            "Andorra": "AD",
-            "Austria": "AT",
-            "Belgium": "BE",
-            "Bosnia and Herzegovina": "BA",
-            "Bulgaria": "BG",
-            "Croatia": "HR",
-            "Cyprus": "CY",
-            "Czechia": "CZ",
-            "Denmark": "DK",
-            "Estonia": "EE",
-            "Finland": "FI",
-            "France": "FR",
-            "Georgia": "GE",
-            "Germany": "DE",
-            "Greece": "GR",
-            "Hungary": "HU",
-            "Iceland": "IS",
-            "Ireland": "IE",
-            "Italy": "IT",
-            "Kosovo under UNSCR 1244/99": "XK",
-            "Latvia": "LV",
-            "Lithuania": "LT",
-            "Luxembourg": "LU",
-            "Malta": "MT",
-            "Montenegro": "ME",
-            "Netherlands": "NL",
-            "North Macedonia": "MK",
-            "Norway": "NO",
-            "Poland": "PL",
-            "Portugal": "PT",
-            "Romania": "RO",
-            "Serbia": "RS",
-            "Slovakia": "SK",
-            "Slovenia": "SI",
-            "Spain": "ES",
-            "Sweden": "SE",
-            "Switzerland": "CH",
-            "Türkiye": "TR",
-            "Ukraine": "UA",
-            "United Kingdom": "UK",
-        }
-
-    # ISO 3166-1 alpha-2 for countries in EEA
-    def _country_code(self, country: str) -> str | None:
-        return self._country_code_mappings.get(country)
-
-    # Country codes used in "Samplingpoint" provided by each country
-    @functools.cached_property
-    def _country_code_mappings_eea(self) -> dict[str, str]:
-        mappings = self._country_code_mappings.copy()
-        mappings.update(
-            {
-                "United Kingdom": "GB",
-            }
-        )
-        return mappings
-
-    # Country codes used in "Samplingpoint" provided by each country
-    def _country_code_eea(self, country: str) -> str | None:
-        return self._country_code_mappings_eea.get(country)
-
     def close(self) -> None:
         pass
+
+
+# ISO 3166-1 alpha-2 for countries in EEA
+_country_code_mappings: dict[str, str] = {
+    "Albania": "AL",
+    "Andorra": "AD",
+    "Austria": "AT",
+    "Belgium": "BE",
+    "Bosnia and Herzegovina": "BA",
+    "Bulgaria": "BG",
+    "Croatia": "HR",
+    "Cyprus": "CY",
+    "Czechia": "CZ",
+    "Denmark": "DK",
+    "Estonia": "EE",
+    "Finland": "FI",
+    "France": "FR",
+    "Georgia": "GE",
+    "Germany": "DE",
+    "Greece": "GR",
+    "Hungary": "HU",
+    "Iceland": "IS",
+    "Ireland": "IE",
+    "Italy": "IT",
+    "Kosovo under UNSCR 1244/99": "XK",
+    "Latvia": "LV",
+    "Lithuania": "LT",
+    "Luxembourg": "LU",
+    "Malta": "MT",
+    "Montenegro": "ME",
+    "Netherlands": "NL",
+    "North Macedonia": "MK",
+    "Norway": "NO",
+    "Poland": "PL",
+    "Portugal": "PT",
+    "Romania": "RO",
+    "Serbia": "RS",
+    "Slovakia": "SK",
+    "Slovenia": "SI",
+    "Spain": "ES",
+    "Sweden": "SE",
+    "Switzerland": "CH",
+    "Türkiye": "TR",
+    "Ukraine": "UA",
+    "United Kingdom": "UK",
+}
+
+
+# ISO 3166-1 alpha-2 for countries in EEA
+def _country_code(country: str) -> str | None:
+    return _country_code_mappings.get(country)
+
+
+# Country codes used in "Samplingpoint" provided by each country
+_country_code_mappings_eea: dict[str, str] = _country_code_mappings.copy()
+_country_code_mappings_eea.update(
+    {
+        "United Kingdom": "GB",
+    }
+)
+
+
+def _country_code_eea_to_iso(country: str) -> str:
+    if country == "GB":
+        return "UK"
+    return country
+
+
+# Country codes used in "Samplingpoint" provided by each country
+def _country_code_eea(country: str) -> str | None:
+    return _country_code_mappings_eea.get(country)
