@@ -13,7 +13,7 @@ from pyaro.timeseries import (
     Data,
     Reader,
     Engine,
-    Filter,
+    Station,
 )
 import pyaro.timeseries
 
@@ -326,18 +326,32 @@ class EEATimeseriesReader(Reader):
         common = set(pollutants).intersection(pollutants_metadata)
         return list(sorted(common))
 
-    # TODO: Should return dict[str, Station]
-    def stations(self) -> list[str]:
-        stations = self._metadata.with_columns(
+    def stations(self) -> dict[str, Station]:
+        stations = self._metadata.with_columns((
             (
                 polars.col("Country").map_elements(
                     _country_code_eea, return_dtype=str
                 )
                 + "/"
                 + polars.col("Sampling Point Id")
-            ).alias("selector")
-        )["selector"]
-        return list(stations)
+            ).alias("station"),
+            polars.col("Latitude").alias("latitude"),
+            polars.col("Longitude").alias("longitude"),
+            polars.col("Altitude").alias("altitude"),
+            polars.col("Country").map_elements(_country_code, return_dtype=str).alias("country"),
+            polars.col("Source Data URL").alias("url"),
+            (
+                polars.col("Country").map_elements(
+                    _country_code_eea, return_dtype=str
+                )
+                + "/"
+                + polars.col("Sampling Point Id")
+            ).alias("long_name"),
+            polars.col("Air Quality Station Area").alias("station_area"),
+            polars.col("Air Quality Station Type").alias("station_type"),
+        )).select(["station", "latitude", "longitude", "altitude", "country", "url", "station_area", "station_type", "long_name"])
+        station_dicts = {s["station"]: Station(s) for s in stations.to_dicts()}
+        return station_dicts
 
     def close(self) -> None:
         pass
