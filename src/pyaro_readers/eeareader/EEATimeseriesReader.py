@@ -107,13 +107,15 @@ def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
 
 
 @dataclasses.dataclass
-class _Filters():
+class _Filters:
     pyarrow: list[list[Any]]
     country: pyaro.timeseries.Filter.CountryFilter | None
     time: pyaro.timeseries.Filter.TimeBoundsFilter | None
 
 
-def _pyarrow_timefilter(filter: pyaro.timeseries.Filter.TimeBoundsFilter) -> list[tuple[str, str, datetime]]:
+def _pyarrow_timefilter(
+    filter: pyaro.timeseries.Filter.TimeBoundsFilter,
+) -> list[tuple[str, str, datetime]]:
     # Time filtering might not be expressible as pyarrow filters alone,
     # so we supply a coarse filter which should be filtered later on
     # TODO: Make this support more filtering whilst reading
@@ -123,11 +125,13 @@ def _pyarrow_timefilter(filter: pyaro.timeseries.Filter.TimeBoundsFilter) -> lis
         ("Start", ">=", min_time),
         ("Start", "<=", max_time),
         ("End", ">=", min_time),
-        ("End", "<=", max_time)
+        ("End", "<=", max_time),
     ]
 
 
-def _transform_filters(filters: Iterable[pyaro.timeseries.Filter], variable_id: int) -> _Filters:
+def _transform_filters(
+    filters: Iterable[pyaro.timeseries.Filter], variable_id: int
+) -> _Filters:
     pollutant_filter = ("Pollutant", "=", variable_id)
     validity_filter = ("Validity", "=", 1)
 
@@ -221,7 +225,9 @@ class EEATimeseriesReader(Reader):
         else:
             stations = self.stations()
             data = dataframe.frame
-            return dataframe.postfilter_time.filter_data(EEAData(data, varname), stations, varname)
+            return dataframe.postfilter_time.filter_data(
+                EEAData(data, varname), stations, varname
+            )
 
     def _read(
         self,
@@ -294,9 +300,7 @@ class EEATimeseriesReader(Reader):
         # Join with metadata table to get latitude, longitude and altitude
         metadata = self._metadata.with_columns(
             (
-                polars.col("Country").map_elements(
-                    _country_code_eea, return_dtype=str
-                )
+                polars.col("Country").map_elements(_country_code_eea, return_dtype=str)
                 + "/"
                 + polars.col("Sampling Point Id")
             ).alias("selector")
@@ -327,29 +331,45 @@ class EEATimeseriesReader(Reader):
         return list(sorted(common))
 
     def stations(self) -> dict[str, Station]:
-        stations = self._metadata.with_columns((
+        stations = self._metadata.with_columns(
             (
-                polars.col("Country").map_elements(
-                    _country_code_eea, return_dtype=str
-                )
-                + "/"
-                + polars.col("Sampling Point Id")
-            ).alias("station"),
-            polars.col("Latitude").alias("latitude"),
-            polars.col("Longitude").alias("longitude"),
-            polars.col("Altitude").alias("altitude"),
-            polars.col("Country").map_elements(_country_code, return_dtype=str).alias("country"),
-            polars.col("Source Data URL").alias("url"),
-            (
-                polars.col("Country").map_elements(
-                    _country_code_eea, return_dtype=str
-                )
-                + "/"
-                + polars.col("Sampling Point Id")
-            ).alias("long_name"),
-            polars.col("Air Quality Station Area").alias("station_area"),
-            polars.col("Air Quality Station Type").alias("station_type"),
-        )).select(["station", "latitude", "longitude", "altitude", "country", "url", "station_area", "station_type", "long_name"])
+                (
+                    polars.col("Country").map_elements(
+                        _country_code_eea, return_dtype=str
+                    )
+                    + "/"
+                    + polars.col("Sampling Point Id")
+                ).alias("station"),
+                polars.col("Latitude").alias("latitude"),
+                polars.col("Longitude").alias("longitude"),
+                polars.col("Altitude").alias("altitude"),
+                polars.col("Country")
+                .map_elements(_country_code, return_dtype=str)
+                .alias("country"),
+                polars.col("Source Data URL").alias("url"),
+                (
+                    polars.col("Country").map_elements(
+                        _country_code_eea, return_dtype=str
+                    )
+                    + "/"
+                    + polars.col("Sampling Point Id")
+                ).alias("long_name"),
+                polars.col("Air Quality Station Area").alias("station_area"),
+                polars.col("Air Quality Station Type").alias("station_type"),
+            )
+        ).select(
+            [
+                "station",
+                "latitude",
+                "longitude",
+                "altitude",
+                "country",
+                "url",
+                "station_area",
+                "station_type",
+                "long_name",
+            ]
+        )
         station_dicts = {s["station"]: Station(s) for s in stations.to_dicts()}
         return station_dicts
 
@@ -384,8 +404,14 @@ airbase unverified --path datadir/unverified/ -p SO2 -p PM10 -p O3 -p NO2 -p CO 
 """
     url: str = "https://github.com/metno/pyaro-readers"
 
-    def open(self, filename_or_obj_or_url, enable_progressbar: bool = False, *, filters=None):
-        return EEATimeseriesReader(filename_or_obj_or_url, enable_progressbar=enable_progressbar, filters=filters)
+    def open(
+        self, filename_or_obj_or_url, enable_progressbar: bool = False, *, filters=None
+    ):
+        return EEATimeseriesReader(
+            filename_or_obj_or_url,
+            enable_progressbar=enable_progressbar,
+            filters=filters,
+        )
 
 
 # ISO 3166-1 alpha-2 for countries in EEA
