@@ -1,11 +1,8 @@
 import logging
-from os import path
 from datetime import datetime, timedelta
-import sys
 from pathlib import Path
-from typing import Tuple, Any
+from typing import Any
 from collections.abc import Iterable
-import functools
 import importlib.resources
 import dataclasses
 
@@ -13,294 +10,15 @@ from tqdm import tqdm
 import numpy as np
 import polars
 from pyaro.timeseries import (
-    AutoFilterReaderEngine,
     Data,
-    NpStructuredData,
     Station,
     Reader,
+    Engine,
 )
 import pyaro.timeseries
 
-if sys.version_info >= (3, 11):  # pragma: no cover
-    import tomllib
-else:  # pragma: no cover
-    import tomli as tomllib
-
 
 logger = logging.getLogger(__name__)
-
-FLAGS_VALID = {-99: False, -1: False, 1: True, 2: False, 3: False, 4: True}
-VERIFIED_LVL = [1, 2, 3]
-DATA_TOML = path.join(path.dirname(__file__), "data.toml")
-FILL_COUNTRY_FLAG = False
-
-TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-
-TS_TYPE_DIFFS = {
-    "daily": np.timedelta64(12, "h"),
-    "instantaneous": np.timedelta64(0, "s"),
-    "points": np.timedelta64(0, "s"),
-    "monthly": np.timedelta64(15, "D"),
-}
-
-
-DTYPES = [
-    ("values", "f"),
-    ("stations", "U64"),
-    ("latitudes", "f"),
-    ("longitudes", "f"),
-    ("altitudes", "f"),
-    ("start_times", "datetime64[s]"),
-    ("end_times", "datetime64[s]"),
-    ("flags", "i2"),
-    ("standard_deviations", "f"),
-]
-
-
-PARQUET_FIELDS = dict(
-    values="Value",
-    start_times="Start",
-    end_times="End",
-    flags="Validity",
-)
-
-METADATA_FILEDS = dict(
-    stations="stationcode",
-    latitudes="lat",
-    longitudes="lon",
-    altitudes="alt",
-)
-
-
-class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
-    def __init__(
-        self,
-        filename,
-        filters={},
-    ):
-        self._filename = filename
-        self._stations = {}
-        self._data = {}  # var -> {data-array}
-        self._set_filters(filters)
-
-        self.metadata = self._read_metadata(filename)
-        self.data_cfg = self._read_cfg()
-
-        self._read_polars(filters, filename)
-
-    def _read_polars(self, filters, filename) -> None:
-        try:
-            species = filters["variables"]["include"]
-        except Exception:
-            species = []
-
-        filter_time = False
-        if "time_bounds" in filters:
-            if "start_include" in filters["time_bounds"]:
-                start_date = datetime.strptime(
-                    filters["time_bounds"]["start_include"][0][0], TIME_FORMAT
-                )
-                end_date = datetime.strptime(
-                    filters["time_bounds"]["start_include"][0][1], TIME_FORMAT
-                )
-                filter_time = True
-
-        if len(species) == 0:
-            raise ValueError(
-                "As of now, you have to give the species you want to read in filter.variables.include"
-            )
-
-        filename = Path(filename)
-        if not filename.is_dir():
-            raise ValueError(
-                "The filename must be an existing path where the data is found in folders with the country code as name"
-            )
-        for s in species:
-            files = self._create_file_list(filename, s)
-            if len(files) == 0:
-                raise ValueError(f"could now find any files in {filename} for {s}")
-
-            if filter_time:
-                datapoints = (
-                    self._filter_dates(
-                        polars.scan_parquet(files), (start_date, end_date)
-                    )
-                    .select(polars.len())
-                    .collect()[0, 0]
-                )
-            else:
-                datapoints = (
-                    polars.scan_parquet(files).select(polars.len()).collect()[0, 0]
-                )
-
-            array = np.empty(datapoints, np.dtype(DTYPES))
-
-            data = None
-            species_unit = None
-
-            current_idx = 0
-
-            for file in tqdm(files, disable=None):
-                # Filters by time
-                if filter_time:
-                    lf = self._filter_dates(
-                        polars.read_parquet(file), (start_date, end_date)
-                    )
-                    if lf.is_empty():
-                        logger.info(f"Data for file {file} is empty. Skipping")
-                        continue
-                else:
-                    lf = polars.read_parquet(file)
-
-                # Filters out invalid data
-                lf = lf.filter(polars.col(PARQUET_FIELDS["flags"]) > 0)
-
-                # Changes timezones
-                lf = lf.with_columns(
-                    polars.col(PARQUET_FIELDS["start_times"])
-                    .dt.replace_time_zone("Etc/GMT-1")
-                    .dt.convert_time_zone("UTC")
-                    .alias(PARQUET_FIELDS["start_times"])
-                )
-
-                lf = lf.with_columns(
-                    polars.col(PARQUET_FIELDS["end_times"])
-                    .dt.replace_time_zone("Etc/GMT-1")
-                    .dt.convert_time_zone("UTC")
-                    .alias(PARQUET_FIELDS["end_times"])
-                )
-
-                file_datapoints = lf.select(polars.len())[0, 0]
-
-                if file_datapoints == 0:
-                    continue
-                df = lf
-                try:
-                    station_metadata = self.metadata[df.row(0)[0].split("/")[-1]]
-                except Exception:
-                    logger.info(
-                        f'Could not extract the metadata for {df.row(0)[0].split("/")[-1]}'
-                    )
-                    continue
-
-                file_unit = self._convert_unit(df.row(0)[df.get_column_index("Unit")])
-
-                for key in PARQUET_FIELDS:
-                    array[key][
-                        current_idx : current_idx + file_datapoints
-                    ] = df.get_column(PARQUET_FIELDS[key]).to_numpy()
-
-                for key, value in METADATA_FILEDS.items():
-                    array[key][
-                        current_idx : current_idx + file_datapoints
-                    ] = station_metadata[value]
-
-                current_idx += file_datapoints
-
-                if species_unit is None:
-                    species_unit = file_unit
-                else:
-                    if species_unit != file_unit:
-                        raise ValueError(
-                            f"Found multiple units ({file_unit} and {species_unit}) for same species {s}"
-                        )
-
-                station_fields = {
-                    "station": station_metadata[METADATA_FILEDS["stations"]],
-                    "longitude": station_metadata[METADATA_FILEDS["longitudes"]],
-                    "latitude": station_metadata[METADATA_FILEDS["latitudes"]],
-                    "altitude": station_metadata[METADATA_FILEDS["altitudes"]],
-                    "country": station_metadata["country"],
-                    "url": "",
-                    "long_name": station_metadata[METADATA_FILEDS["stations"]],
-                }
-                self._stations[station_metadata[METADATA_FILEDS["stations"]]] = Station(
-                    station_fields
-                )
-
-            data = NpStructuredData(variable=s, units=species_unit)
-            data.set_data(variable=s, units=species_unit, data=array)
-            self._data[s] = data
-
-    def _create_file_list(self, root: Path, species: str):
-        results = [f for f in (root / species).glob("**/*.parquet")]
-        return results
-
-    def _filter_dates(
-        self, lf: polars.LazyFrame | polars.DataFrame, dates: tuple[datetime]
-    ) -> polars.LazyFrame | polars.DataFrame:
-        if dates[0] >= dates[1]:
-            raise ValueError(
-                f"Error when filtering data. Last date {dates[1]} must be larger than the first {dates[0]}"
-            )
-
-        return lf.filter(
-            polars.col(PARQUET_FIELDS["start_times"]).is_between(
-                dates[0] + timedelta(hours=1), dates[1] + timedelta(hours=1)
-            )
-        )
-
-    def _read_metadata(self, folder: str) -> dict:
-        metadata = {}
-        filename = Path(folder) / "metadata.csv"
-        if not filename.exists():
-            raise FileExistsError(f"Metadata file could not be found in {folder}")
-        with filename.open("r") as f:
-            f.readline()
-            for line in f:
-                words = line.split(", ")
-                try:
-                    lon = float(words[3])
-                    lat = float(words[4])
-                    alt = float(words[5])
-                except Exception:
-                    logger.info(
-                        f"Could not interpret lat, lon, alt for line {line} in metadata. Skipping"
-                    )
-                    continue
-                metadata[words[0]] = {
-                    "lon": lon,
-                    "lat": lat,
-                    "alt": alt,
-                    "stationcode": words[2],
-                    "country": words[1],
-                }
-
-        return metadata
-
-    def _read_cfg(self) -> dict:
-        with open(DATA_TOML, "rb") as f:
-            cfg = tomllib.load(f)
-        return cfg
-
-    def _convert_unit(self, unit: str) -> str:
-        return self.data_cfg["units"][unit]
-
-    def _unfiltered_data(self, varname) -> Data:
-        return self._data[varname]
-
-    def _unfiltered_stations(self) -> dict[str, Station]:
-        return self._stations
-
-    def _unfiltered_variables(self) -> list[str]:
-        return list(self._data.keys())
-
-    def close(self):
-        pass
-
-
-class EEATimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
-    def reader_class(self):
-        return EEATimeseriesReader
-
-    def open(self, filename, *args, **kwargs) -> EEATimeseriesReader:
-        return self.reader_class()(filename, *args, **kwargs)
-
-    def description(self):
-        return "Reader for new EEA data API using the pyaro infrastructure."
-
-    def url(self):
-        return "https://github.com/metno/pyaro-readers"
 
 
 class EEAData(Data):
@@ -422,7 +140,18 @@ def _transform_filters(filters: Iterable[pyaro.timeseries.Filter], variable_id: 
     return _Filters(pyarrow_filters, country_filter)
 
 
-class EEATimeSeriesReader2(Reader):
+class EEATimeseriesReader(Reader):
+    # TODO: support more filters
+    supported_filters: list[str] = [
+        # "variables",
+        "time_bounds",
+        # time_resolution,
+        "stations",
+        "countries",
+        # flags,
+        # altitude,
+    ]
+
     def __init__(
         self, filename_or_obj_or_url, filters=None, enable_progressbar: bool = False
     ):
@@ -447,7 +176,7 @@ class EEATimeSeriesReader2(Reader):
         self._filters = []
         if filters is not None:
             for filter in filters:
-                if filter.name() in self.supported_filters():
+                if filter.name() in self.supported_filters:
                     self._filters.append(filter)
                 else:
                     raise NotImplementedError(
@@ -455,18 +184,6 @@ class EEATimeSeriesReader2(Reader):
                     )
         self._data_directory = data_directory
         self._progressbar_enabled = enable_progressbar
-
-    def supported_filters(self) -> list[str]:
-        # TODO: support more filters
-        return [
-            # "variables",
-            "time_bounds",
-            # time_resolution,
-            "stations",
-            "countries",
-            # flags,
-            # altitude,
-        ]
 
     def metadata(self) -> dict[str, str]:
         metadata = dict()
@@ -595,6 +312,37 @@ class EEATimeSeriesReader2(Reader):
 
     def close(self) -> None:
         pass
+
+
+class EEATimeseriesEngine(Engine):
+    args: list[str] = ["filename_or_obj_or_url", "enable_progressbar"]
+    supported_filters: list[str] = EEATimeseriesReader.supported_filters
+    description: str = """EEA reader for parquet files
+Files are downloaded from https://eeadmz1-downloads-webapp.azurewebsites.net/ using the following directory structure:
+datadir (this path should be passed to `open`)
+  - metadata.csv (from https://discomap.eea.europa.eu/App/AQViewer/index.html?fqn=Airquality_Dissem.b2g.measurements)
+  - historical (directory)
+  - verified (directory)
+  - unverified
+    - AD
+      - file1.parquet
+      - file2.parquet
+      - ...
+    - AL
+    - ...
+
+In each category (historical, verified, unverified) the EEA country codes are used
+for each country.
+
+Data can be downloaded using the airbase tool (https://github.com/JohnPaton/airbase/)
+OBS: Must use github version, pypi version does not download parquet files yet
+
+airbase unverified --path datadir/unverified/ -p SO2 -p PM10 -p O3 -p NO2 -p CO -p NO -p PM2.5 -F hourly --metadata --overwrite
+"""
+    url: str = "https://github.com/metno/pyaro-readers"
+
+    def open(self, filename_or_obj_or_url, enable_progressbar, *, filters=None):
+        return EEATimeseriesReader(filename_or_obj_or_url, enable_progressbar=enable_progressbar, filters=filters)
 
 
 # ISO 3166-1 alpha-2 for countries in EEA

@@ -1,5 +1,4 @@
 from .EEATimeseriesReader import (
     EEATimeseriesReader,
     EEATimeseriesEngine,
-    EEATimeSeriesReader2,
 )

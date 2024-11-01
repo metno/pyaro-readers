@@ -37,7 +37,7 @@ class TestEEATimeSeriesReader(unittest.TestCase):
 
 
 def test_eea_reader2():
-    from pyaro_readers.eeareader import EEATimeSeriesReader2
+    from pyaro_readers.eeareader import EEATimeseriesReader
     import pyaro.timeseries
 
     filters = pyaro.timeseries.FilterCollection(
@@ -50,7 +50,7 @@ def test_eea_reader2():
         }
     )
 
-    reader = EEATimeSeriesReader2(
+    reader = EEATimeseriesReader(
         "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download",
         filters=filters,
         enable_progressbar=True,
