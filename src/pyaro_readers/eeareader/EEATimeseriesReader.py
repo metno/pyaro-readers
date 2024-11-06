@@ -87,6 +87,9 @@ class EEAData(Data):
     def _nrecords(self) -> int:
         return self._data.shape[0]
 
+    def __len__(self) -> int:
+        return self._nrecords()
+
 
 def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
     return polars.read_parquet(
@@ -211,6 +214,8 @@ class EEATimeseriesReader(Reader):
         ), "Pollutants are not unique"
 
         self._filters = []
+        if isinstance(filters, dict):
+            filters = pyaro.timeseries.FilterCollection(filters)
         if filters is not None:
             for filter in filters:
                 if filter.name() in self.supported_filters:
