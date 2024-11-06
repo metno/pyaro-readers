@@ -4,6 +4,9 @@ from pathlib import Path
 
 import pyaro
 import pyaro.timeseries
+import numpy as np
+
+from pyaro_readers.eeareader import EEATimeseriesReader
 
 
 class TestEEATimeSeriesReader(unittest.TestCase):
@@ -24,49 +27,42 @@ class TestEEATimeSeriesReader(unittest.TestCase):
     def test_0engine(self):
         self.assertIn(self.engine, pyaro.list_timeseries_engines())
 
-    # def test_1open_files(self):
-    #     with pyaro.open_timeseries(
-    #         self.engine,
-    #         self.testdata_dir,
-    #         filters={"variables": {"include": ["PM10", "SO2"]}},
-    #     ) as ts:
-    #         self.assertGreaterEqual(len(ts.variables()), 2)
-    #         self.assertGreaterEqual(len(ts.stations()), 2)
-    #         for var in ts.variables():
-    #             assert var in self.test_vars
+    def test_1open_files(self):
+        with pyaro.open_timeseries(
+            self.engine,
+            self.testdata_dir,
+        ) as ts:
+            self.assertGreaterEqual(len(ts.variables()), 2)
+            self.assertGreaterEqual(len(ts.stations()), 2)
+            self.assertTrue(set(self.test_vars).issubset(ts.variables()))
 
+    def test_eea_reader(self):
+        filters = pyaro.timeseries.FilterCollection(
+            {
+                "time_bounds": {
+                    "start_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]
+                },
+                "stations": {
+                    "exclude": ["NO/SPO_NO0151A_8_4768", "NO/SPO_NO0111A_9_1691"]
+                },
+                "countries": {"include": ["NO", "LU"]},
+            }
+        )
 
-def test_eea_reader2():
-    # Only if PPI is available
-    from pyaro_readers.eeareader import EEATimeseriesReader
-    import pyaro.timeseries
+        # If PPI is available one can use the following:
+        # "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download",
+        reader = EEATimeseriesReader(
+            self.testdata_dir,
+            filters=filters,
+        )
 
-    filters = pyaro.timeseries.FilterCollection(
-        {
-            "time_bounds": {
-                "start_include": [("2019-01-01 00:00:00", "2019-12-24 00:00:00")]
-            },
-            "stations": {
-                "exclude": ["GB/GB_SamplingPoint_61718", "GB/GB_SamplingPoint_99"]
-            },
-            "countries": {"include": ["UK"]},
-        }
-    )
+        _ = reader.stations()
 
-    reader = EEATimeseriesReader(
-        "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download",
-        filters=filters,
-        enable_progressbar=True,
-    )
-
-    _ = reader.stations()
-    eea_variables = reader.variables()
-    known_variables = {"PM2.5", "PM10", "NO2"}
-    assert known_variables.issubset(eea_variables)
-
-    data = reader.data("PM2.5")
-    _ = data.altitudes
-    _ = data.values
+        for species in self.test_vars:
+            data = reader.data(species)
+            _ = data.values
+            alts = data.altitudes
+            self.assertFalse(np.any(np.isnan(alts)))
 
 
 if __name__ == "__main__":

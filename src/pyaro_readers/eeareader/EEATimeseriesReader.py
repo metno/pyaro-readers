@@ -188,7 +188,13 @@ class EEATimeseriesReader(Reader):
     ):
         data_directory = Path(filename_or_obj_or_url)
         metadata_file = data_directory.joinpath("metadata.csv")
-        self._metadata = polars.read_csv(metadata_file)
+        self._metadata = polars.read_csv(
+            metadata_file,
+            schema_overrides={
+                "Air Quality Station Nat Code": str,
+                "Detection Limit": float,
+            },
+        )
 
         # Vocabulary as found at https://dd.eionet.europa.eu/vocabulary/aq/pollutant
         pollutant_file_bytes = importlib.resources.files(
