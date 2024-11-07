@@ -222,6 +222,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # for actris vocabulary key and value of self.actris_vars_to_read are the same
         # for pyaerocom vocabulary they are not (key is pyaerocom variable name there)!
         for _var in self.actris_vars_to_read:
+            if _var in self._data:
+                logger.info(f"var {_var} already read")
+                continue
             for actris_variable in self.actris_vars_to_read[_var]:
                 # actris_variable = self.actris_vars_to_read[_var][0]
 
@@ -453,12 +456,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return urls_to_dl
 
     def _unfiltered_data(self, varname) -> Data:
+        self.read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self.read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
+        self.read()
         return list(self._data.keys())
 
     def close(self):
@@ -492,5 +498,3 @@ class ActrisEbasTimeSeriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
     def url(self):
         return "https://github.com/metno/pyaro-readers"
 
-    def read(self):
-        return self.reader_class().read()

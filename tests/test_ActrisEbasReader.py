@@ -54,7 +54,6 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         with engine.open(
                 filters=self.station_filter, vars_to_read=self.vars_to_read
         ) as ts:
-            ts.read()
             self.assertGreaterEqual(len(ts.variables()), 1)
             self.assertGreaterEqual(len(ts.stations()), 2)
             self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
@@ -68,12 +67,10 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         for _var in self.pyaerocom_vars_to_read:
             engine = pyaro.list_timeseries_engines()[self.engine]
             with engine.open(filters=self.station_filter, vars_to_read=[_var]) as ts:
-                ts.read()
                 self.assertGreaterEqual(len(ts.variables()), 1)
                 self.assertGreaterEqual(len(ts.stations()), 2)
                 self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
                 self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
-                self.assertGreaterEqual(len(ts.variables()), 1)
                 self.assertIn("revision", ts.metadata())
 
     def test_wrappers(self):
@@ -82,7 +79,6 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         ebas_var_name = "ozone mass concentration"
         with VariableNameChangingReader(engine.open(filters=self.station_filter, vars_to_read=[ebas_var_name]),
                                         reader_to_new={ebas_var_name: new_var_name}) as ts:
-            ts.read()
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
             self.assertGreaterEqual(len(ts.variables()), 1)
             self.assertGreaterEqual(len(ts.stations()), 2)
