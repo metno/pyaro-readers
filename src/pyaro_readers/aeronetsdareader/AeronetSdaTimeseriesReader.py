@@ -110,6 +110,9 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def read(self):
         # check if file is a URL
         _laststatstr = ""
+        # check if the data has been read already
+        if len(self._data) != 0:
+            return
         if self.is_valid_url(self._filename):
             # try to open as zipfile
             try:
@@ -134,7 +137,7 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         lines = []
                         _fidx = 0
                         members = tf.getmembers()
-                        bar = tqdm(desc="extracting tar file...", total=len(members))
+                        bar = tqdm(desc="extracting tar file...", total=len(members), disable=None)
                         for _midx, member in enumerate(members):
                             if fnmatch(member.name, FILE_MASK):
                                 bar.update(1)
@@ -176,7 +179,7 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         gcd = Geocoder_Reverse_NE()
         crd = csv.DictReader(lines, fieldnames=self._fields, delimiter=DELIMITER)
-        bar = tqdm(desc=self.tqdm_desc, total=len(lines))
+        bar = tqdm(desc=self.tqdm_desc, total=len(lines), disable=None)
         for _ridx, row in enumerate(crd):
             bar.update(1)
             if row[SITE_NAME] != _laststatstr:
@@ -272,15 +275,19 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         bar.close()
 
     def metadata(self):
+        self.read()
         return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
 
     def _unfiltered_data(self, varname) -> Data:
+        self.read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self.read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
+        self.read()
         return list(self._data.keys())
 
     def close(self):
@@ -333,7 +340,3 @@ class AeronetSdaTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
-
-    def read(self):
-        return self.reader_class().read()
-

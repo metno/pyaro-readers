@@ -102,6 +102,9 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     ):
         # check if file is a URL
         _laststatstr = ""
+        # check if the data has been read already
+        if len(self._data) != 0:
+            return
         if self.is_valid_url(self._filename):
             # try to open as zipfile
             try:
@@ -127,7 +130,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         gcd = Geocoder_Reverse_NE()
         crd = csv.DictReader(lines, fieldnames=self._fields, delimiter=DELIMITER)
-        bar = tqdm(desc=tqdm_desc, total=len(lines))
+        bar = tqdm(desc=tqdm_desc, total=len(lines), disable=None)
         for _ridx, row in enumerate(crd):
             bar.update(1)
             if row[SITE_NAME] != _laststatstr:
@@ -209,15 +212,19 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         bar.close()
 
     def metadata(self):
+        self.read()
         return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
 
     def _unfiltered_data(self, varname) -> Data:
+        self.read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self.read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
+        self.read()
         return list(self._data.keys())
 
     def close(self):
@@ -285,5 +292,3 @@ class AeronetSunTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
     def url(self):
         return "https://github.com/metno/pyaro-readers"
 
-    def read(self):
-        return self.reader_class().read()
