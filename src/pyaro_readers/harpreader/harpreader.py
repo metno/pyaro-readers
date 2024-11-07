@@ -76,7 +76,7 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
     def read(self):
         """reading method"""
 
-        bar = tqdm(total=len(self._files))
+        bar = tqdm(total=len(self._files), disable=None)
 
         for f_idx, _file in enumerate(self._files):
             logger.info(f"Reading {_file}")
@@ -241,6 +241,3 @@ class AeronetHARPEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
-
-    def read(self):
-        return self.reader_class().read()

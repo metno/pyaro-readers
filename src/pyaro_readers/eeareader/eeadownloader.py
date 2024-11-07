@@ -133,7 +133,10 @@ class EEADownloader:
 
     @app.command(name="download")
     def download_default(
-        self, save_loc: Path, dataset: int = DATABASES["VERIFIED"]
+        self,
+        save_loc: Path,
+        dataset: int = DATABASES["VERIFIED"],
+        pollutants: list | None = None,
     ) -> None:
         if not save_loc.is_dir():
             save_loc.mkdir(parents=True, exist_ok=True)
@@ -142,22 +145,24 @@ class EEADownloader:
         countries = self.get_countries()
 
         errorfile = open("errors.txt", "w")
+        if pollutants is None:
+            pollutants = self.get_default_pollutants()
+
         pbar = tqdm(countries, desc="Countries", disable=None)
         for country in pbar:
             pbar.set_description(f"{country}")
             for poll in tqdm(
-                self.get_default_pollutants()[:2],
+                pollutants,
                 desc="Pollutants",
                 leave=False,
                 disable=None,
             ):
                 full_loc = save_loc / poll / country
-
                 request = {
                     "countries": [country],
                     "cities": [],
-                    "properties": self.make_pollutant_url_list(poll),
-                    "datasets": dataset,
+                    "pollutants": self.make_pollutant_url_list(poll),
+                    "dataset": dataset,
                     "source": "Api",
                 }
                 self.download_and_save(request, full_loc)
@@ -263,15 +268,17 @@ def postprocess(
 
 
 if __name__ == "__main__":
-    app()
+    # app()
 
-
-# eead = EEADownloader()
-# # eead.download_default(
-# #     Path(
-# #         "/home/danielh/Documents/pyaerocom/pyaro-readers/src/pyaro_readers/eeareader/data"
-# #     )
-# # )
+    pollutants = [
+        "SO2",
+        # "SO4--",
+        # "SO4 (H2SO4 aerosols) (SO4--)",
+    ]
+    eead = EEADownloader()
+    eead.download_default(
+        Path("/home/danielh/Documents/pyaerocom/test_data/EEA"), pollutants=pollutants
+    )
 
 # eead.postprocess_all_files(
 #     Path(

@@ -237,6 +237,3 @@ class NILUPMFAbsorptionTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine)
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
-
-    def read(self):
-        return self.reader_class().read()

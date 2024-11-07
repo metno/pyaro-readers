@@ -1,6 +1,6 @@
 """
 response.json can be downloaded with
-curl -X 'GET'   'https://eeadmz1-downloads-api-appservice.azurewebsites.net/Property'   -H 'accept: text/plain' > response.json
+curl -X 'GET'   'https://eeadmz1-downloads-api-appservice.azurewebsites.net/Pollutant'   -H 'accept: text/plain' > response.json
 
 concentration.csv can be found at https://dd.eionet.europa.eu/vocabulary/uom/concentration
 """
@@ -9,6 +9,8 @@ import json
 
 pollutants = [
     "SO2",
+    "SO4--",
+    "SO4 (H2SO4 aerosols) (SO4--)",
     "PM10",
     "PM2.5",
     "O3",
@@ -28,6 +30,7 @@ pollutants = [
     "NO3- in PM10",
     "HNO3",
 ]
+
 
 with open("response.json", "r") as f:
     properties = {}
@@ -56,7 +59,7 @@ with open("datatest.toml", "w") as target:
 
     target.write("[units]\n")
     for key in response:
-        target.write(f'"{key}" = {response[key]}\n')
+        target.write(f'"{key.lower()}" = {response[key]}\n')
     target.write("\n\n")
     target.write("[pollutant]\n")
     for entry in properties:
