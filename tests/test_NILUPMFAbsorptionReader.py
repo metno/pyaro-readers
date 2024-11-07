@@ -26,7 +26,6 @@ class TestPMFEBASTimeSeriesReader(unittest.TestCase):
 
     def test_1open_single_file(self):
         with pyaro.open_timeseries(self.engine, self.file, filters=[]) as ts:
-            ts.read()
             self.assertGreaterEqual(len(ts.variables()), 1)
             for var in ts.variables():
                 assert var in self.test_vars
@@ -37,7 +36,6 @@ class TestPMFEBASTimeSeriesReader(unittest.TestCase):
 
     def test_2open_directory(self):
         with pyaro.open_timeseries(self.engine, self.testdata_dir, filters=[]) as ts:
-            ts.read()
             self.assertGreaterEqual(len(ts.variables()), 1)
             for var in ts.variables():
                 assert var in self.test_vars

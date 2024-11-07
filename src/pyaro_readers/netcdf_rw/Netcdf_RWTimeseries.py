@@ -45,6 +45,8 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     ):
         self._set_filters(filters)
         self._mode = mode
+        self._metadata = self.metadata()
+
         if os.path.isdir(filename):
             self._directory = filename
         else:
@@ -54,9 +56,6 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 )
             else:
                 os.path.makedirs(filename)
-
-    def read(self):
-        """standard read method"""
 
         dataglob = os.path.join(self._directory, f"{self.ncfile_prefix}.????.nc")
         self._years = set()

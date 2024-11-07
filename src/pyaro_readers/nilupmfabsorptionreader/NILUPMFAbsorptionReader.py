@@ -80,7 +80,9 @@ class NILUPMFAbsorptionReader(AutoFilterReaderEngine.AutoFilterReader):
 
     def read(self):
         """ read method"""
-
+        # check if the data has been read already
+        if len(self._data) != 0:
+            return
         if Path(self._filename).is_file():
             self._process_file(self._filename, self._fill_country_flag)
 
@@ -200,12 +202,15 @@ class NILUPMFAbsorptionReader(AutoFilterReaderEngine.AutoFilterReader):
         # return metadata
 
     def _unfiltered_data(self, varname) -> Data:
+        self.read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self.read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
+        self.read()
         return list(self._data.keys())
 
     def close(self):

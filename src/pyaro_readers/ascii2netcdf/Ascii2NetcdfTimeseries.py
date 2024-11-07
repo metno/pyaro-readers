@@ -73,7 +73,7 @@ class Ascii2NetcdfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         self._metadata = self.metadata()
 
-    def read(self):
+    # def read(self):
         self._variables = self._read_file_variables()
         station_file = "StationList.csv"
         station_filepath = os.path.join(self._directory, station_file)
@@ -287,7 +287,3 @@ class Ascii2NetcdfTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
-
-    def read(self):
-        return self.reader_class().read()
-

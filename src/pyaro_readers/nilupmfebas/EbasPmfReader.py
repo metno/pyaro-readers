@@ -64,6 +64,9 @@ class EbasPmfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def read(self):
         """read method"""
 
+        # check if the data has been read already
+        if len(self._data) != 0:
+            return
         if Path(self._realpath).is_dir():
             # search directory for files
             files = list(self._realpath.glob(self._filemask))
@@ -221,12 +224,15 @@ class EbasPmfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 )
 
     def _unfiltered_data(self, varname) -> Data:
+        self.read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self.read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
+        self.read()
         return list(self._data.keys())
 
     def close(self):
