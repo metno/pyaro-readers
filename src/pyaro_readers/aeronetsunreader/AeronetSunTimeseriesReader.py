@@ -48,7 +48,7 @@ COMPUTED_VARS = [AOD550_NAME]
 # The computed variables have to be named after the read ones, otherwise the calculation will fail!
 DATA_VARS.extend(COMPUTED_VARS)
 
-FILL_COUNTRY_FLAG = False
+FILL_COUNTRY_FLAG = True
 
 TS_TYPE_DIFFS = {
     "daily": np.timedelta64(12, "h"),
