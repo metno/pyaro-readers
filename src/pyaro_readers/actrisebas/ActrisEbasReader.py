@@ -87,7 +87,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     ):
         """ """
         self._filename = None
-        self.vars_to_read = vars_to_read
+        if isinstance(vars_to_read, str):
+            self.vars_to_read = [vars_to_read]
+        else:
+            self.vars_to_read = vars_to_read
         self._stations = {}
         self.urls_to_dl = {}
         self._data = {}  # var -> {data-array}
@@ -121,6 +124,16 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             self.sites_to_exclude = filters["stations"]["exclude"]
         except (KeyError, TypeError) as e:
             self.sites_to_exclude = []
+
+        # since the current pyaerocom interface limits vars_to_read to a string
+        # (and foresees the variables to be passed via a filter) just overwrite
+        # vars_to_read with the settings from the filter if a variable filter has been supplied
+        if "variables" in filters:
+            try:
+                self.vars_to_read = filters["variables"]["include"]
+                logger.info(f"applying variable include filter {vars_to_read}...")
+            except (KeyError, TypeError) as e:
+                pass
 
         # read config file
         self.def_data = self._read_definitions(file=DEFINITION_FILE)
@@ -301,17 +314,19 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     if not site_name in self._stations:
                         self._stations[site_name] = Station(
                             {
-                                "station": site_name,
+                                "station": stat_code,
                                 "longitude": lon[0],
                                 "latitude": lat[0],
                                 "altitude": altitude[0],
                                 "country": self.get_ebas_data_country_code(tmp_data),
                                 "url": "",
-                                "long_name": stat_code,
+                                # This is used by pyaerocom
+                                "long_name": site_name,
                             }
                         )
                     bar.update(1)
                 bar.close()
+        assert True
 
     def get_ebas_flags(self, url: str = EBAS_FLAG_URL) -> dict:
         """small helper to download the bas flag file from NILU"""
