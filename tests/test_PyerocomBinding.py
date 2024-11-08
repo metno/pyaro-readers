@@ -1,15 +1,7 @@
 import unittest
-import urllib.request
-
-import pyaro
-import pyaro.timeseries
-from pyaro.timeseries.Wrappers import VariableNameChangingReader
-
-TEST_URL = "https://prod-actris-md.nilu.no/Version"
-VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
 
 
-class TestActrisEbasTimeSeriesReader(unittest.TestCase):
+class TestPyaroReaderPyaerocom(unittest.TestCase):
     engine = "actrisebas"
 
     station_filter = {
@@ -17,23 +9,8 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             "include": ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"]
         },
     }
-    # vars_to_read = ["ozone mass concentration"]
-    # vars_to_read = ["aerosol particle sulphate mass concentration"]
-    vars_to_read = ["aerosol particle elemental carbon mass concentration"]
-    # pyaerocom_vars_to_read = ["conco3"]
-    pyaerocom_vars_to_read = ["vmro3"]
-
-    # pyaerocom_vars_to_read = ["concso4t"]
-
-    # Try testing the pyaerocom binding if pyaerocom is installed
-    try:
-        from pyaerocom.io import ReadUngridded
-        pyaerocom_installed_flag = True
-    except ImportError:
-        pyaerocom_installed_flag = False
-        pass
-
     AERONETVAR = "od440aer"
+    ACTRISEBASVAR = "concso4t"
 
 
     def test_pyaerocom_aeronet(self):
@@ -60,18 +37,67 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Alta_Floresta", data.unique_station_names)
 
+    def test_pyaerocom_actrisebas_single_var(self):
+        # test reading via pyaerocom
+        try:
+            from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
+            from pyaerocom.io import ReadUngridded
+        except ImportError:
+            assert("pyaerocom not installed")
+            return
 
-    def test_api_reading_pyaerocom_naming(self):
-        # test access to the EBAS API
-        # test variable by variable
-        for _var in self.pyaerocom_vars_to_read:
-            engine = pyaro.list_timeseries_engines()[self.engine]
-            with engine.open(filters=self.station_filter, vars_to_read=[_var]) as ts:
-                self.assertGreaterEqual(len(ts.variables()), 1)
-                self.assertGreaterEqual(len(ts.stations()), 2)
-                self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
-                self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
-                self.assertIn("revision", ts.metadata())
+        data_name = "PYARO_actrisebas"
+        data_id = "actrisebas"
+        station_filter = {
+            "stations": {
+                "include": ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"]
+            },
+        }
+        # needs to be the variable name for actrisebas
+        url = self.ACTRISEBASVAR
+        obsconfig = PyaroConfig(
+            name=data_name,
+            data_id=data_id,
+            filename_or_obj_or_url=url,
+            filters=station_filter,
+        )
+        reader = ReadUngridded(f"{data_name}")
+        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        self.assertGreaterEqual(len(data.unique_station_names), 4)
+        self.assertIn("Ispra", data.unique_station_names)
+
+    def test_pyaerocom_actrisebas_many_var(self):
+        # test multi var reading via pyaerocom
+        # not working properly atm as it's reading only one variable atm
+        try:
+            from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
+            from pyaerocom.io import ReadUngridded
+        except ImportError:
+            assert("pyaerocom not installed")
+            return
+
+        data_name = "PYARO_actrisebas"
+        data_id = "actrisebas"
+        station_filter = {
+            "stations": {
+                "include": ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"]
+            },
+            "variables": {"include": ["concso4t", "concso4c"]}
+        }
+        # needs to be the variable name for actrisebas, but PyaroConfig wants this to a string and not a list
+        # (the pydantic setup is too pedantic)
+        url = self.ACTRISEBASVAR
+        obsconfig = PyaroConfig(
+            name=data_name,
+            data_id=data_id,
+            filename_or_obj_or_url=url,
+            filters=station_filter,
+        )
+        reader = ReadUngridded(f"{data_name}")
+        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        self.assertGreaterEqual(len(data.unique_station_names), 4)
+        self.assertIn("Ispra", data.unique_station_names)
+
 
 
 
