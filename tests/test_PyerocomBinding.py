@@ -11,6 +11,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     }
     AERONETVAR = "od440aer"
     ACTRISEBASVAR = "concso4t"
+    ACTRISEBASVARLIST = ["concso4t","concso4c"]
 
 
     def test_pyaerocom_aeronet(self):
@@ -65,6 +66,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Ispra", data.unique_station_names)
+        self.assertIn(url, data.contains_vars)
 
     def test_pyaerocom_actrisebas_many_var(self):
         # test multi var reading via pyaerocom
@@ -86,7 +88,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         }
         # needs to be the variable name for actrisebas, but PyaroConfig wants this to a string and not a list
         # (the pydantic setup is too pedantic)
-        url = self.ACTRISEBASVAR
+        url = self.ACTRISEBASVARLIST
         obsconfig = PyaroConfig(
             name=data_name,
             data_id=data_id,
@@ -97,6 +99,9 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Ispra", data.unique_station_names)
+        self.assertIn(url[0], data.contains_vars)
+        # This does unfortunately not return the two variables asked for, but only the first:
+        self.assertIn(url[1], data.contains_vars)
 
 
 
