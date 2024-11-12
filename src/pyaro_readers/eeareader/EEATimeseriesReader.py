@@ -21,6 +21,10 @@ import pyaro.timeseries
 logger = logging.getLogger(__name__)
 
 
+class EEAReaderException(Exception):
+    pass
+
+
 class EEAData(Data):
     def __init__(self, data, variable: str) -> None:
         self._data = data
@@ -30,7 +34,7 @@ class EEAData(Data):
     def units(self) -> str:
         units = self._data["Unit"].unique()
         if len(units) != 1:
-            raise Exception("Multiple different units present in this dataset")
+            raise EEAReaderException("Multiple different units present in this dataset")
         return units[0]
 
     def keys(self):
@@ -258,7 +262,7 @@ class EEATimeseriesReader(Reader):
                 polars.col("Notation").eq(variable)
             )
             if len(pollutant_candidates) == 0:
-                raise Exception(f"No variable ID found for {variable}")
+                raise EEAReaderException(f"No variable ID found for {variable}")
             variable_id = pollutant_candidates["Id"][0]
 
         filters = _transform_filters(self._filters, variable_id)
