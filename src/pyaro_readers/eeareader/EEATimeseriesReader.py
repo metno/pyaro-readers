@@ -139,7 +139,7 @@ def _pyarrow_timefilter(
 
 
 def _transform_filters(
-    filters: Iterable[pyaro.timeseries.Filter], variable_id: int
+    filters: Iterable[pyaro.timeseries.Filter.Filter], variable_id: int
 ) -> _Filters:
     pollutant_filter = ("Pollutant", "=", variable_id)
     validity_filter = ("Validity", "=", 1)
@@ -194,16 +194,16 @@ class EEATimeseriesReader(Reader):
         self._metadata = polars.read_csv(
             metadata_file,
             schema_overrides={
-                "Air Quality Station Nat Code": str,
-                "Detection Limit": float,
+                "Air Quality Station Nat Code": polars.String,
+                "Detection Limit": polars.Float32,
             },
         )
 
         # Vocabulary as found at https://dd.eionet.europa.eu/vocabulary/aq/pollutant
-        pollutant_file_bytes = importlib.resources.files(
-            "pyaro_readers.eeareader"
-        ).joinpath("pollutant.csv")
-        self._metadata_pollutant = polars.read_csv(pollutant_file_bytes).with_columns(
+        pollutant_file = importlib.resources.files("pyaro_readers.eeareader").joinpath(
+            "pollutant.csv"
+        )
+        self._metadata_pollutant = polars.read_csv(pollutant_file).with_columns(
             polars.col("URI")
             .str.strip_prefix("http://dd.eionet.europa.eu/vocabulary/aq/pollutant/")
             .cast(polars.Int32)
@@ -241,7 +241,7 @@ class EEATimeseriesReader(Reader):
             stations = self.stations()
             data = dataframe.frame
             return dataframe.postfilter_time.filter_data(
-                EEAData(data, varname), stations, varname
+                EEAData(data, varname), stations, [varname]
             )
 
     def _read(
@@ -314,7 +314,9 @@ class EEATimeseriesReader(Reader):
         # Join with metadata table to get latitude, longitude and altitude
         metadata = self._metadata.with_columns(
             (
-                polars.col("Country").map_elements(_country_code_eea, return_dtype=str)
+                polars.col("Country").map_elements(
+                    _country_code_eea, return_dtype=polars.String
+                )
                 + "/"
                 + polars.col("Sampling Point Id")
             ).alias("selector"),
@@ -367,7 +369,8 @@ class EEATimeseriesReader(Reader):
             (
                 (
                     polars.col("Country").map_elements(
-                        _country_code_eea, return_dtype=str
+                        _country_code_eea,
+                        return_dtype=polars.String,
                     )
                     + "/"
                     + polars.col("Sampling Point Id")
@@ -376,12 +379,12 @@ class EEATimeseriesReader(Reader):
                 polars.col("Longitude").alias("longitude"),
                 polars.col("Altitude").alias("altitude"),
                 polars.col("Country")
-                .map_elements(_country_code, return_dtype=str)
+                .map_elements(_country_code, return_dtype=polars.String)
                 .alias("country"),
                 polars.col("Source Data URL").alias("url"),
                 (
                     polars.col("Country").map_elements(
-                        _country_code_eea, return_dtype=str
+                        _country_code_eea, return_dtype=polars.String
                     )
                     + "/"
                     + polars.col("Sampling Point Id")
