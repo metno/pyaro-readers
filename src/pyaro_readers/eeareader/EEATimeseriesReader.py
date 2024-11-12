@@ -150,7 +150,8 @@ def _transform_filters(
 
     for filter in filters:
         if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
-            pyarrow_filters.extend(_pyarrow_timefilter(filter))
+            if filter.has_envelope():
+                pyarrow_filters.extend(_pyarrow_timefilter(filter))
             time_filter = filter
         elif isinstance(filter, pyaro.timeseries.Filter.StationFilter):
             args = filter.init_kwargs()
