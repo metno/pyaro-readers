@@ -378,6 +378,7 @@ class EEATimeseriesReader(Reader):
                 metadata, left_on="Samplingpoint", right_on="selector", how="left"
             )
             .with_columns(
+                polars.col("Samplingpoint").str.replace("/", "_"),
                 polars.col("Start")
                 .dt.replace_time_zone(original_timezone_for_hourly_data)
                 .dt.convert_time_zone("UTC"),
@@ -415,7 +416,9 @@ class EEATimeseriesReader(Reader):
                     )
                     + "/"
                     + polars.col("Sampling Point Id")
-                ).alias("station"),
+                )
+                .str.replace("/", "_")
+                .alias("station"),
                 polars.col("Latitude").alias("latitude"),
                 polars.col("Longitude").alias("longitude"),
                 polars.col("Altitude").alias("altitude"),
