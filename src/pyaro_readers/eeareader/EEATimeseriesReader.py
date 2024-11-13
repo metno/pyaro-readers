@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from collections.abc import Iterable
 import importlib.resources
 import dataclasses
@@ -192,7 +192,13 @@ class EEATimeseriesReader(Reader):
     ]
 
     def __init__(
-        self, filename_or_obj_or_url, filters=None, enable_progressbar: bool = False
+        self,
+        filename_or_obj_or_url,
+        filters=None,
+        enable_progressbar: bool = False,
+        dataset: Literal["historical", "verified", "unverified"] = "unverified",
+        station_area: str | list[str] = "all",
+        station_type: str | list[str] = "all",
     ):
         data_directory = Path(filename_or_obj_or_url)
         metadata_file = data_directory.joinpath("metadata.csv")
@@ -203,6 +209,7 @@ class EEATimeseriesReader(Reader):
                 "Detection Limit": polars.Float32,
             },
         )
+        self._dataset = dataset
 
         # Vocabulary as found at https://dd.eionet.europa.eu/vocabulary/aq/pollutant
         pollutant_file = importlib.resources.files("pyaro_readers.eeareader").joinpath(
@@ -231,6 +238,17 @@ class EEATimeseriesReader(Reader):
                     )
         self._data_directory = data_directory
         self._progressbar_enabled = enable_progressbar
+
+        if isinstance(station_area, str):
+            self._station_area = [station_area]
+        else:
+            self._station_area = station_are
+        self._station_type = station_type
+
+        if isinstance(station_type, str):
+            self._station_type = [station_type]
+        else:
+            self._station_area = station_type
 
     def metadata(self) -> dict[str, str]:
         metadata = dict()
@@ -266,13 +284,18 @@ class EEATimeseriesReader(Reader):
             variable_id = pollutant_candidates["Id"][0]
 
         filters = _transform_filters(self._filters, variable_id)
-
-        # historical_path = self._data_directory.joinpath("historical")
-        # verified_path = self._data_directory.joinpath("verified")
+        historical_path = self._data_directory.joinpath("historical")
+        verified_path = self._data_directory.joinpath("verified")
         unverified_path = self._data_directory.joinpath("unverified")
 
         # TODO: Enable depending on data wanted from e.g. time requested
-        searchpaths = [unverified_path]
+        searchpaths = []
+        if self._dataset == "historical":
+            searchpaths.append(historical_path)
+        elif self._dataset == "verified":
+            searchpaths.append(verified_path)
+        elif self._dataset == "unverified":
+            searchpaths.append(unverified_path)
 
         dataset = polars.DataFrame(
             schema={
@@ -332,8 +355,20 @@ class EEATimeseriesReader(Reader):
                 "Longitude",
                 "Latitude",
                 "Duration Unit",
+                "Air Quality Station Area",
+                "Air Quality Station Type",
             ]
         )
+
+        extra_filters = []
+        if self._station_area != ["all"]:
+            extra_filters.append(
+                polars.col("Air Quality Station Area").is_in(station_area)
+            )
+        if self._station_type != ["all"]:
+            extra_filters.append(
+                polars.col("Air Quality Station Type").is_in(station_type)
+            )
 
         # OBS: Times are given in this timezone for non-daily observations
         # this assumption is also used for pyarrow filtering
@@ -352,6 +387,7 @@ class EEATimeseriesReader(Reader):
             )
             .filter(
                 polars.col("Duration Unit").eq("hour"),
+                *extra_filters,
             )
         )
 
@@ -418,7 +454,13 @@ class EEATimeseriesReader(Reader):
 
 
 class EEATimeseriesEngine(Engine):
-    args: list[str] = ["filename_or_obj_or_url", "enable_progressbar"]
+    args: list[str] = [
+        "filename_or_obj_or_url",
+        "enable_progressbar",
+        "dataset",
+        "station_area",
+        "station_type",
+    ]
     supported_filters: list[str] = EEATimeseriesReader.supported_filters
     description: str = """EEA reader for parquet files
 
@@ -448,12 +490,22 @@ airbase unverified --path datadir/unverified/ -p SO2 -p PM10 -p O3 -p NO2 -p CO 
     url: str = "https://github.com/metno/pyaro-readers"
 
     def open(
-        self, filename_or_obj_or_url, enable_progressbar: bool = False, *, filters=None
+        self,
+        filename_or_obj_or_url,
+        enable_progressbar: bool = False,
+        dataset: Literal["historical", "verified", "unverified"] = "unverified",
+        station_area: str | list[str] = "all",
+        station_type: str | list[str] = "all",
+        *,
+        filters=None,
     ):
         return EEATimeseriesReader(
             filename_or_obj_or_url,
             enable_progressbar=enable_progressbar,
+            dataset=dataset,
             filters=filters,
+            station_area=station_area,
+            station_type=station_type,
         )
 
 
