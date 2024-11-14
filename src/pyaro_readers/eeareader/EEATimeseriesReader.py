@@ -199,9 +199,11 @@ class EEATimeseriesReader(Reader):
         dataset: Literal["historical", "verified", "unverified"] = "unverified",
         station_area: str | list[str] = "all",
         station_type: str | list[str] = "all",
+        metadata_file: str | None = None,
     ):
         data_directory = Path(filename_or_obj_or_url)
-        metadata_file = data_directory.joinpath("metadata.csv")
+        if metadata_file is None:
+            metadata_file = data_directory.joinpath("metadata.csv")
         self._metadata = polars.read_csv(
             metadata_file,
             schema_overrides={
@@ -463,6 +465,7 @@ class EEATimeseriesEngine(Engine):
         "dataset",
         "station_area",
         "station_type",
+        "metadata_file",
     ]
     supported_filters: list[str] = EEATimeseriesReader.supported_filters
     description: str = """EEA reader for parquet files
@@ -499,6 +502,7 @@ airbase unverified --path datadir/unverified/ -p SO2 -p PM10 -p O3 -p NO2 -p CO 
         dataset: Literal["historical", "verified", "unverified"] = "unverified",
         station_area: str | list[str] = "all",
         station_type: str | list[str] = "all",
+        metadata_file: str | None = None,
         *,
         filters=None,
     ):
@@ -509,6 +513,7 @@ airbase unverified --path datadir/unverified/ -p SO2 -p PM10 -p O3 -p NO2 -p CO 
             filters=filters,
             station_area=station_area,
             station_type=station_type,
+            metadata_file=metadata_file,
         )
 
 
