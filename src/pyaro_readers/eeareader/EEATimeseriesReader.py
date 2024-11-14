@@ -326,13 +326,15 @@ class EEATimeseriesReader(Reader):
                     continue
 
             for searchpath in searchpaths:
-                assert set(i.name for i in searchpath.iterdir()).issubset(
-                    countries
-                ), "Some directories has an unknown country code"
+                unknown_ccs = set(i.name for i in searchpath.iterdir()) - set(countries)
+                for dir in unknown_ccs:
+                    logger.info(
+                        f"Directory {dir} is ignored (not mathcing any country code)"
+                    )
                 countrypath = searchpath.joinpath(countrycode)
                 if not countrypath.exists():
                     continue
-                countrypaths = countrypath.iterdir()
+                countrypaths = countrypath.rglob("*.parquet")
                 paths.extend(sorted(countrypaths))
 
         pbar = tqdm(paths, disable=not self._progressbar_enabled)
