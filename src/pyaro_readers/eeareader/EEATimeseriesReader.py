@@ -387,7 +387,7 @@ class EEATimeseriesReader(Reader):
                 .dt.convert_time_zone("UTC"),
             )
             .filter(
-                polars.col("Duration Unit").eq("hour"),
+                polars.col("Duration Unit").ne("day"),  # Timezone assumption filter
                 *extra_filters,
             )
         )
