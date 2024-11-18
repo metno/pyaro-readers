@@ -54,7 +54,7 @@ class EEAData(Data):
 
     @property
     def stations(self) -> np.ndarray:
-        return np.array(self._data["Samplingpoint"])
+        return np.array(self._data["station"])
 
     @property
     def latitudes(self) -> np.ndarray:
@@ -119,12 +119,13 @@ def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
 
 @dataclasses.dataclass
 class _Filters:
-    pyarrow: list[tuple[str, str, datetime]]
+    pyarrow_filters_hourly: list[tuple[str, str, str | datetime]]
+    pyarrow_filters_daily: list[tuple[str, str, str | datetime]]
     country: pyaro.timeseries.Filter.CountryFilter | None
     time: pyaro.timeseries.Filter.TimeBoundsFilter | None
 
 
-def _pyarrow_timefilter(
+def _pyarrow_timefilter_hourly(
     filter: pyaro.timeseries.Filter.TimeBoundsFilter,
 ) -> list[tuple[str, str, datetime]]:
     # Time filtering might not be expressible as pyarrow filters alone,
@@ -146,6 +147,28 @@ def _pyarrow_timefilter(
         ("End", "<=", max_time),
     ]
 
+def _pyarrow_timefilter_daily(
+    filter: pyaro.timeseries.Filter.TimeBoundsFilter,
+) -> list[tuple[str, str, datetime]]:
+    # Time filtering might not be expressible as pyarrow filters alone,
+    # so we supply a coarse filter which should be filtered later on
+    # TODO: Make this support more filtering whilst reading
+    min_time, max_time = filter.envelope()
+
+    # OBS: Critical assumption
+    # Timezones for daily data is given in a timezone
+    # determined by the reporting country. As a coarse filter
+    # use a safety margin.
+    # The data will additionally be filtered at a later time
+    offset = timedelta(hours=26)
+
+    return [
+        ("Start", ">=", min_time - offset),
+        ("Start", "<=", max_time + offset),
+        ("End", ">=", min_time - offset),
+        ("End", "<=", max_time + offset),
+    ]
+
 
 def _transform_filters(
     filters: Iterable[pyaro.timeseries.Filter.Filter], variable_id: int
@@ -153,35 +176,197 @@ def _transform_filters(
     pollutant_filter = ("Pollutant", "=", variable_id)
     validity_filter = ("Validity", "=", 1)
 
-    pyarrow_filters = [pollutant_filter, validity_filter]
+    pyarrow_filters_daily = [pollutant_filter, validity_filter]
+    pyarrow_filters_hourly = pyarrow_filters_daily.copy()
     country_filter = None
     time_filter = None
 
     for filter in filters:
         if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
             if filter.has_envelope():
-                pyarrow_filters.extend(_pyarrow_timefilter(filter))
+                pyarrow_filters_hourly.extend(_pyarrow_timefilter_hourly(filter))
+                pyarrow_filters_daily.extend(_pyarrow_timefilter_daily(filter))
             time_filter = filter
-        elif isinstance(filter, pyaro.timeseries.Filter.StationFilter):
-            args = filter.init_kwargs()
-            include = args["include"]
-            exclude = args["exclude"]
-            if len(include) > 0:
-                pyarrow_filters.append(("Samplingpoint", "in", include))
-            if len(exclude) > 0:
-                pyarrow_filters.append(("Samplingpoint", "not in", exclude))
         elif isinstance(filter, pyaro.timeseries.Filter.CountryFilter):
             country_filter = filter
         else:
-            raise NotImplementedError(f"Filter {filter.name()} not supported")
+            continue  # handled post-read
 
-    return _Filters(pyarrow_filters, country=country_filter, time=time_filter)
+    return _Filters(
+        pyarrow_filters_daily=pyarrow_filters_daily,
+        pyarrow_filters_hourly=pyarrow_filters_hourly,
+        country=country_filter,
+        time=time_filter,
+    )
 
 
-@dataclasses.dataclass
-class _DataFrame:
-    frame: polars.DataFrame
-    postfilter_time: pyaro.timeseries.Filter.TimeBoundsFilter | None
+def _read_hourly_files(
+    datapaths: list[Path],
+    variable: int,
+    metadata: polars.DataFrame,
+    progressbar_enabled: bool,
+    filters: _Filters,
+) -> polars.DataFrame:
+    dataset = polars.DataFrame(
+        schema={
+            "Samplingpoint": str,
+            "Pollutant": polars.Int32,
+            "Start": polars.Datetime("ns"),
+            "End": polars.Datetime("ns"),
+            "Value": polars.Float32,
+            "Unit": str,
+            # "AggType": str,
+            "Validity": polars.Int32,
+            # "Verification": polars.Int32,
+            # "ResultTime": datetime,
+            # "DataCapture": datetime,
+            # "FkObservationLog": str,
+        }
+    )
+
+    pbar = tqdm(datapaths, disable=not progressbar_enabled)
+    for file in pbar:
+        pbar.set_description(f"Processing hourly {file.name:>54}")
+        dataset.vstack(_read(file, filters.pyarrow_filters_hourly), in_place=True)
+
+    # Join with metadata table to get latitude, longitude and altitude
+    metadata = metadata.with_columns(
+        (
+            polars.col("Country").map_elements(
+                _country_code_eea, return_dtype=polars.String
+            )
+            + "/"
+            + polars.col("Sampling Point Id")
+        ).alias("selector"),
+    ).select(
+        [
+            "selector",
+            "Altitude",
+            "Longitude",
+            "Latitude",
+            "Duration Unit",
+            "Air Quality Station Area",
+            "Air Quality Station Type",
+        ]
+    )
+
+    # OBS: Times are given in this timezone for non-daily observations
+    # this assumption is also used for pyarrow filtering
+    original_timezone_for_hourly_data = "Etc/GMT+1"
+    joined = (
+        dataset.join(metadata, left_on="Samplingpoint", right_on="selector", how="left")
+        .with_columns(
+            polars.col("Samplingpoint").str.replace("/", "_"),
+            polars.col("Start")
+            .dt.replace_time_zone(original_timezone_for_hourly_data)
+            .dt.convert_time_zone("UTC"),
+            polars.col("End")
+            .dt.replace_time_zone(original_timezone_for_hourly_data)
+            .dt.convert_time_zone("UTC"),
+        )
+        .filter(
+            polars.col("Duration Unit").ne("day"),  # Timezone assumption filter
+        )
+    )
+
+    assert (
+        joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
+    ), "Some stations does not have a suitable left join"
+
+    return joined
+
+
+def _read_daily_files(
+    datapaths: list[Path],
+    variable: int,
+    metadata: polars.DataFrame,
+    progressbar_enabled: bool,
+    filters: _Filters,
+) -> polars.DataFrame:
+    dataset = polars.DataFrame(
+        schema={
+            "Samplingpoint": str,
+            "Pollutant": polars.Int32,
+            "Start": polars.Datetime("ns"),
+            "End": polars.Datetime("ns"),
+            "Value": polars.Float32,
+            "Unit": str,
+            # "AggType": str,
+            "Validity": polars.Int32,
+            # "Verification": polars.Int32,
+            # "ResultTime": datetime,
+            # "DataCapture": datetime,
+            # "FkObservationLog": str,
+        }
+    )
+
+    pbar = tqdm(datapaths, disable=not progressbar_enabled)
+    for file in pbar:
+        pbar.set_description(f"Processing daily {file.name:>54}")
+        dataset.vstack(_read(file, filters.pyarrow_filters_daily), in_place=True)
+
+    # Join with metadata table to get latitude, longitude and altitude
+    metadata = metadata.with_columns(
+        (
+            polars.col("Country").map_elements(
+                _country_code_eea, return_dtype=polars.String
+            )
+            + "/"
+            + polars.col("Sampling Point Id")
+        ).alias("selector"),
+    ).select(
+        [
+            "selector",
+            "Altitude",
+            "Longitude",
+            "Latitude",
+            "Duration Unit",
+            "Air Quality Station Area",
+            "Air Quality Station Type",
+            "Timezone",
+        ]
+    )
+
+    timezone_mapper = {
+        "UTC-04": "Etc/GMT-4",
+        "UTC-03": "Etc/GMT-3",
+        "UTC": "UTC",
+        "UTC+01": "Etc/GMT+1",
+        "UTC+02": "Etc/GMT+2",
+        "UTC+03": "Etc/GMT+3",
+        "UTC+04": "Etc/GMT+4",
+    }
+    # Round-about way to force timezone in there
+    # https://github.com/pola-rs/polars/issues/12761
+    tz_exprs_start = [
+        polars.when(polars.col("Timezone").str.to_uppercase() == tz).then(
+            polars.col("Start")
+            .dt.replace_time_zone(tz_valid)
+            .dt.convert_time_zone("UTC")
+        )
+        for tz, tz_valid in timezone_mapper.items()
+    ]
+    tz_exprs_end = [
+        polars.when(polars.col("Timezone").str.to_uppercase() == tz).then(
+            polars.col("End").dt.replace_time_zone(tz_valid).dt.convert_time_zone("UTC")
+        )
+        for tz, tz_valid in timezone_mapper.items()
+    ]
+
+    joined = (
+        dataset.join(metadata, left_on="Samplingpoint", right_on="selector", how="left")
+        .with_columns(
+            polars.coalesce(tz_exprs_start),
+            polars.coalesce(tz_exprs_end),
+        )
+        .drop("Timezone")
+    )
+
+    assert (
+        joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
+    ), "Some stations does not have a suitable left join"
+
+    return joined
 
 
 class EEATimeseriesReader(AutoFilterReader):
@@ -229,12 +414,11 @@ class EEATimeseriesReader(AutoFilterReader):
             self._station_area = [station_area]
         else:
             self._station_area = station_area
-        self._station_type = station_type
 
         if isinstance(station_type, str):
             self._station_type = [station_type]
         else:
-            self._station_area = station_type
+            self._station_type = station_type
 
     def metadata(self) -> dict[str, str]:
         metadata = dict()
@@ -244,12 +428,15 @@ class EEATimeseriesReader(AutoFilterReader):
 
     def _unfiltered_data(self, varname: str) -> Data:
         dataframe = self._read(varname)
-        return EEAData(dataframe.frame, varname)
+        dataframe = dataframe.with_columns(
+            polars.col("Samplingpoint").str.replace("/", "_").alias("station")
+        )
+        return EEAData(dataframe, varname)
 
     def _read(
         self,
         variable: str | int,
-    ) -> _DataFrame:
+    ) -> polars.DataFrame:
         # https://dd.eionet.europa.eu/vocabulary/aq/pollutant
         if isinstance(variable, int):
             variable_id = variable
@@ -270,7 +457,7 @@ class EEATimeseriesReader(AutoFilterReader):
         # TODO: Enable depending on data wanted from e.g. time requested
         searchpaths = []
         if self._dataset == "historical":
-            searchpaths.append(historical_path)
+            searchpaths.extend(historical_path)
         elif self._dataset == "verified":
             searchpaths.append(verified_path)
         elif self._dataset == "unverified":
@@ -294,7 +481,7 @@ class EEATimeseriesReader(AutoFilterReader):
         )
         countries = _country_code_mappings_eea.values()
 
-        paths = []
+        paths: list[str, Path] = []
         for countrycode in countries:
             if filters.country is not None:
                 # Reverse map EEA countrycode to ISO countrycode
@@ -303,43 +490,37 @@ class EEATimeseriesReader(AutoFilterReader):
                     continue
 
             for searchpath in searchpaths:
-                unknown_ccs = set(i.name for i in searchpath.iterdir()) - set(countries)
-                for dir in unknown_ccs:
-                    logger.info(
-                        f"Directory {dir} is ignored (not mathcing any country code)"
+                for freq in ["hourly", "daily"]:
+                    spath = searchpath.joinpath(freq)
+                    unknown_ccs = set(i.name for i in spath.iterdir()) - set(countries)
+                    for dir in unknown_ccs:
+                        logger.info(
+                            f"Directory {dir} is ignored (not matching any country code)"
+                        )
+                    countrypath = spath.joinpath(countrycode)
+                    if not countrypath.exists():
+                        continue
+                    countrypaths = countrypath.rglob("*.parquet")
+                    paths.extend(
+                        sorted([(freq, c) for c in countrypaths], key=lambda x: x[1])
                     )
-                countrypath = searchpath.joinpath(countrycode)
-                if not countrypath.exists():
-                    continue
-                countrypaths = countrypath.rglob("*.parquet")
-                paths.extend(sorted(countrypaths))
 
-        pbar = tqdm(paths, disable=not self._progressbar_enabled)
-        for file in pbar:
-            pbar.set_description(f"Processing {file.name:>34}")
-
-            dataset.vstack(_read(file, filters.pyarrow), in_place=True)
-
-        # Join with metadata table to get latitude, longitude and altitude
-        metadata = self._metadata.with_columns(
-            (
-                polars.col("Country").map_elements(
-                    _country_code_eea, return_dtype=polars.String
-                )
-                + "/"
-                + polars.col("Sampling Point Id")
-            ).alias("selector"),
-        ).select(
-            [
-                "selector",
-                "Altitude",
-                "Longitude",
-                "Latitude",
-                "Duration Unit",
-                "Air Quality Station Area",
-                "Air Quality Station Type",
-            ]
+        hourly_dataset = _read_hourly_files(
+            [p[1] for p in paths if p[0] == "hourly"],
+            variable_id,
+            self._metadata,
+            self._progressbar_enabled,
+            filters,
         )
+        daily_dataset = _read_daily_files(
+            [p[1] for p in paths if p[0] == "daily"],
+            variable_id,
+            self._metadata,
+            self._progressbar_enabled,
+            filters,
+        )
+
+        dataset = hourly_dataset.vstack(daily_dataset)
 
         extra_filters = []
         if self._station_area != ["all"]:
@@ -351,33 +532,10 @@ class EEATimeseriesReader(AutoFilterReader):
                 polars.col("Air Quality Station Type").is_in(self._station_type)
             )
 
-        # OBS: Times are given in this timezone for non-daily observations
-        # this assumption is also used for pyarrow filtering
-        original_timezone_for_hourly_data = "Etc/GMT+1"
-        joined = (
-            dataset.join(
-                metadata, left_on="Samplingpoint", right_on="selector", how="left"
-            )
-            .with_columns(
-                polars.col("Samplingpoint").str.replace("/", "_"),
-                polars.col("Start")
-                .dt.replace_time_zone(original_timezone_for_hourly_data)
-                .dt.convert_time_zone("UTC"),
-                polars.col("End")
-                .dt.replace_time_zone(original_timezone_for_hourly_data)
-                .dt.convert_time_zone("UTC"),
-            )
-            .filter(
-                polars.col("Duration Unit").ne("day"),  # Timezone assumption filter
-                *extra_filters,
-            )
-        )
+        if len(extra_filters) != 0:
+            dataset = dataset.filter(*extra_filters)
 
-        assert (
-            joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
-        ), "Some stations does not have a suitable left join"
-
-        return _DataFrame(frame=joined, postfilter_time=filters.time)
+        return dataset
 
     def _unfiltered_variables(self) -> list[str]:
         # Todo: Filtering might affect available variables
