@@ -147,6 +147,7 @@ def _pyarrow_timefilter_hourly(
         ("End", "<=", max_time),
     ]
 
+
 def _pyarrow_timefilter_daily(
     filter: pyaro.timeseries.Filter.TimeBoundsFilter,
 ) -> list[tuple[str, str, datetime]]:
@@ -492,6 +493,8 @@ class EEATimeseriesReader(AutoFilterReader):
             for searchpath in searchpaths:
                 for freq in ["hourly", "daily"]:
                     spath = searchpath.joinpath(freq)
+                    if not spath.exists():
+                        continue
                     unknown_ccs = set(i.name for i in spath.iterdir()) - set(countries)
                     for dir in unknown_ccs:
                         logger.info(
@@ -607,20 +610,23 @@ datadir (this path should be passed to `open`)
   - historical (directory)
   - verified (directory)
   - unverified
-    - AD
-      - file1.parquet
-      - file2.parquet
+    - hourly
+      - AD
+        - file1.parquet
+        - file2.parquet
+        - ...
+      - AL
+    - daily
       - ...
-    - AL
     - ...
 
-In each category (historical, verified, unverified) the EEA country codes are used.
-This might differ from pyaro country codes.
+In each category (historical, verified, unverified) the time frequency and then the EEA country codes are used.
+EEA country codes might differ from pyaro country codes.
 
 Data can be downloaded using the airbase tool (https://github.com/JohnPaton/airbase/)
 OBS: Must use github version, pypi version does not download parquet files yet
 
-airbase unverified --path datadir/unverified/ -p SO2 -p PM10 -p O3 -p NO2 -p CO -p NO -p PM2.5 -F hourly --metadata --overwrite
+airbase unverified --path datadir/unverified/hourly -p SO2 -p PM10 -p O3 -p NO2 -p CO -p NO -p PM2.5 -F hourly --metadata --overwrite
 """
 
     def url(self) -> str:
