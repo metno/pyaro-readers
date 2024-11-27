@@ -205,7 +205,6 @@ def _read_hourly_files(
     datapaths: list[Path],
     variable: int,
     metadata: polars.DataFrame,
-    progressbar_enabled: bool,
     filters: _Filters,
 ) -> polars.DataFrame:
     dataset = polars.DataFrame(
@@ -225,7 +224,7 @@ def _read_hourly_files(
         }
     )
 
-    pbar = tqdm(datapaths, disable=not progressbar_enabled)
+    pbar = tqdm(datapaths, disable=None)
     for file in pbar:
         pbar.set_description(f"Processing hourly {file.name:>54}")
         dataset.vstack(_read(file, filters.pyarrow_filters_hourly), in_place=True)
@@ -281,7 +280,6 @@ def _read_daily_files(
     datapaths: list[Path],
     variable: int,
     metadata: polars.DataFrame,
-    progressbar_enabled: bool,
     filters: _Filters,
 ) -> polars.DataFrame:
     dataset = polars.DataFrame(
@@ -301,7 +299,7 @@ def _read_daily_files(
         }
     )
 
-    pbar = tqdm(datapaths, disable=not progressbar_enabled)
+    pbar = tqdm(datapaths, disable=None)
     for file in pbar:
         pbar.set_description(f"Processing daily {file.name:>54}")
         dataset.vstack(_read(file, filters.pyarrow_filters_daily), in_place=True)
@@ -375,7 +373,6 @@ class EEATimeseriesReader(AutoFilterReader):
         self,
         filename_or_obj_or_url,
         filters=[],
-        enable_progressbar: bool = False,
         dataset: Literal["historical", "verified", "unverified"] = "unverified",
         station_area: str | list[str] = "all",
         station_type: str | list[str] = "all",
@@ -409,7 +406,6 @@ class EEATimeseriesReader(AutoFilterReader):
         ), "Pollutants are not unique"
 
         self._data_directory = data_directory
-        self._progressbar_enabled = enable_progressbar
 
         if isinstance(station_area, str):
             self._station_area = [station_area]
@@ -512,14 +508,12 @@ class EEATimeseriesReader(AutoFilterReader):
             [p[1] for p in paths if p[0] == "hourly"],
             variable_id,
             self._metadata,
-            self._progressbar_enabled,
             filters,
         )
         daily_dataset = _read_daily_files(
             [p[1] for p in paths if p[0] == "daily"],
             variable_id,
             self._metadata,
-            self._progressbar_enabled,
             filters,
         )
 
