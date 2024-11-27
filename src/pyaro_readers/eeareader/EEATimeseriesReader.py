@@ -504,20 +504,24 @@ class EEATimeseriesReader(AutoFilterReader):
                         sorted([(freq, c) for c in countrypaths], key=lambda x: x[1])
                     )
 
+        hourly_paths = [p[1] for p in paths if p[0] == "hourly"]
         hourly_dataset = _read_hourly_files(
-            [p[1] for p in paths if p[0] == "hourly"],
+            hourly_paths,
             variable_id,
             self._metadata,
             filters,
         )
-        daily_dataset = _read_daily_files(
-            [p[1] for p in paths if p[0] == "daily"],
-            variable_id,
-            self._metadata,
-            filters,
-        )
-
-        dataset = hourly_dataset.vstack(daily_dataset)
+        daily_paths = [p[1] for p in paths if p[0] == "daily"]
+        if len(daily_paths) == 0:
+            dataset = hourly_dataset
+        else:
+            daily_dataset = _read_daily_files(
+                daily_paths,
+                variable_id,
+                self._metadata,
+                filters,
+            )
+            dataset = hourly_dataset.vstack(daily_dataset)
 
         extra_filters = []
         if self._station_area != ["all"]:
