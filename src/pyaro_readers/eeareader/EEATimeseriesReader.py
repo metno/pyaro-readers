@@ -1,300 +1,708 @@
 import logging
-from os import path
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Literal
+from collections.abc import Iterable
+import importlib.resources
+import dataclasses
 
 from tqdm import tqdm
-from datetime import datetime, timedelta
-
-from geocoder_reverse_natural_earth import (
-    Geocoder_Reverse_NE,
-    Geocoder_Reverse_Exception,
-)
 import numpy as np
-from pathlib import Path
 import polars
+from pyaro.timeseries.AutoFilterReaderEngine import (
+    AutoFilterReader,
+    AutoFilterEngine,
+)
 from pyaro.timeseries import (
-    AutoFilterReaderEngine,
+    Reader,
     Data,
-    NpStructuredData,
     Station,
 )
-
-try:
-    import tomllib
-except ImportError:  # python <3.11
-    import tomli as tomllib
+import pyaro.timeseries
 
 
 logger = logging.getLogger(__name__)
 
-FLAGS_VALID = {-99: False, -1: False, 1: True, 2: False, 3: False, 4: True}
-VERIFIED_LVL = [1, 2, 3]
-DATA_TOML = path.join(path.dirname(__file__), "data.toml")
-FILL_COUNTRY_FLAG = False
 
-TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-
-TS_TYPE_DIFFS = {
-    "daily": np.timedelta64(12, "h"),
-    "instantaneous": np.timedelta64(0, "s"),
-    "points": np.timedelta64(0, "s"),
-    "monthly": np.timedelta64(15, "D"),
-}
+class EEAReaderException(Exception):
+    pass
 
 
-DTYPES = [
-    ("values", "f"),
-    ("stations", "U64"),
-    ("latitudes", "f"),
-    ("longitudes", "f"),
-    ("altitudes", "f"),
-    ("start_times", "datetime64[s]"),
-    ("end_times", "datetime64[s]"),
-    ("flags", "i2"),
-    ("standard_deviations", "f"),
-]
+class EEAData(Data):
+    def __init__(self, data, variable: str) -> None:
+        self._data = data
+        self._variable = variable
+
+    @property
+    def units(self) -> str:
+        units = self._data["Unit"].unique()
+        if len(units) == 0:
+            return EEAReaderException("No units present in this dataset")
+        elif len(units) != 1:
+            raise EEAReaderException("Multiple different units present in this dataset")
+        return units[0]
+
+    def keys(self):
+        raise NotImplementedError
+
+    def slice(self, index):
+        return EEAData(self._data.filter(index), self._variable)
+
+    @property
+    def values(self) -> np.ndarray:
+        return np.array(self._data["Value"], dtype=float)
+
+    @property
+    def stations(self) -> np.ndarray:
+        return np.array(self._data["station"])
+
+    @property
+    def latitudes(self) -> np.ndarray:
+        return np.array(self._data["Latitude"], dtype=float)
+
+    @property
+    def longitudes(self) -> np.ndarray:
+        return np.array(self._data["Longitude"], dtype=float)
+
+    @property
+    def altitudes(self) -> np.ndarray:
+        return np.array(self._data["Altitude"], dtype=float)
+
+    @property
+    def start_times(self) -> np.ndarray:
+        return np.array(self._data["Start"])
+
+    @property
+    def end_times(self) -> np.ndarray:
+        return np.array(self._data["End"])
+
+    @property
+    def flags(self) -> np.ndarray:
+        def mapper(value: int) -> int:
+            if value == 1:
+                return pyaro.timeseries.Flag.VALID
+            elif value == 2 or value == 3:
+                return pyaro.timeseries.Flag.BELOW_THRESHOLD
+            else:
+                return pyaro.timeseries.Flag.INVALID
+
+        valid = self._data["Validity"].map_elements(mapper, return_dtype=int)
+        return np.array(valid)
+
+    @property
+    def standard_deviations(self) -> np.ndarray:
+        return np.repeat(np.nan, self._nrecords())
+
+    def _nrecords(self) -> int:
+        return self._data.shape[0]
+
+    def __len__(self) -> int:
+        return self._nrecords()
 
 
-PARQUET_FIELDS = dict(
-    values="Value",
-    start_times="Start",
-    end_times="End",
-    flags="Validity",
-)
+def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
+    return polars.read_parquet(
+        filepath,
+        use_pyarrow=True,
+        pyarrow_options={"filters": pyarrow_filters},
+        columns=[
+            "Samplingpoint",
+            "Pollutant",
+            "Start",
+            "End",
+            "Value",
+            "Unit",
+            "Validity",
+        ],
+    ).cast({"Value": polars.Float32})
 
-METADATA_FILEDS = dict(
-    stations="stationcode",
-    latitudes="lat",
-    longitudes="lon",
-    altitudes="alt",
-)
+
+@dataclasses.dataclass
+class _Filters:
+    pyarrow_filters_hourly: list[tuple[str, str, str | datetime]]
+    pyarrow_filters_daily: list[tuple[str, str, str | datetime]]
+    country: pyaro.timeseries.Filter.CountryFilter | None
+    time: pyaro.timeseries.Filter.TimeBoundsFilter | None
 
 
-class EEATimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
+def _pyarrow_timefilter_hourly(
+    filter: pyaro.timeseries.Filter.TimeBoundsFilter,
+) -> list[tuple[str, str, datetime]]:
+    # Time filtering might not be expressible as pyarrow filters alone,
+    # so we supply a coarse filter which should be filtered later on
+    # TODO: Make this support more filtering whilst reading
+    min_time, max_time = filter.envelope()
+
+    # OBS: Critical assumption
+    # Timezones for HOURLY data is given in UTC+1, but input filters
+    # assume UTC. We must therefore add an hour for the envelope
+    offset = timedelta(hours=1)
+    min_time += offset
+    min_time += offset
+
+    return [
+        ("Start", ">=", min_time),
+        ("Start", "<=", max_time),
+        ("End", ">=", min_time),
+        ("End", "<=", max_time),
+    ]
+
+
+def _pyarrow_timefilter_daily(
+    filter: pyaro.timeseries.Filter.TimeBoundsFilter,
+) -> list[tuple[str, str, datetime]]:
+    # Time filtering might not be expressible as pyarrow filters alone,
+    # so we supply a coarse filter which should be filtered later on
+    # TODO: Make this support more filtering whilst reading
+    min_time, max_time = filter.envelope()
+
+    # OBS: Critical assumption
+    # Timezones for daily data is given in a timezone
+    # determined by the reporting country. As a coarse filter
+    # use a safety margin.
+    # The data will additionally be filtered at a later time
+    offset = timedelta(hours=26)
+
+    return [
+        ("Start", ">=", min_time - offset),
+        ("Start", "<=", max_time + offset),
+        ("End", ">=", min_time - offset),
+        ("End", "<=", max_time + offset),
+    ]
+
+
+def _transform_filters(
+    filters: Iterable[pyaro.timeseries.Filter.Filter], variable_id: int
+) -> _Filters:
+    pollutant_filter = ("Pollutant", "=", variable_id)
+    validity_filter = ("Validity", "=", 1)
+
+    pyarrow_filters_daily = [pollutant_filter, validity_filter]
+    pyarrow_filters_hourly = pyarrow_filters_daily.copy()
+    country_filter = None
+    time_filter = None
+
+    for filter in filters:
+        if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
+            if filter.has_envelope():
+                pyarrow_filters_hourly.extend(_pyarrow_timefilter_hourly(filter))
+                pyarrow_filters_daily.extend(_pyarrow_timefilter_daily(filter))
+            time_filter = filter
+        elif isinstance(filter, pyaro.timeseries.Filter.CountryFilter):
+            country_filter = filter
+        else:
+            continue  # handled post-read
+
+    return _Filters(
+        pyarrow_filters_daily=pyarrow_filters_daily,
+        pyarrow_filters_hourly=pyarrow_filters_hourly,
+        country=country_filter,
+        time=time_filter,
+    )
+
+
+def _read_hourly_files(
+    datapaths: list[Path],
+    variable: int,
+    metadata: polars.DataFrame,
+    filters: _Filters,
+) -> polars.DataFrame:
+    dataset = polars.DataFrame(
+        schema={
+            "Samplingpoint": str,
+            "Pollutant": polars.Int32,
+            "Start": polars.Datetime("ns"),
+            "End": polars.Datetime("ns"),
+            "Value": polars.Float32,
+            "Unit": str,
+            # "AggType": str,
+            "Validity": polars.Int32,
+            # "Verification": polars.Int32,
+            # "ResultTime": datetime,
+            # "DataCapture": datetime,
+            # "FkObservationLog": str,
+        }
+    )
+
+    pbar = tqdm(datapaths, disable=None)
+    for file in pbar:
+        pbar.set_description(f"Processing hourly {file.name:>54}")
+        dataset.vstack(_read(file, filters.pyarrow_filters_hourly), in_place=True)
+
+    # Join with metadata table to get latitude, longitude and altitude
+    metadata = metadata.with_columns(
+        (
+            polars.col("Country").map_elements(
+                _country_code_eea, return_dtype=polars.String
+            )
+            + "/"
+            + polars.col("Sampling Point Id")
+        ).alias("selector"),
+    ).select(
+        [
+            "selector",
+            "Altitude",
+            "Longitude",
+            "Latitude",
+            "Duration Unit",
+            "Air Quality Station Area",
+            "Air Quality Station Type",
+        ]
+    )
+
+    # OBS: Times are given in this timezone for non-daily observations
+    # this assumption is also used for pyarrow filtering
+    original_timezone_for_hourly_data = "Etc/GMT+1"
+    joined = (
+        dataset.join(metadata, left_on="Samplingpoint", right_on="selector", how="left")
+        .with_columns(
+            polars.col("Samplingpoint").str.replace("/", "_"),
+            polars.col("Start")
+            .dt.replace_time_zone(original_timezone_for_hourly_data)
+            .dt.convert_time_zone("UTC"),
+            polars.col("End")
+            .dt.replace_time_zone(original_timezone_for_hourly_data)
+            .dt.convert_time_zone("UTC"),
+        )
+        .filter(
+            polars.col("Duration Unit").ne("day"),  # Timezone assumption filter
+        )
+    )
+
+    assert (
+        joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
+    ), "Some stations does not have a suitable left join"
+
+    return joined
+
+
+def _read_daily_files(
+    datapaths: list[Path],
+    variable: int,
+    metadata: polars.DataFrame,
+    filters: _Filters,
+) -> polars.DataFrame:
+    dataset = polars.DataFrame(
+        schema={
+            "Samplingpoint": str,
+            "Pollutant": polars.Int32,
+            "Start": polars.Datetime("ns"),
+            "End": polars.Datetime("ns"),
+            "Value": polars.Float32,
+            "Unit": str,
+            # "AggType": str,
+            "Validity": polars.Int32,
+            # "Verification": polars.Int32,
+            # "ResultTime": datetime,
+            # "DataCapture": datetime,
+            # "FkObservationLog": str,
+        }
+    )
+
+    pbar = tqdm(datapaths, disable=None)
+    for file in pbar:
+        pbar.set_description(f"Processing daily {file.name:>54}")
+        dataset.vstack(_read(file, filters.pyarrow_filters_daily), in_place=True)
+
+    # Join with metadata table to get latitude, longitude and altitude
+    metadata = metadata.with_columns(
+        (
+            polars.col("Country").map_elements(
+                _country_code_eea, return_dtype=polars.String
+            )
+            + "/"
+            + polars.col("Sampling Point Id")
+        ).alias("selector"),
+    ).select(
+        [
+            "selector",
+            "Altitude",
+            "Longitude",
+            "Latitude",
+            "Duration Unit",
+            "Air Quality Station Area",
+            "Air Quality Station Type",
+            "Timezone",
+        ]
+    )
+
+    timezone_mapper = {
+        "UTC-04": "Etc/GMT-4",
+        "UTC-03": "Etc/GMT-3",
+        "UTC": "UTC",
+        "UTC+01": "Etc/GMT+1",
+        "UTC+02": "Etc/GMT+2",
+        "UTC+03": "Etc/GMT+3",
+        "UTC+04": "Etc/GMT+4",
+    }
+    # Round-about way to force timezone in there
+    # https://github.com/pola-rs/polars/issues/12761
+    tz_exprs_start = [
+        polars.when(polars.col("Timezone").str.to_uppercase() == tz).then(
+            polars.col("Start")
+            .dt.replace_time_zone(tz_valid)
+            .dt.convert_time_zone("UTC")
+        )
+        for tz, tz_valid in timezone_mapper.items()
+    ]
+    tz_exprs_end = [
+        polars.when(polars.col("Timezone").str.to_uppercase() == tz).then(
+            polars.col("End").dt.replace_time_zone(tz_valid).dt.convert_time_zone("UTC")
+        )
+        for tz, tz_valid in timezone_mapper.items()
+    ]
+
+    joined = (
+        dataset.join(metadata, left_on="Samplingpoint", right_on="selector", how="left")
+        .with_columns(
+            polars.coalesce(tz_exprs_start),
+            polars.coalesce(tz_exprs_end),
+        )
+        .drop("Timezone")
+    )
+
+    assert (
+        joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
+    ), "Some stations does not have a suitable left join"
+
+    return joined
+
+
+class EEATimeseriesReader(AutoFilterReader):
     def __init__(
         self,
-        filename,
-        filters={},
+        filename_or_obj_or_url,
+        filters=[],
+        dataset: Literal["historical", "verified", "unverified"] = "unverified",
+        station_area: str | list[str] = "all",
+        station_type: str | list[str] = "all",
+        metadata_file: str | None = None,
     ):
-        self._filename = filename
-        self._stations = {}
-        self._data = {}  # var -> {data-array}
         self._set_filters(filters)
-
-        self.metadata = self._read_metadata(filename)
-        self.data_cfg = self._read_cfg()
-
-        self._read_polars(filters, filename)
-
-    def _read_polars(self, filters, filename) -> None:
-        try:
-            species = filters["variables"]["include"]
-        except:
-            species = []
-
-        filter_time = False
-        if "time_bounds" in filters:
-            if "start_include" in filters["time_bounds"]:
-                start_date = datetime.strptime(
-                    filters["time_bounds"]["start_include"][0][0], TIME_FORMAT
-                )
-                end_date = datetime.strptime(
-                    filters["time_bounds"]["start_include"][0][1], TIME_FORMAT
-                )
-                filter_time = True
-
-        if len(species) == 0:
-            raise ValueError(
-                f"As of now, you have to give the species you want to read in filter.variables.include"
-            )
-
-        filename = Path(filename)
-        if not filename.is_dir():
-            raise ValueError(
-                f"The filename must be an existing path where the data is found in folders with the country code as name"
-            )
-        for s in species:
-            files = self._create_file_list(filename, s)
-            if len(files) == 0:
-                raise ValueError(f"could now find any files in {filename} for {s}")
-
-            if filter_time:
-                datapoints = (
-                    self._filter_dates(
-                        polars.scan_parquet(files), (start_date, end_date)
-                    )
-                    .select(polars.len())
-                    .collect()[0, 0]
-                )
-            else:
-                datapoints = (
-                    polars.scan_parquet(files).select(polars.len()).collect()[0, 0]
-                )
-
-            array = np.empty(datapoints, np.dtype(DTYPES))
-
-            data = None
-            species_unit = None
-
-            current_idx = 0
-
-            for file in tqdm(files, disable=None):
-                # Filters by time
-                if filter_time:
-                    lf = self._filter_dates(
-                        polars.read_parquet(file), (start_date, end_date)
-                    )
-                    if lf.is_empty():
-                        logger.info(f"Data for file {file} is empty. Skipping")
-                        continue
-                else:
-                    lf = polars.read_parquet(file)
-
-                # Filters out invalid data
-                lf = lf.filter(polars.col(PARQUET_FIELDS["flags"]) > 0)
-
-                # Changes timezones
-                lf = lf.with_columns(
-                    polars.col(PARQUET_FIELDS["start_times"])
-                    .dt.replace_time_zone("Etc/GMT-1")
-                    .dt.convert_time_zone("UTC")
-                    .alias(PARQUET_FIELDS["start_times"])
-                )
-
-                lf = lf.with_columns(
-                    polars.col(PARQUET_FIELDS["end_times"])
-                    .dt.replace_time_zone("Etc/GMT-1")
-                    .dt.convert_time_zone("UTC")
-                    .alias(PARQUET_FIELDS["end_times"])
-                )
-
-                file_datapoints = lf.select(polars.len())[0, 0]
-
-                if file_datapoints == 0:
-                    continue
-                df = lf
-                try:
-                    station_metadata = self.metadata[df.row(0)[0].split("/")[-1]]
-                except:
-                    logger.info(
-                        f'Could not extract the metadata for {df.row(0)[0].split("/")[-1]}'
-                    )
-                    continue
-
-                file_unit = self._convert_unit(df.row(0)[df.get_column_index("Unit")])
-
-                for key in PARQUET_FIELDS:
-                    array[key][
-                        current_idx : current_idx + file_datapoints
-                    ] = df.get_column(PARQUET_FIELDS[key]).to_numpy()
-
-                for key, value in METADATA_FILEDS.items():
-                    array[key][
-                        current_idx : current_idx + file_datapoints
-                    ] = station_metadata[value]
-
-                current_idx += file_datapoints
-
-                if species_unit is None:
-                    species_unit = file_unit
-                else:
-                    if species_unit != file_unit:
-                        raise ValueError(
-                            f"Found multiple units ({file_unit} and {species_unit}) for same species {s}"
-                        )
-
-                station_fields = {
-                    "station": station_metadata[METADATA_FILEDS["stations"]],
-                    "longitude": station_metadata[METADATA_FILEDS["longitudes"]],
-                    "latitude": station_metadata[METADATA_FILEDS["latitudes"]],
-                    "altitude": station_metadata[METADATA_FILEDS["altitudes"]],
-                    "country": station_metadata["country"],
-                    "url": "",
-                    "long_name": station_metadata[METADATA_FILEDS["stations"]],
-                }
-                self._stations[station_metadata[METADATA_FILEDS["stations"]]] = Station(
-                    station_fields
-                )
-
-            data = NpStructuredData(variable=s, units=species_unit)
-            data.set_data(variable=s, units=species_unit, data=array)
-            self._data[s] = data
-
-    def _create_file_list(self, root: Path, species: str):
-        results = [f for f in (root / species).glob("**/*.parquet")]
-        return results
-
-    def _filter_dates(
-        self, lf: polars.LazyFrame | polars.DataFrame, dates: tuple[datetime]
-    ) -> polars.LazyFrame | polars.DataFrame:
-        if dates[0] >= dates[1]:
-            raise ValueError(
-                f"Error when filtering data. Last date {dates[1]} must be larger than the first {dates[0]}"
-            )
-
-        return lf.filter(
-            polars.col(PARQUET_FIELDS["start_times"]).is_between(
-                dates[0] + timedelta(hours=1), dates[1] + timedelta(hours=1)
-            )
+        data_directory = Path(filename_or_obj_or_url)
+        if metadata_file is None:
+            metadata_file = data_directory.joinpath("metadata.csv")
+        self._metadata = polars.read_csv(
+            metadata_file,
+            schema_overrides={
+                "Air Quality Station Nat Code": polars.String,
+                "Detection Limit": polars.Float32,
+            },
         )
+        self._dataset = dataset
 
-    def _read_metadata(self, folder: str) -> dict:
-        metadata = {}
-        filename = Path(folder) / "metadata.csv"
-        if not filename.exists():
-            raise FileExistsError(f"Metadata file could not be found in {folder}")
-        with open(filename, "r") as f:
-            f.readline()
-            for line in f:
-                words = line.split(", ")
-                try:
-                    lon = float(words[3])
-                    lat = float(words[4])
-                    alt = float(words[5])
-                except:
-                    logger.info(
-                        f"Could not interpret lat, lon, alt for line {line} in metadata. Skipping"
-                    )
-                    continue
-                metadata[words[0]] = {
-                    "lon": lon,
-                    "lat": lat,
-                    "alt": alt,
-                    "stationcode": words[2],
-                    "country": words[1],
-                }
+        # Vocabulary as found at https://dd.eionet.europa.eu/vocabulary/aq/pollutant
+        pollutant_file = importlib.resources.files("pyaro_readers.eeareader").joinpath(
+            "pollutant.csv"
+        )
+        self._metadata_pollutant = polars.read_csv(pollutant_file).with_columns(
+            polars.col("URI")
+            .str.strip_prefix("http://dd.eionet.europa.eu/vocabulary/aq/pollutant/")
+            .cast(polars.Int32)
+            .alias("Id"),
+        )
+        assert len(self._metadata_pollutant["Id"].unique()) == len(
+            self._metadata_pollutant
+        ), "Pollutants are not unique"
 
+        self._data_directory = data_directory
+
+        if isinstance(station_area, str):
+            self._station_area = [station_area]
+        else:
+            self._station_area = station_area
+
+        if isinstance(station_type, str):
+            self._station_type = [station_type]
+        else:
+            self._station_type = station_type
+
+    def metadata(self) -> dict[str, str]:
+        metadata = dict()
+        metadata["what"] = "EEA reader"
+        metadata["download_url"] = "https://eeadmz1-downloads-webapp.azurewebsites.net/"
         return metadata
 
-    def _read_cfg(self) -> dict:
-        with open(DATA_TOML, "rb") as f:
-            cfg = tomllib.load(f)
-        return cfg
+    def _unfiltered_data(self, varname: str) -> Data:
+        dataframe = self._read(varname)
+        dataframe = dataframe.with_columns(
+            polars.col("Samplingpoint").str.replace("/", "_").alias("station")
+        )
+        return EEAData(dataframe, varname)
 
-    def _convert_unit(self, unit: str) -> str:
-        return self.data_cfg["units"][unit]
+    def _read(
+        self,
+        variable: str | int,
+    ) -> polars.DataFrame:
+        # https://dd.eionet.europa.eu/vocabulary/aq/pollutant
+        if isinstance(variable, int):
+            variable_id = variable
+        else:
+            # Might be more than one, but we choose the first one
+            pollutant_candidates = self._metadata_pollutant.filter(
+                polars.col("Notation").eq(variable)
+            )
+            if len(pollutant_candidates) == 0:
+                raise EEAReaderException(f"No variable ID found for {variable}")
+            variable_id = pollutant_candidates["Id"][0]
 
-    def _unfiltered_data(self, varname) -> Data:
-        return self._data[varname]
+        filters = _transform_filters(self._get_filters(), variable_id)
+        historical_path = self._data_directory.joinpath("historical")
+        verified_path = self._data_directory.joinpath("verified")
+        unverified_path = self._data_directory.joinpath("unverified")
 
-    def _unfiltered_stations(self) -> dict[str, Station]:
-        return self._stations
+        # TODO: Enable depending on data wanted from e.g. time requested
+        searchpaths = []
+        if self._dataset == "historical":
+            searchpaths.extend(historical_path)
+        elif self._dataset == "verified":
+            searchpaths.append(verified_path)
+        elif self._dataset == "unverified":
+            searchpaths.append(unverified_path)
+
+        dataset = polars.DataFrame(
+            schema={
+                "Samplingpoint": str,
+                "Pollutant": polars.Int32,
+                "Start": polars.Datetime("ns"),
+                "End": polars.Datetime("ns"),
+                "Value": polars.Float32,
+                "Unit": str,
+                # "AggType": str,
+                "Validity": polars.Int32,
+                # "Verification": polars.Int32,
+                # "ResultTime": datetime,
+                # "DataCapture": datetime,
+                # "FkObservationLog": str,
+            }
+        )
+        countries = _country_code_mappings_eea.values()
+
+        paths: list[str, Path] = []
+        for countrycode in countries:
+            if filters.country is not None:
+                # Reverse map EEA countrycode to ISO countrycode
+                iso_countrycode = _country_code_eea_to_iso(countrycode)
+                if not filters.country.has_country(iso_countrycode):
+                    continue
+
+            for searchpath in searchpaths:
+                for freq in ["hourly", "daily"]:
+                    spath = searchpath.joinpath(freq)
+                    if not spath.exists():
+                        continue
+                    unknown_ccs = set(i.name for i in spath.iterdir()) - set(countries)
+                    for dir in unknown_ccs:
+                        logger.info(
+                            f"Directory {dir} is ignored (not matching any country code)"
+                        )
+                    countrypath = spath.joinpath(countrycode)
+                    if not countrypath.exists():
+                        continue
+                    countrypaths = countrypath.rglob("*.parquet")
+                    paths.extend(
+                        sorted([(freq, c) for c in countrypaths], key=lambda x: x[1])
+                    )
+
+        hourly_paths = [p[1] for p in paths if p[0] == "hourly"]
+        hourly_dataset = _read_hourly_files(
+            hourly_paths,
+            variable_id,
+            self._metadata,
+            filters,
+        )
+        daily_paths = [p[1] for p in paths if p[0] == "daily"]
+        if len(daily_paths) == 0:
+            dataset = hourly_dataset
+        else:
+            daily_dataset = _read_daily_files(
+                daily_paths,
+                variable_id,
+                self._metadata,
+                filters,
+            )
+            dataset = hourly_dataset.vstack(daily_dataset)
+
+        extra_filters = []
+        if self._station_area != ["all"]:
+            extra_filters.append(
+                polars.col("Air Quality Station Area").is_in(self._station_area)
+            )
+        if self._station_type != ["all"]:
+            extra_filters.append(
+                polars.col("Air Quality Station Type").is_in(self._station_type)
+            )
+
+        if len(extra_filters) != 0:
+            dataset = dataset.filter(*extra_filters)
+
+        return dataset
 
     def _unfiltered_variables(self) -> list[str]:
-        return list(self._data.keys())
+        # Todo: Filtering might affect available variables
+        pollutants = self._metadata["Air Pollutant"].unique()
+        pollutants_metadata = self._metadata_pollutant["Notation"].unique()
 
-    def close(self):
+        common = set(pollutants).intersection(pollutants_metadata)
+        return list(sorted(common))
+
+    def _unfiltered_stations(self) -> dict[str, Station]:
+        stations = self._metadata.with_columns(
+            (
+                (
+                    polars.col("Country").map_elements(
+                        _country_code_eea,
+                        return_dtype=polars.String,
+                    )
+                    + "/"
+                    + polars.col("Sampling Point Id")
+                )
+                .str.replace("/", "_")
+                .alias("station"),
+                polars.col("Latitude").alias("latitude"),
+                polars.col("Longitude").alias("longitude"),
+                polars.col("Altitude").alias("altitude"),
+                polars.col("Country")
+                .map_elements(_country_code, return_dtype=polars.String)
+                .alias("country"),
+                polars.col("Source Data URL").alias("url"),
+                (
+                    polars.col("Country").map_elements(
+                        _country_code_eea, return_dtype=polars.String
+                    )
+                    + "/"
+                    + polars.col("Sampling Point Id")
+                ).alias("long_name"),
+                polars.col("Air Quality Station Area").alias("station_area"),
+                polars.col("Air Quality Station Type").alias("station_type"),
+            )
+        ).select(
+            [
+                "station",
+                "latitude",
+                "longitude",
+                "altitude",
+                "country",
+                "url",
+                "station_area",
+                "station_type",
+                "long_name",
+            ]
+        )
+        station_dicts = {s["station"]: Station(s) for s in stations.to_dicts()}
+        return station_dicts
+
+    def close(self) -> None:
         pass
 
 
-class EEATimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
-    def reader_class(self):
+class EEATimeseriesEngine(AutoFilterEngine):
+    def description(self) -> str:
+        return """EEA reader for parquet files
+
+Read and filter hourly data from EEA stations using the unverified dataset.
+
+Files must be downloaded from https://eeadmz1-downloads-webapp.azurewebsites.net/ using the following directory structure:
+datadir (this path should be passed to `open`)
+  - metadata.csv (from https://discomap.eea.europa.eu/App/AQViewer/index.html?fqn=Airquality_Dissem.b2g.measurements)
+  - historical (directory)
+  - verified (directory)
+  - unverified
+    - hourly
+      - AD
+        - file1.parquet
+        - file2.parquet
+        - ...
+      - AL
+    - daily
+      - ...
+    - ...
+
+In each category (historical, verified, unverified) the time frequency and then the EEA country codes are used.
+EEA country codes might differ from pyaro country codes.
+
+Data can be downloaded using the airbase tool (https://github.com/JohnPaton/airbase/)
+OBS: Must use github version, pypi version does not download parquet files yet
+
+airbase unverified --path datadir/unverified/hourly -p SO2 -p PM10 -p O3 -p NO2 -p CO -p NO -p PM2.5 -F hourly --metadata --overwrite
+"""
+
+    def url(self) -> str:
+        return "https://github.com/metno/pyaro-readers"
+
+    def reader_class(self) -> AutoFilterReader:
         return EEATimeseriesReader
 
-    def open(self, filename, *args, **kwargs) -> EEATimeseriesReader:
+    def open(self, filename, *args, **kwargs) -> Reader:
         return self.reader_class()(filename, *args, **kwargs)
 
-    def description(self):
-        return "Reader for new EEA data API using the pyaro infrastructure."
 
-    def url(self):
-        return "https://github.com/metno/pyaro-readers"
+# ISO 3166-1 alpha-2 for countries in EEA
+_country_code_mappings: dict[str, str] = {
+    "Albania": "AL",
+    "Andorra": "AD",
+    "Austria": "AT",
+    "Belgium": "BE",
+    "Bosnia and Herzegovina": "BA",
+    "Bulgaria": "BG",
+    "Croatia": "HR",
+    "Cyprus": "CY",
+    "Czechia": "CZ",
+    "Denmark": "DK",
+    "Estonia": "EE",
+    "Finland": "FI",
+    "France": "FR",
+    "Georgia": "GE",
+    "Germany": "DE",
+    "Greece": "GR",
+    "Hungary": "HU",
+    "Iceland": "IS",
+    "Ireland": "IE",
+    "Italy": "IT",
+    "Kosovo under UNSCR 1244/99": "XK",
+    "Latvia": "LV",
+    "Lithuania": "LT",
+    "Luxembourg": "LU",
+    "Malta": "MT",
+    "Montenegro": "ME",
+    "Netherlands": "NL",
+    "North Macedonia": "MK",
+    "Norway": "NO",
+    "Poland": "PL",
+    "Portugal": "PT",
+    "Romania": "RO",
+    "Serbia": "RS",
+    "Slovakia": "SK",
+    "Slovenia": "SI",
+    "Spain": "ES",
+    "Sweden": "SE",
+    "Switzerland": "CH",
+    "Türkiye": "TR",
+    "Ukraine": "UA",
+    "United Kingdom": "UK",
+}
+
+
+# ISO 3166-1 alpha-2 for countries in EEA
+def _country_code(country: str) -> str | None:
+    return _country_code_mappings.get(country)
+
+
+# Country codes used in "Samplingpoint" provided by each country
+_country_code_mappings_eea: dict[str, str] = _country_code_mappings.copy()
+_country_code_mappings_eea.update(
+    {
+        "United Kingdom": "GB",
+    }
+)
+
+
+def _country_code_eea_to_iso(country: str) -> str:
+    if country == "GB":
+        return "UK"
+    return country
+
+
+# Country codes used in "Samplingpoint" provided by each country
+def _country_code_eea(country: str) -> str | None:
+    return _country_code_mappings_eea.get(country)

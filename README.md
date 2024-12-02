@@ -43,6 +43,19 @@ NILU, but should in principle able to read any random text file in EBAS NASA-AME
 The variables provided contain in EBAS terms a combination of matrix, component and unit with a number sign (#)
 as seperator (e.g. `pm10_pm25#total_carbon#ug C m-3"` or `pm10#organic_carbon##ug C m-3` or `pm10#galactosan#ng m-3`)
 
+### EEA: Parquet format
+Reader for the EEA files provided by https://eeadmz1-downloads-webapp.azurewebsites.net/. The reader reads the **hourly only** data of the unverified dataset. The directory structure must be
+```
+metadata.csv
+unverified
+    - NO
+    - SE
+        - SPO-SE395030_00038_100.parquet
+        - ...
+    - ...
+```
+where `metadata.csv` is csv file containing station metadata (https://discomap.eea.europa.eu/App/AQViewer/index.html?fqn=Airquality_Dissem.b2g.measurements).
+
 ## Usage
 ### aeronetsunreader
 ```python
@@ -176,3 +189,32 @@ if __name__ == "__main__":
     main()
 ```
 
+
+### eeareader
+```python
+import pyaro
+import pyaro.timeseries
+
+TEST_URL = "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download"
+
+
+def main():
+    with pyaro.open_timeseries(
+        "eeareader",
+        TEST_URL,
+        filters=[
+            pyaro.timeseries.Filter.CountryFilter(include=["NO", "SE", "DK"]),
+            pyaro.timeseries.Filter.TimeBoundsFilter(
+                startend_include=[("2023-01-01 00:00:00", "2024-01-01 00:00:00")]
+            ),
+        ],
+        enable_progressbar=True,
+    ) as ts:
+        # help(ts)
+        data = ts.data("PM10")
+        print(data.values)
+
+
+if __name__ == "__main__":
+    main()
+```
