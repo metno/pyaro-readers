@@ -4,6 +4,9 @@ from pathlib import Path
 
 import pyaro
 import pyaro.timeseries
+import numpy as np
+
+from pyaro_readers.eeareader import EEATimeseriesReader
 
 
 class TestEEATimeSeriesReader(unittest.TestCase):
@@ -28,13 +31,39 @@ class TestEEATimeSeriesReader(unittest.TestCase):
         with pyaro.open_timeseries(
             self.engine,
             self.testdata_dir,
-            filters={"variables": {"include": ["PM10", "SO2"]}},
         ) as ts:
             ts.read()
             self.assertGreaterEqual(len(ts.variables()), 2)
             self.assertGreaterEqual(len(ts.stations()), 2)
-            for var in ts.variables():
-                assert var in self.test_vars
+            self.assertTrue(set(self.test_vars).issubset(ts.variables()))
+
+    def test_eea_reader(self):
+        filters = pyaro.timeseries.FilterCollection(
+            {
+                "time_bounds": {
+                    "start_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]
+                },
+                "stations": {
+                    "exclude": ["NO/SPO_NO0151A_8_4768", "NO/SPO_NO0111A_9_1691"]
+                },
+                "countries": {"include": ["NO", "LU"]},
+            }
+        )
+
+        # If PPI is available one can use the following:
+        # "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download",
+        reader = EEATimeseriesReader(
+            self.testdata_dir,
+            filters=filters,
+        )
+
+        _ = reader.stations()
+
+        for species in self.test_vars:
+            data = reader.data(species)
+            _ = data.values
+            alts = data.altitudes
+            self.assertFalse(np.any(np.isnan(alts)))
 
 
 if __name__ == "__main__":
