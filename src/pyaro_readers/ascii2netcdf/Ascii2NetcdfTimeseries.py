@@ -73,7 +73,7 @@ class Ascii2NetcdfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         self._metadata = self.metadata()
 
-    # def read(self):
+        # def read(self):
         self._variables = self._read_file_variables()
         station_file = "StationList.csv"
         station_filepath = os.path.join(self._directory, station_file)

@@ -11,8 +11,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     }
     AERONETVAR = "od440aer"
     ACTRISEBASVAR = "concso4t"
-    ACTRISEBASVARLIST = ["concso4t","concso4c"]
-
+    ACTRISEBASVARLIST = ["concso4t", "concso4c"]
 
     def test_pyaerocom_aeronet(self):
         # test reading via pyaerocom
@@ -20,7 +19,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
             from pyaerocom.io import ReadUngridded
         except ImportError:
-            assert("pyaerocom not installed")
+            assert "pyaerocom not installed"
             return
 
         data_name = "aeronettest"
@@ -44,14 +43,20 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
             from pyaerocom.io import ReadUngridded
         except ImportError:
-            assert("pyaerocom not installed")
+            assert "pyaerocom not installed"
             return
 
         data_name = "PYARO_actrisebas"
         data_id = "actrisebas"
         station_filter = {
             "stations": {
-                "include": ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"]
+                "include": [
+                    "Birkenes II",
+                    "Jungfraujoch",
+                    "Ispra",
+                    "Melpitz",
+                    "Westerland",
+                ]
             },
         }
         # needs to be the variable name for actrisebas
@@ -75,16 +80,22 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
             from pyaerocom.io import ReadUngridded
         except ImportError:
-            assert("pyaerocom not installed")
+            assert "pyaerocom not installed"
             return
 
         data_name = "PYARO_actrisebas"
         data_id = "actrisebas"
         station_filter = {
             "stations": {
-                "include": ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"]
+                "include": [
+                    "Birkenes II",
+                    "Jungfraujoch",
+                    "Ispra",
+                    "Melpitz",
+                    "Westerland",
+                ]
             },
-            "variables": {"include": ["concso4t", "concso4c"]}
+            "variables": {"include": ["concso4t", "concso4c"]},
         }
         # needs to be the variable name for actrisebas, but PyaroConfig wants this to a string and not a list
         # (the pydantic setup is too pedantic)
@@ -102,8 +113,6 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         self.assertIn(url[0], data.contains_vars)
         # This does unfortunately not return the two variables asked for, but only the first:
         self.assertIn(url[1], data.contains_vars)
-
-
 
 
 if __name__ == "__main__":

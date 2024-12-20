@@ -78,7 +78,6 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             if os.path.exists(file_path):
                 yield file_path
 
-
     def metadata(self):
         metadata = dict()
         date = datetime.datetime.min
@@ -377,4 +376,3 @@ class Netcdf_RWTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def read(self):
         return self.reader_class().read()
-

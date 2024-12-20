@@ -52,7 +52,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     def test_api_reading_small_data_set(self):
         engine = pyaro.list_timeseries_engines()[self.engine]
         with engine.open(
-                filters=self.station_filter, vars_to_read=self.vars_to_read
+            filters=self.station_filter, vars_to_read=self.vars_to_read
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
             self.assertGreaterEqual(len(ts.stations()), 2)
@@ -77,8 +77,10 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()[self.engine]
         new_var_name = "vmro3"
         ebas_var_name = "ozone mass concentration"
-        with VariableNameChangingReader(engine.open(filters=self.station_filter, vars_to_read=[ebas_var_name]),
-                                        reader_to_new={ebas_var_name: new_var_name}) as ts:
+        with VariableNameChangingReader(
+            engine.open(filters=self.station_filter, vars_to_read=[ebas_var_name]),
+            reader_to_new={ebas_var_name: new_var_name},
+        ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
             self.assertGreaterEqual(len(ts.variables()), 1)
             self.assertGreaterEqual(len(ts.stations()), 2)

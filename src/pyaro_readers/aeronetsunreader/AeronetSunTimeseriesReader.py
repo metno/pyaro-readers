@@ -60,12 +60,12 @@ TS_TYPE_DIFFS = {
 
 class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
-            self,
-            filename,
-            filters=[],
-            fill_country_flag: bool = FILL_COUNTRY_FLAG,
-            tqdm_desc: str | None = None,
-            ts_type: str = "daily",
+        self,
+        filename,
+        filters=[],
+        fill_country_flag: bool = FILL_COUNTRY_FLAG,
+        tqdm_desc: str | None = None,
+        ts_type: str = "daily",
     ):
         """open a new Aeronet timeseries-reader
 
@@ -97,8 +97,8 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.ts_type = ts_type
 
     def read(
-            self,
-            tqdm_desc="reading stations",
+        self,
+        tqdm_desc="reading stations",
     ):
         # check if file is a URL
         _laststatstr = ""
@@ -231,7 +231,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         pass
 
     def compute_od_from_angstromexp(
-            self, to_lambda: float, od_ref: float, lambda_ref: float, angstrom_coeff: float
+        self, to_lambda: float, od_ref: float, lambda_ref: float, angstrom_coeff: float
     ) -> float:
         """Compute AOD at specified wavelength
 
@@ -258,7 +258,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return od_ref * (lambda_ref / to_lambda) ** angstrom_coeff
 
     def calc_angstroem_coeff(
-            self, od1: float, od2: float, wl1: float, wl2: float
+        self, od1: float, od2: float, wl1: float, wl2: float
     ) -> float:
         """
         small helper method to calculate angstroem coefficient
@@ -291,4 +291,3 @@ class AeronetSunTimeseriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
 
     def url(self):
         return "https://github.com/metno/pyaro-readers"
-

@@ -79,7 +79,7 @@ class NILUPMFAbsorptionReader(AutoFilterReaderEngine.AutoFilterReader):
         self._tqdm_desc = tqdm_desc
 
     def read(self):
-        """ read method"""
+        """read method"""
         # check if the data has been read already
         if len(self._data) != 0:
             return
@@ -99,7 +99,9 @@ class NILUPMFAbsorptionReader(AutoFilterReaderEngine.AutoFilterReader):
                 bar.update(1)
                 self._process_file(file, self._fill_country_flag)
         else:
-            raise ValueError(f"Given filename {self._filename} is neither a folder or a file")
+            raise ValueError(
+                f"Given filename {self._filename} is neither a folder or a file"
+            )
 
     def _process_file(self, file: Path, fill_country_flag: bool = FILL_COUNTRY_FLAG):
         with open(file, newline="") as f:

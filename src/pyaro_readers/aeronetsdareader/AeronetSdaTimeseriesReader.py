@@ -137,7 +137,11 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         lines = []
                         _fidx = 0
                         members = tf.getmembers()
-                        bar = tqdm(desc="extracting tar file...", total=len(members), disable=None)
+                        bar = tqdm(
+                            desc="extracting tar file...",
+                            total=len(members),
+                            disable=None,
+                        )
                         for _midx, member in enumerate(members):
                             if fnmatch(member.name, FILE_MASK):
                                 bar.update(1)
