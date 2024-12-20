@@ -32,7 +32,6 @@ class TestEEATimeSeriesReader(unittest.TestCase):
             self.engine,
             self.testdata_dir,
         ) as ts:
-            ts.read()
             self.assertGreaterEqual(len(ts.variables()), 2)
             self.assertGreaterEqual(len(ts.stations()), 2)
             self.assertTrue(set(self.test_vars).issubset(ts.variables()))
