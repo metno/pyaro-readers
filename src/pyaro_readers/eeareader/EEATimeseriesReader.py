@@ -37,7 +37,7 @@ class EEAData(Data):
     def units(self) -> str:
         units = self._data["Unit"].unique()
         if len(units) == 0:
-            return EEAReaderException("No units present in this dataset")
+            raise EEAReaderException("No units present in this dataset")
         elif len(units) != 1:
             raise EEAReaderException("Multiple different units present in this dataset")
         return units[0]
