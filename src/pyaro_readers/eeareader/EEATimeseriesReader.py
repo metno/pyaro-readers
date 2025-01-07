@@ -175,7 +175,7 @@ def _transform_filters(
     filters: Iterable[pyaro.timeseries.Filter.Filter], variable_id: int
 ) -> _Filters:
     pollutant_filter = ("Pollutant", "=", variable_id)
-    validity_filter = ("Validity", "=", 1)
+    validity_filter = ("Validity", ">", 0)
 
     pyarrow_filters_daily = [pollutant_filter, validity_filter]
     pyarrow_filters_hourly = pyarrow_filters_daily.copy()
