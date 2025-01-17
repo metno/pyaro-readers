@@ -1,15 +1,7 @@
-import logging
-from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Literal, Any
-from collections.abc import Iterable
-import importlib.resources
-import dataclasses
 
-from tqdm import tqdm
 import numpy as np
 import cf_units
-import polars
 from pyaro.timeseries.AutoFilterReaderEngine import (
     AutoFilterReader,
     AutoFilterEngine,
@@ -91,7 +83,13 @@ class MergingReaderData(Data):
 
 
 class MergingReader(AutoFilterReader):
-    def __init__(self, datasets: list[dict[str, Any]], filters=[]):
+    def __init__(
+        self, datasets: list[dict[str, Any]], mode: Literal["concat"], filters=[]
+    ):
+        if mode != "concat":
+            raise MergingReaderException(
+                'Only merging mode "concat" is supported as of now'
+            )
         self._datasets = []
         self._set_filters(filters)
         for d in datasets:

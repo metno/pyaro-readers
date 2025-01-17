@@ -14,6 +14,7 @@ def test_stuff():
             {"readername": "ascii2netcdf", "filename": EBAS_URL},
             {"readername": "ascii2netcdf", "filename": EBAS_URL},
         ],
+        mode="concat",
         filters=[],
     ) as ts:
         ts.variables()
