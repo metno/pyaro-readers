@@ -8,6 +8,7 @@ import dataclasses
 
 from tqdm import tqdm
 import numpy as np
+import cf_units
 import polars
 from pyaro.timeseries.AutoFilterReaderEngine import (
     AutoFilterReader,
@@ -39,7 +40,13 @@ class EEAData(Data):
         if len(units) == 0:
             raise EEAReaderException("No units present in this dataset")
         elif len(units) != 1:
-            raise EEAReaderException("Multiple different units present in this dataset")
+            base_unit = cf_units.Unit(units[0])
+            for unit in units[1:]:
+                if base_unit.convert(1, unit) != 1.0:
+                    raise EEAReaderException(
+                        f"Multiple different units present in this dataset ({units[0]} and {unit})"
+                    )
+
         return units[0]
 
     def keys(self):
