@@ -13,7 +13,7 @@ import xarray as xr
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
-import cfunits
+import cf_units
 from pyaro_readers.units_helpers import UALIASES
 import datetime
 
@@ -133,7 +133,7 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
                     # Units in pyaro arte by definition strings, but this way
                     # we can make sure that cfunits understands them
                     # otherwise variables[vname] = var.attrs["units"] should work as well
-                    variables[vname] = str(cfunits.Units(var.attrs["units"]))
+                    variables[vname] = str(cf_units.Unit(var.attrs["units"]))
                     if variables[vname] in UALIASES:
                         variables[vname] = UALIASES[variables[vname]]
 

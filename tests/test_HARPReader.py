@@ -1,7 +1,7 @@
 import unittest
 import pyaro
 import pyaro.timeseries
-import cfunits
+import cf_units
 import os
 
 
@@ -31,7 +31,7 @@ class TestHARPReader(unittest.TestCase):
                 self.assertGreater(len(data), 10000)
                 assert isinstance(data.units, str)
                 self.assertEqual(
-                    data.units, str(cfunits.Units(self.test_units[_v_idx]))
+                    data.units, str(cf_units.Unit(self.test_units[_v_idx]))
                 )
                 self.assertGreaterEqual(len(ts.variables()), 2)
                 self.assertGreaterEqual(len(ts.stations()), 1)
