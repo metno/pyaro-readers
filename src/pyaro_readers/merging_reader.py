@@ -18,7 +18,7 @@ class MergingReaderException(Exception):
     pass
 
 
-class MergingReaderData(Data):
+class MergingReaderConcatData(Data):
     def __init__(self, data: list[Data], variable: str) -> None:
         if len(data) == 0:
             raise MergingReaderException("Requires at least one dataset")
@@ -40,7 +40,7 @@ class MergingReaderData(Data):
         raise NotImplementedError
 
     def slice(self, index):
-        return MergingReaderData([d[index] for d in self._data], self._variable)
+        return MergingReaderConcatData([d[index] for d in self._data], self._variable)
 
     @property
     def values(self) -> np.ndarray:
@@ -90,6 +90,7 @@ class MergingReader(AutoFilterReader):
             raise MergingReaderException(
                 'Only merging mode "concat" is supported as of now'
             )
+        self._mode = mode
         self._datasets = []
         self._set_filters(filters)
         for d in datasets:
@@ -99,7 +100,9 @@ class MergingReader(AutoFilterReader):
             )
 
     def _unfiltered_data(self, varname: str) -> Data:
-        return MergingReaderData([d.data(varname) for d in self._datasets], varname)
+        return MergingReaderConcatData(
+            [d.data(varname) for d in self._datasets], varname
+        )
 
     def _unfiltered_stations(self) -> list[str]:
         stations = []
