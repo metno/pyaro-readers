@@ -8,6 +8,7 @@ import dataclasses
 
 from tqdm import tqdm
 import numpy as np
+import cf_units
 import polars
 from pyaro.timeseries.AutoFilterReaderEngine import (
     AutoFilterReader,
@@ -37,9 +38,15 @@ class EEAData(Data):
     def units(self) -> str:
         units = self._data["Unit"].unique()
         if len(units) == 0:
-            return EEAReaderException("No units present in this dataset")
+            raise EEAReaderException("No units present in this dataset")
         elif len(units) != 1:
-            raise EEAReaderException("Multiple different units present in this dataset")
+            base_unit = cf_units.Unit(units[0])
+            for unit in units[1:]:
+                if base_unit.convert(1, unit) != 1.0:
+                    raise EEAReaderException(
+                        f"Multiple different units present in this dataset ({units[0]} and {unit})"
+                    )
+
         return units[0]
 
     def keys(self):
@@ -175,7 +182,7 @@ def _transform_filters(
     filters: Iterable[pyaro.timeseries.Filter.Filter], variable_id: int
 ) -> _Filters:
     pollutant_filter = ("Pollutant", "=", variable_id)
-    validity_filter = ("Validity", "=", 1)
+    validity_filter = ("Validity", ">", 0)
 
     pyarrow_filters_daily = [pollutant_filter, validity_filter]
     pyarrow_filters_hourly = pyarrow_filters_daily.copy()
