@@ -18,6 +18,8 @@ from pyaro.timeseries import (
     Flag,
     NpStructuredData,
     Station,
+    Reader,
+    Filter
 )
 
 logger = logging.getLogger(__name__)
@@ -79,18 +81,18 @@ class ActrisEbasTestDataNotFoundException(Exception):
 class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def __init__(
         self,
-        vars_to_read: list[str] = None,
+        filename_or_obj_or_url=BASE_API_URL,
         filters=[],
-        tqdm_desc: str | None = None,
-        ts_type: str = "daily",
+        # tqdm_desc: str | None = None,
+        # ts_type: str = "daily",
         test_flag: bool = False,
     ):
         """ """
         self._filename = None
-        if isinstance(vars_to_read, str):
-            self.vars_to_read = [vars_to_read]
-        else:
-            self.vars_to_read = vars_to_read
+        # if isinstance(vars_to_read, str):
+        #     self.vars_to_read = [vars_to_read]
+        # else:
+        #     self.vars_to_read = vars_to_read
         self._stations = {}
         self.urls_to_dl = {}
         self._data = {}  # var -> {data-array}
@@ -108,32 +110,24 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             self._revision, "%y%m%d%H%M%S"
         )
         self.ebas_flags = self.get_ebas_flags()
+        self.sites_to_read = None
+        self.vars_to_read = None
 
-        # if "variables" in filters:
-        #     if "include" in filters["variables"]:
-        #         self.vars_to_read = filters["variables"]["include"]
-        #         logger.info(f"applying variable include filter {vars_to_read}...")
-
-        # read only stations according to the station filter
-        try:
-            self.sites_to_read = filters["stations"]["include"]
-        except (KeyError, TypeError) as e:
-            self.sites_to_read = []
-
-        try:
-            self.sites_to_exclude = filters["stations"]["exclude"]
-        except (KeyError, TypeError) as e:
-            self.sites_to_exclude = []
-
-        # since the current pyaerocom interface limits vars_to_read to a string
-        # (and foresees the variables to be passed via a filter) just overwrite
-        # vars_to_read with the settings from the filter if a variable filter has been supplied
-        if "variables" in filters:
-            try:
-                self.vars_to_read = filters["variables"]["include"]
-                logger.info(f"applying variable include filter {vars_to_read}...")
-            except (KeyError, TypeError) as e:
+        # set filters
+        for filter in filters:
+            if isinstance(filter, Filter.StationFilter):
+                self.sites_to_read = filter.init_kwargs()["include"]
+                self.sites_to_exclude = filter.init_kwargs()["exclude"]
+            elif isinstance(filter, Filter.VariableNameFilter):
+                self.vars_to_read = filter.init_kwargs()["include"]
+                logger.info(f"applying variable include filter {self.vars_to_read}...")
+            else:
+                # pass on not reader supported filters
                 pass
+
+        if self.vars_to_read is None:
+            logger.info(f"No variable filter given, nothing to read...")
+            self.vars_to_read = []
 
         # read config file
         self.def_data = self._read_definitions(file=DEFINITION_FILE)
@@ -225,7 +219,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def metadata(self):
         return self._metadata
 
-    def read(
+    def _read(
         self,
         tqdm_desc="reading stations",
     ):
@@ -473,15 +467,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return urls_to_dl
 
     def _unfiltered_data(self, varname) -> Data:
-        self.read()
+        self._read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
-        self.read()
+        self._read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
-        self.read()
+        self._read()
         return list(self._data.keys())
 
     def close(self):
@@ -503,14 +497,14 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
 
 class ActrisEbasTimeSeriesEngine(AutoFilterReaderEngine.AutoFilterEngine):
-    def reader_class(self):
+    def reader_class(self) -> AutoFilterReaderEngine:
         return ActrisEbasTimeSeriesReader
 
-    def open(self, *args, **kwargs) -> ActrisEbasTimeSeriesReader:
-        return self.reader_class()(*args, **kwargs)
+    def open(self, url, *args, **kwargs) -> Reader:
+        return self.reader_class()(url, *args, **kwargs)
 
-    def description(self):
+    def description(self) -> str:
         return "ACTRIS EBAS reader using the pyaro infrastructure"
 
-    def url(self):
+    def url(self) -> str:
         return "https://github.com/metno/pyaro-readers"

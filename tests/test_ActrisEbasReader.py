@@ -11,28 +11,34 @@ VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
 
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     engine = "actrisebas"
-
-    station_filter = {
-        "stations": {
-            "include": ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"]
-        },
-    }
     # vars_to_read = ["ozone mass concentration"]
     # vars_to_read = ["aerosol particle sulphate mass concentration"]
-    vars_to_read = ["aerosol particle elemental carbon mass concentration"]
+    actris_vars_to_read = ["aerosol particle elemental carbon mass concentration"]
     # pyaerocom_vars_to_read = ["conco3"]
     pyaerocom_vars_to_read = ["vmro3"]
 
     # pyaerocom_vars_to_read = ["concso4t"]
+
+    station_filter = pyaro.timeseries.Filter.StationFilter(
+        ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []
+    )
+
+    variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
+        {},
+        pyaerocom_vars_to_read,
+        []
+    )
+    variable_filter_actris = pyaro.timeseries.Filter.VariableNameFilter(
+        {}, actris_vars_to_read, [])
 
     def test_api_online(self, url=TEST_URL):
         try:
             req = urllib.request.Request(url, method="HEAD")
             resp = urllib.request.urlopen(req)
             resp.url
-            return True
+            assert True
         except:
-            return False
+            assert False
 
     def test_init(self):
         engine = pyaro.list_timeseries_engines()[self.engine]
@@ -50,9 +56,10 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         assert engine.args()
 
     def test_api_reading_small_data_set(self):
+        filters = [self.station_filter, self.variable_filter_actris]
         engine = pyaro.list_timeseries_engines()[self.engine]
-        with engine.open(
-            filters=self.station_filter, vars_to_read=self.vars_to_read
+        with engine.open(TEST_URL,
+            filters=filters,
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
             self.assertGreaterEqual(len(ts.stations()), 2)
@@ -65,8 +72,14 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         # test access to the EBAS API
         # test variable by variable
         for _var in self.pyaerocom_vars_to_read:
+            variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
+                {},
+                [_var],
+                []
+            )
+            filters = [self.station_filter, variable_filter_pyaerocom]
             engine = pyaro.list_timeseries_engines()[self.engine]
-            with engine.open(filters=self.station_filter, vars_to_read=[_var]) as ts:
+            with engine.open(TEST_URL, filters=filters) as ts:
                 self.assertGreaterEqual(len(ts.variables()), 1)
                 self.assertGreaterEqual(len(ts.stations()), 2)
                 self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
@@ -77,8 +90,10 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         engine = pyaro.list_timeseries_engines()[self.engine]
         new_var_name = "vmro3"
         ebas_var_name = "ozone mass concentration"
+        filters = [self.station_filter, self.variable_filter_actris]
+
         with VariableNameChangingReader(
-            engine.open(filters=self.station_filter, vars_to_read=[ebas_var_name]),
+            engine.open(TEST_URL, filters=filters, ),
             reader_to_new={ebas_var_name: new_var_name},
         ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
