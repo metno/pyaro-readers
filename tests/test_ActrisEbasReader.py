@@ -31,6 +31,11 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     variable_filter_actris = pyaro.timeseries.Filter.VariableNameFilter(
         {}, actris_vars_to_read, [])
 
+    #"start_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]
+
+    # filters on "start_include"
+    time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2019-12-31 23:59:59")])
+
     def test_api_online(self, url=TEST_URL):
         try:
             req = urllib.request.Request(url, method="HEAD")
@@ -56,15 +61,15 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         assert engine.args()
 
     def test_api_reading_small_data_set(self):
-        filters = [self.station_filter, self.variable_filter_actris]
+        filters = [self.station_filter, self.variable_filter_actris, self.time_filter]
         engine = pyaro.list_timeseries_engines()[self.engine]
         with engine.open(TEST_URL,
             filters=filters,
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
             self.assertGreaterEqual(len(ts.stations()), 2)
-            self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
-            self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
+            self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 100)
+            self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 100)
             self.assertGreaterEqual(len(ts.variables()), 1)
             self.assertIn("revision", ts.metadata())
 

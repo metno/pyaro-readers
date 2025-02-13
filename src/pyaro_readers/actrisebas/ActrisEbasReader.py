@@ -25,8 +25,9 @@ from pyaro.timeseries import (
 logger = logging.getLogger(__name__)
 
 # default API URL base
-BASE_API_URL = "https://dev-actris-md.nilu.no/"
+# BASE_API_URL = "https://dev-actris-md.nilu.no/"
 # BASE_API_URL = "https://prod-actris-md.nilu.no/"
+BASE_API_URL = "https://dev-actris-md2.nilu.no/"
 # base URL to query for data for a certain variable
 VAR_QUERY_URL = f"{BASE_API_URL}metadata/content/"
 # basename of definitions.toml which connects the pyaerocom variable names with the ACTRIS variable names
@@ -37,6 +38,10 @@ EBAS_FLAG_URL = "https://folk.nilu.no/~ebas/EBAS_Masterdata/ebas_flags.csv"
 DEFINITION_FILE = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), DEFINITION_FILE_BASENAME
 )
+EBAS_FLAGS_FILE = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "ebas_flags.csv"
+)
+
 # name of the standard_name section in the DEFINITION_FILE
 STD_NAME_SECTION_NAME = "actris_standard_names"
 
@@ -109,9 +114,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._metadata["revision"] = datetime.datetime.strftime(
             self._revision, "%y%m%d%H%M%S"
         )
-        self.ebas_flags = self.get_ebas_flags()
+        self.ebas_flags = self.get_ebas_flags_file()
         self.sites_to_read = None
         self.vars_to_read = None
+        self.times_to_read = (np.datetime64(1,"Y"), np.datetime64(120,"Y"))
 
         # set filters
         for filter in filters:
@@ -121,9 +127,24 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             elif isinstance(filter, Filter.VariableNameFilter):
                 self.vars_to_read = filter.init_kwargs()["include"]
                 logger.info(f"applying variable include filter {self.vars_to_read}...")
+            elif isinstance(filter, Filter.TimeBoundsFilter):
+                # this is not the full implementation. Correct filtering will be done
+                # by pyaro
+                # self.self.times_to_read = filter.init_kwargs()["start_include"]
+                # not the most pythonic way to do this...
+                self.times_to_read = (np.min(filter._start_include), np.max(filter._start_include))
+                logger.info(f"applying time include filter {self.times_to_read}...")
             else:
                 # pass on not reader supported filters
                 pass
+            # for time filter:
+            # There's time_coverage_start and time_coverage_end in the global attributes with the
+            # time coverage as ISO string
+            # just looking at the time variable is not enough. It notes the middle time. The time_bnds variable
+            # has to be applied as well
+            # np.datetime64(tmp_data.attrs["time_coverage_start"].split()[0])
+            # np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
+
 
         if self.vars_to_read is None:
             logger.info(f"No variable filter given, nothing to read...")
@@ -241,6 +262,19 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     for f_idx, url in enumerate(urls_to_dl[site_name]):
                         logger.info(f"reading file {url}")
                         tmp_data = xr.open_dataset(url)
+                        # check for time filter by looking into
+                        # np.datetime64(tmp_data.attrs["time_coverage_start"].split()[0])
+                        # and
+                        # np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
+                        # We also could have a look at the time variable, but the obe saves some time calulations
+                        # (applying the time bounds to the middle points in the time variable)
+                        file_start_time = np.datetime64(tmp_data.attrs["time_coverage_start"].split()[0])
+                        file_end_time = np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
+                        # if (file_start_time >= self.times_to_read[0] and file_start_time <= self.times_to_read[1]) \
+                        #     or (file_end_time >= self.times_to_read[0] and file_end_time <= self.times_to_read[1]):
+                        if (file_end_time < self.times_to_read[0] or file_start_time > self.times_to_read[1]):
+                            logger.info(f"url {url} not read. Outside of time bounds.")
+                            continue
 
                         # put all data variables in the data struct for the moment
                         for d_idx, _data_var in enumerate(
@@ -278,11 +312,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             standard_deviation = np.full(ts_no, np.nan)
                             vals = tmp_data[_data_var].values
                             # apply flags
-                            ebas_qc_var = self.get_ebas_data_qc_variable(
-                                tmp_data, _data_var
-                            )
 
-                            flags = np.full(ts_no, Flag.VALID)
+                            flags = self.get_ebas_var_flags(tmp_data, _data_var)
+
                             if _var not in self._data:
                                 self._data[_var] = NpStructuredData(
                                     _var,
@@ -324,14 +356,22 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 bar.close()
         assert True
 
-    def get_ebas_flags(self, url: str = EBAS_FLAG_URL) -> dict:
+    def get_ebas_var_flags(self, tmp_data, _data_var):
+        """helper method to set pyro flags according to the ebas flags"""
+        ts_no = tmp_data.sizes["time"]
+        ebas_qc_var = self.get_ebas_data_qc_variable(tmp_data, _data_var)
+
+        flags = np.full(ts_no, Flag.VALID)
+        return flags
+
+    def get_ebas_flags_file(self, url: str = EBAS_FLAG_URL) -> dict:
         """small helper to download the bas flag file from NILU"""
 
         df = polars.read_csv(url)
         # return this as a python dict for now
         ret_data = {}
         for var in df.columns:
-            ret_data[var] = df[var].to_numpy()
+            ret_data[var] = df[var].to_numpy().flatten()
 
         # for simplicity add a dict entry listing the valid flags
         # last column is the explanation ("V" for valid)
@@ -465,6 +505,51 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                         break
         return urls_to_dl
+
+    def read_ebas_flags_file(self, file=EBAS_FLAGS_FILE):
+        """Reads file ebas_flags.csv
+
+        Parameters
+        ----------
+        ebas_flags_csv : str
+            file containing flag info
+
+        Returns
+        -------
+        dict
+            dict with loaded flag info
+        """
+        valid = {}
+        values = {}
+        info = {}
+        with open(file) as fio:
+            for line in fio:
+                spl = line.strip().split(",")
+                num = int(spl[0].strip())
+                try:
+                    val_str = spl[-1][1:-1]
+                except Exception:
+                    raise OSError(
+                        f"Failed to read flag information in row {line} "
+                        f"(Check if entries in ebas_flags.csv are quoted)"
+                    )
+                info_str = ",".join(spl[1:-1])
+                try:
+                    info_str = info_str[1:-1]
+                except Exception:
+                    raise OSError(
+                        f"Failed to read flag information in row {line} "
+                        f"(Check if entries in ebas_flags.csv are quoted)"
+                    )
+                isvalid = True if val_str == "V" else False
+                valid[num] = isvalid
+                values[num] = val_str
+                info[num] = info_str
+        result = {}
+        result["valid"] = valid
+        result["info"] = info
+        result["vals"] = values
+        return result
 
     def _unfiltered_data(self, varname) -> Data:
         self._read()
