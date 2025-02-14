@@ -2,11 +2,11 @@
 [variables]
 #prototype
 # the order in the list below is preserved and determines the order the data is read
-#[variables.<var name>]
+#[variables.<pyaerocom var name>]
 #actris_variable = [<list of actris variables>]
 #actris_matrix = [<list of actris matrixes>]
 #ebas_component = [<list of ebas component names>]
-#ebas_matrix = [<lust of ebas matrix names>]
+#ebas_matrix = [<list of ebas matrix names>]
 
 [variables.conco3]
 actris_variable = ["ozone mass concentration"]
