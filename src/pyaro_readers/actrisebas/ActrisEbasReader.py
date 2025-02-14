@@ -19,7 +19,7 @@ from pyaro.timeseries import (
     NpStructuredData,
     Station,
     Reader,
-    Filter
+    Filter,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,10 @@ STD_NAME_SECTION_NAME = "actris_standard_names"
 
 # number of times an api  request is tried before we consider it failed
 MAX_RETRIES = 2
+
+# number used instead of NaN in flags
+# in the netcdf files there's actually a zero, but there's also a _FillValue attribute that sets that to NaN again
+EBAS_FLAG_NAN_NUMBER = 0
 
 # name of the root key containing the download information
 DISTRIBUTION_ROOT_KEY = "md_distribution_information"
@@ -114,10 +118,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._metadata["revision"] = datetime.datetime.strftime(
             self._revision, "%y%m%d%H%M%S"
         )
-        self.ebas_flags = self.get_ebas_flags_file()
+        self.ebas_valid_flags = self.get_ebas_valid_flags()
         self.sites_to_read = None
         self.vars_to_read = None
-        self.times_to_read = (np.datetime64(1,"Y"), np.datetime64(120,"Y"))
+        self.times_to_read = (np.datetime64(1, "Y"), np.datetime64(120, "Y"))
 
         # set filters
         for filter in filters:
@@ -132,7 +136,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 # by pyaro
                 # self.self.times_to_read = filter.init_kwargs()["start_include"]
                 # not the most pythonic way to do this...
-                self.times_to_read = (np.min(filter._start_include), np.max(filter._start_include))
+                self.times_to_read = (
+                    np.min(filter._start_include),
+                    np.max(filter._start_include),
+                )
                 logger.info(f"applying time include filter {self.times_to_read}...")
             else:
                 # pass on not reader supported filters
@@ -144,7 +151,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             # has to be applied as well
             # np.datetime64(tmp_data.attrs["time_coverage_start"].split()[0])
             # np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
-
 
         if self.vars_to_read is None:
             logger.info(f"No variable filter given, nothing to read...")
@@ -177,9 +183,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         self.standard_names[var] = self.get_actris_standard_name(
                             _actris_var
                         )
-                        self.standard_names[
-                            _actris_var
-                        ] = self.get_actris_standard_name(_actris_var)
+                        self.standard_names[_actris_var] = (
+                            self.get_actris_standard_name(_actris_var)
+                        )
 
             else:
                 # user gave ACTRIS name
@@ -234,7 +240,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 # self.read_data(
                 #     actris_variable=_pyaro_var, urls_to_dl=self.urls_to_dl[_actris_var]
                 # )
-                # assert self._data[_pyaro_var]
+                assert self._metadata[_pyaro_var][_actris_var]
                 # return _pyaro_var, self.urls_to_dl
 
     def metadata(self):
@@ -268,11 +274,18 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         # np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
                         # We also could have a look at the time variable, but the obe saves some time calulations
                         # (applying the time bounds to the middle points in the time variable)
-                        file_start_time = np.datetime64(tmp_data.attrs["time_coverage_start"].split()[0])
-                        file_end_time = np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
+                        file_start_time = np.datetime64(
+                            tmp_data.attrs["time_coverage_start"].split()[0]
+                        )
+                        file_end_time = np.datetime64(
+                            tmp_data.attrs["time_coverage_end"].split()[0]
+                        )
                         # if (file_start_time >= self.times_to_read[0] and file_start_time <= self.times_to_read[1]) \
                         #     or (file_end_time >= self.times_to_read[0] and file_end_time <= self.times_to_read[1]):
-                        if (file_end_time < self.times_to_read[0] or file_start_time > self.times_to_read[1]):
+                        if (
+                            file_end_time < self.times_to_read[0]
+                            or file_start_time > self.times_to_read[1]
+                        ):
                             logger.info(f"url {url} not read. Outside of time bounds.")
                             continue
 
@@ -313,7 +326,21 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             vals = tmp_data[_data_var].values
                             # apply flags
 
-                            flags = self.get_ebas_var_flags(tmp_data, _data_var)
+                            ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
+                            # quick test if we need to apply flags at all
+                            if (
+                                np.nansum(ebas_flags)
+                                == ebas_flags.size * EBAS_FLAG_NAN_NUMBER
+                            ):
+                                flags = np.full(ts_no, Flag.VALID, dtype="i2")
+                            else:
+                                flags = np.full(ts_no, Flag.INVALID, dtype="i2")
+                                for _ebas_flag in ebas_flags:
+                                    for f_idx, flag in enumerate(_ebas_flag):
+                                        if (flag == 0) or (
+                                            flag in self.ebas_valid_flags
+                                        ):
+                                            flags[f_idx] = Flag.VALID
 
                             if _var not in self._data:
                                 self._data[_var] = NpStructuredData(
@@ -329,7 +356,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 altitude=altitude,
                                 start_time=start_time,
                                 end_time=stop_time,
-                                # TODO: Currently assuming that all observations are valid.
                                 flag=flags,
                                 standard_deviation=standard_deviation,
                             )
@@ -357,25 +383,37 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         assert True
 
     def get_ebas_var_flags(self, tmp_data, _data_var):
-        """helper method to set pyro flags according to the ebas flags"""
-        ts_no = tmp_data.sizes["time"]
+        """helper method to return ebas flags for _data_var"""
+
+        # what's done here is a bit special:
+        # in the netcdf file the data type is int
+        # but in the attributes there's a _FillValue attribute
+        # Because there's no NaN for integers the netcdf library then converts the integer to
+        # float.
+        # Because we will work a lot with these flags, we remove the NaNs,
+        # put it to the original 0, and convert the whole thing to integer
+
         ebas_qc_var = self.get_ebas_data_qc_variable(tmp_data, _data_var)
+        flags = tmp_data[ebas_qc_var].values
+        # remove NaNs and set them to EBAS_FLAG_NAN_NUMBER
+        flags[np.isnan(flags)] = EBAS_FLAG_NAN_NUMBER
 
-        flags = np.full(ts_no, Flag.VALID)
-        return flags
+        return flags.astype(int)
 
-    def get_ebas_flags_file(self, url: str = EBAS_FLAG_URL) -> dict:
+    def get_ebas_valid_flags(self, url: str = EBAS_FLAG_URL) -> dict:
         """small helper to download the bas flag file from NILU"""
 
         df = polars.read_csv(url)
+        idx_arr = np.where(df[df.columns[-1]].to_numpy() == "V")
+        ret_data = df[df.columns[0]].to_numpy()[idx_arr]
         # return this as a python dict for now
-        ret_data = {}
-        for var in df.columns:
-            ret_data[var] = df[var].to_numpy().flatten()
-
-        # for simplicity add a dict entry listing the valid flags
-        # last column is the explanation ("V" for valid)
-        ret_data["valid"] = ret_data["Flag"][var == "V"]
+        # ret_data = {}
+        # for var in df.columns:
+        #     ret_data[var] = df[var].to_list()
+        #
+        # # for simplicity add a dict entry listing the valid flags
+        # # last column is the explanation ("V" for valid)
+        # ret_data["valid"] = ret_data["Flag"][var == "V"]
 
         return ret_data
 
@@ -505,51 +543,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                         break
         return urls_to_dl
-
-    def read_ebas_flags_file(self, file=EBAS_FLAGS_FILE):
-        """Reads file ebas_flags.csv
-
-        Parameters
-        ----------
-        ebas_flags_csv : str
-            file containing flag info
-
-        Returns
-        -------
-        dict
-            dict with loaded flag info
-        """
-        valid = {}
-        values = {}
-        info = {}
-        with open(file) as fio:
-            for line in fio:
-                spl = line.strip().split(",")
-                num = int(spl[0].strip())
-                try:
-                    val_str = spl[-1][1:-1]
-                except Exception:
-                    raise OSError(
-                        f"Failed to read flag information in row {line} "
-                        f"(Check if entries in ebas_flags.csv are quoted)"
-                    )
-                info_str = ",".join(spl[1:-1])
-                try:
-                    info_str = info_str[1:-1]
-                except Exception:
-                    raise OSError(
-                        f"Failed to read flag information in row {line} "
-                        f"(Check if entries in ebas_flags.csv are quoted)"
-                    )
-                isvalid = True if val_str == "V" else False
-                valid[num] = isvalid
-                values[num] = val_str
-                info[num] = info_str
-        result = {}
-        result["valid"] = valid
-        result["info"] = info
-        result["vals"] = values
-        return result
 
     def _unfiltered_data(self, varname) -> Data:
         self._read()
