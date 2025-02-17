@@ -15,9 +15,13 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # vars_to_read = ["aerosol particle sulphate mass concentration"]
     actris_vars_to_read = ["aerosol particle elemental carbon mass concentration"]
     # pyaerocom_vars_to_read = ["conco3"]
-    pyaerocom_vars_to_read = ["vmro3"]
+    # pyaerocom_vars_to_read = ["vmro3"]
+    # pyaerocom_vars_to_read = ["concca"]
+    # pyaerocom_vars_to_read = ["concso2"]
+    # pyaerocom_vars_to_read = ["vmrso2"]
 
     # pyaerocom_vars_to_read = ["concso4t"]
+    pyaerocom_vars_to_read = ["concpm10"]
 
     station_filter = pyaro.timeseries.Filter.StationFilter(
         ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []

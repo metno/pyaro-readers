@@ -1,14 +1,13 @@
 import datetime
 import json
 import logging
-import os
-import tomllib
-from urllib.parse import urlparse, quote
-
 import numpy as np
+import os
 import polars
+import tomllib
 import xarray as xr
 from tqdm import tqdm
+from urllib.parse import urlparse, quote
 from urllib3.poolmanager import PoolManager
 from urllib3.util.retry import Retry
 
@@ -44,6 +43,17 @@ EBAS_FLAGS_FILE = os.path.join(
 
 # name of the standard_name section in the DEFINITION_FILE
 STD_NAME_SECTION_NAME = "actris_standard_names"
+
+# name of the ebas section in the DEFINITION_FILE
+EBAS_VAR_SECTION_NAME = "variables"
+
+#
+CELL_METHODS_TO_COPY = [
+    "time: mean",
+    "time: median",
+
+]
+
 
 # number of times an api  request is tried before we consider it failed
 MAX_RETRIES = 2
@@ -84,6 +94,9 @@ class ActrisEbasQcVariableNotFoundException(Exception):
 
 
 class ActrisEbasTestDataNotFoundException(Exception):
+    pass
+
+class ActrisEbasWrongCellMethodOrUnitException(Exception):
     pass
 
 
@@ -173,19 +186,25 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 ]
                 for _actris_var in self.actris_vars_to_read[var]:
                     try:
-                        self.standard_names[var].extend(
-                            self.get_actris_standard_name(_actris_var)
-                        )
-                        self.standard_names[_actris_var].extend(
-                            self.get_actris_standard_name(_actris_var)
-                        )
+                        self.standard_names[_actris_var] = self.get_ebas_standard_name(var)
                     except KeyError:
-                        self.standard_names[var] = self.get_actris_standard_name(
-                            _actris_var
-                        )
-                        self.standard_names[_actris_var] = (
-                            self.get_actris_standard_name(_actris_var)
-                        )
+                        logger.info(f"No ebas standard names found for {var}. Trying those of the actris variable {self.actris_vars_to_read[var][0]} instead...")
+                        self.standard_names[_actris_var] = self.get_actris_standard_name(_actris_var)
+                # for _actris_var in self.actris_vars_to_read[var]:
+                #     try:
+                #         self.standard_names[var].extend(
+                #             self.get_actris_standard_name(_actris_var)
+                #         )
+                #         self.standard_names[_actris_var].extend(
+                #             self.get_actris_standard_name(_actris_var)
+                #         )
+                #     except KeyError:
+                #         self.standard_names[var] = self.get_actris_standard_name(
+                #             _actris_var
+                #         )
+                #         self.standard_names[_actris_var] = (
+                #             self.get_actris_standard_name(_actris_var)
+                #         )
 
             else:
                 # user gave ACTRIS name
@@ -295,6 +314,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 tmp_data,
                             )
                         ):
+                            stat_code = None
                             # look for a standard_name match and return only that variable
                             std_name = self.get_ebas_data_standard_name(
                                 tmp_data, _data_var
@@ -364,20 +384,20 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 f"matching std_name found. Not searching for possible additional std_name matches at this point..."
                             )
                             break
-
-                    if not site_name in self._stations:
-                        self._stations[site_name] = Station(
-                            {
-                                "station": stat_code,
-                                "longitude": lon[0],
-                                "latitude": lat[0],
-                                "altitude": altitude[0],
-                                "country": self.get_ebas_data_country_code(tmp_data),
-                                "url": "",
-                                # This is used by pyaerocom
-                                "long_name": site_name,
-                            }
-                        )
+                        if stat_code is not None:
+                            if not site_name in self._stations:
+                                self._stations[site_name] = Station(
+                                    {
+                                        "station": stat_code,
+                                        "longitude": lon[0],
+                                        "latitude": lat[0],
+                                        "altitude": altitude[0],
+                                        "country": self.get_ebas_data_country_code(tmp_data),
+                                        "url": "",
+                                        # This is used by pyaerocom
+                                        "long_name": site_name,
+                                    }
+                                )
                     bar.update(1)
                 bar.close()
         assert True
@@ -430,7 +450,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             ret_data = tmp_data[var_name].attrs["standard_name"]
         except KeyError:
             pass
-        return ret_data
+        # remove blanks just to be sure
+        return ret_data.replace(" ", "")
 
     def get_ebas_data_ancillary_variables(self, tmp_data, var_name):
         """
@@ -449,14 +470,20 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         ancillary variables
         """
         ret_data = None
+        # try using the ancillary variables attribute to find the flag variable
         for var in self.get_ebas_data_ancillary_variables(tmp_data, var_name):
             for time_name in TIME_VAR_NAME:
-                if time_name in tmp_data[var_name].dims:
+                if time_name in tmp_data[var_name].dims and var in tmp_data.variables:
                     return var
+
+        # try just adding "_qc" to the variable name
         if ret_data is None:
-            raise ActrisEbasQcVariableNotFoundException(
-                f"Error: no flag data for variable {var_name} found!"
-            )
+            if var_name + "_qc" in tmp_data.variables:
+                return var_name + "_qc"
+            else:
+                raise ActrisEbasQcVariableNotFoundException(
+                    f"Error: no flag data for variable {var_name} found!"
+                )
         return ""
 
     def get_ebas_data_country_code(self, tmp_data):
@@ -470,6 +497,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         except KeyError:
             raise ActrisEbasStdNameNotFoundException(
                 f"Error: no CF standard name for {actris_var_name} found!"
+            )
+
+    def get_ebas_standard_name(self, ebas_var_name):
+        """small helper method to get corresponding CF standard name for a given EBAS variable"""
+        try:
+            return self.def_data[EBAS_VAR_SECTION_NAME][ebas_var_name]["standard_names"]
+        except KeyError:
+            raise ActrisEbasStdNameNotFoundException(
+                f"Error: no CF standard name for {ebas_var_name} found!"
             )
 
     def _get_ebas_data_vars(self, tmp_data, actris_var: str = None, units: str = None):
@@ -486,16 +522,28 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             if len(tmp_data[data_var].dims) != 1:
                 continue
             elif tmp_data[data_var].dims[0] in TIME_VAR_NAME:
-                # check for standard unit
                 try:
-                    # if defined, return only names that match
-                    if (
-                        tmp_data[data_var].attrs["units"]
-                        == self.def_data["actris_std_units"][data_var]
-                    ):
-                        data_vars.append(data_var)
+                    cell_methods = tmp_data[data_var].attrs["cell_methods"]
                 except KeyError:
+                    cell_methods = None
+                try:
+                    units = tmp_data[data_var].attrs["units"]
+                except KeyError:
+                    units = None
+                if cell_methods is None and units is None:
+                    # old data, just copy
                     data_vars.append(data_var)
+                # elif cell_methods is not None and units is not None:
+                #     if cell_methods in CELL_METHODS_TO_COPY and units == self.def_data["actris_std_units"][data_var]:
+                #         data_vars.append(data_var)
+                elif cell_methods is not None:
+                        if cell_methods in CELL_METHODS_TO_COPY:
+                            data_vars.append(data_var)
+                # elif units is not None:
+                #     if units == self.def_data["actris_std_units"][data_var]:
+                #         data_vars.append(data_var)
+                else:
+                    pass
 
         return data_vars
 

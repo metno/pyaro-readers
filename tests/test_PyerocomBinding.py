@@ -33,7 +33,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             name_map={"AOD_440nm": self.AERONETVAR},
         )
         reader = ReadUngridded(f"{data_name}")
-        data = reader.read(vars_to_retrieve=self.AERONETVAR, configs=obsconfig)
+        data = reader._read(vars_to_retrieve=self.AERONETVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Alta_Floresta", data.unique_station_names)
 
@@ -68,7 +68,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             filters=station_filter,
         )
         reader = ReadUngridded(f"{data_name}")
-        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        data = reader._read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Ispra", data.unique_station_names)
         self.assertIn(url, data.contains_vars)
@@ -107,7 +107,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             filters=station_filter,
         )
         reader = ReadUngridded(f"{data_name}")
-        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        data = reader._read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Ispra", data.unique_station_names)
         self.assertIn(url[0], data.contains_vars)
