@@ -286,7 +286,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 for s_idx, site_name in enumerate(urls_to_dl):
                     for f_idx, url in enumerate(urls_to_dl[site_name]):
                         logger.info(f"reading file {url}")
-                        tmp_data = xr.open_dataset(url)
+                        try:
+                            tmp_data = xr.open_dataset(url)
+                        except Exception as e:
+                            logger.error(f"failed to read {url} with error {e}")
+                            assert url
+                            continue
                         # check for time filter by looking into
                         # np.datetime64(tmp_data.attrs["time_coverage_start"].split()[0])
                         # and

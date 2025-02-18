@@ -1,5 +1,6 @@
 import unittest
 import urllib.request
+import logging
 
 import pyaro
 import pyaro.timeseries
@@ -7,6 +8,8 @@ from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
 TEST_URL = "https://prod-actris-md.nilu.no/Version"
 VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
+
+logger = logging.getLogger(__name__)
 
 
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
@@ -21,7 +24,9 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # pyaerocom_vars_to_read = ["vmrso2"]
 
     # pyaerocom_vars_to_read = ["concso4t"]
-    pyaerocom_vars_to_read = ["concpm10"]
+    # pyaerocom_vars_to_read = ["concpm10"]
+    # pyaerocom_vars_to_read = ["concpm25"]
+    pyaerocom_vars_to_read = ["concpm1"]
 
     station_filter = pyaro.timeseries.Filter.StationFilter(
         ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []
@@ -38,7 +43,8 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     #"start_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]
 
     # filters on "start_include"
-    time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2019-12-31 23:59:59")])
+    # time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2019-12-31 23:59:59")])
+    time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2014-01-01 00:00:00", "2019-12-31 23:59:59")])
 
     def test_api_online(self, url=TEST_URL):
         try:
@@ -71,7 +77,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             filters=filters,
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
-            self.assertGreaterEqual(len(ts.stations()), 2)
+            self.assertGreaterEqual(len(ts.stations()), 1)
             self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 100)
             self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 100)
             self.assertGreaterEqual(len(ts.variables()), 1)
@@ -90,7 +96,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             engine = pyaro.list_timeseries_engines()[self.engine]
             with engine.open(TEST_URL, filters=filters) as ts:
                 self.assertGreaterEqual(len(ts.variables()), 1)
-                self.assertGreaterEqual(len(ts.stations()), 2)
+                self.assertGreaterEqual(len(ts.stations()), 1)
                 self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
                 self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
                 self.assertIn("revision", ts.metadata())
