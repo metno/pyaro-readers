@@ -10,7 +10,8 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         },
     }
     AERONETVAR = "od440aer"
-    ACTRISEBASVAR = "concso4t"
+    # ACTRISEBASVAR = "concso4t"
+    ACTRISEBASVAR = "vmro3"
     ACTRISEBASVARLIST = ["concso4t", "concso4c"]
 
     def test_pyaerocom_aeronet(self):
@@ -58,6 +59,8 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
                     "Westerland",
                 ]
             },
+            "variables": {"include": [self.ACTRISEBASVAR, ]},
+            "time_bounds":{"startend_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]}
         }
         # needs to be the variable name for actrisebas
         url = self.ACTRISEBASVAR
@@ -68,7 +71,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             filters=station_filter,
         )
         reader = ReadUngridded(f"{data_name}")
-        data = reader._read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Ispra", data.unique_station_names)
         self.assertIn(url, data.contains_vars)

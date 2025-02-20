@@ -135,7 +135,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._revision = datetime.datetime.now()
         self._metadata["revision"] = datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S")
         self.ebas_valid_flags = self.get_ebas_valid_flags()
-        self.sites_to_read = None
+        self.sites_to_read = []
+        self.sites_to_exclude = []
         self.vars_to_read = None
         self.times_to_read = (np.datetime64(1, "Y"), np.datetime64(120, "Y"))
 
@@ -167,6 +168,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     np.max(filter._start_include),
                 )
                 logger.info(f"applying time include filter {self.times_to_read}...")
+            # For some reason the filters come as dict from pyaerocom
             elif isinstance(filter, str):
                 if filter == 'stations':
                     assert filters[filter]
@@ -185,9 +187,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         logger.info(f"applying variable include filter {self.vars_to_read}...")
                     except KeyError:
                         pass
-                elif filter == 'time':
+                elif filter == 'time_bounds':
                     try:
-                        self.times_to_read = filters[filter]["start_include"]
+                        _time_bounds = np.array(filters[filter]["startend_include"], dtype=np.datetime64)
+                        self.times_to_read = (np.min(_time_bounds), np.max(_time_bounds))
                     except Exception as e:
                         pass
                     assert filters[filter]
@@ -196,13 +199,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             else:
                 # pass on not reader supported filters
                 pass
-            # for time filter:
-            # There's time_coverage_start and time_coverage_end in the global attributes with the
-            # time coverage as ISO string
-            # just looking at the time variable is not enough. It notes the middle time. The time_bnds variable
-            # has to be applied as well
-            # np.datetime64(tmp_data.attrs["time_coverage_start"].split()[0])
-            # np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
 
         if self.vars_to_read is None:
             logger.info(f"No variable filter given, nothing to read...")
@@ -310,7 +306,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             tqdm_desc="reading stations",
     ):
         """
-        read the data from EBAS thredds server
+        read the data from EBAS thredds server (or the local cache)
         """
         # for actris vocabulary key and value of self.actris_vars_to_read are the same
         # for pyaerocom vocabulary they are not (key is pyaerocom variable name there)!
@@ -319,8 +315,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 logger.info(f"var {_var} already read")
                 continue
             for actris_variable in self.actris_vars_to_read[_var]:
-                # actris_variable = self.actris_vars_to_read[_var][0]
-
                 urls_to_dl = self.urls_to_dl[actris_variable]
                 bar = tqdm(desc=tqdm_desc, total=len(urls_to_dl), disable=None)
                 for s_idx, site_name in enumerate(urls_to_dl):
@@ -379,6 +373,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             # some of the data files can't be read by xarray due to errors. So we
                             # can't cache them (all data is only realized here)
                             try:
+                                tmp_data.load()
                                 tmp_data.to_netcdf(_local_file)
                                 logger.info(f"saved cache file {_local_file}")
                             except Exception as e:
@@ -476,7 +471,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                         "long_name": site_name,
                                     }
                                 )
+                    try:
+                        tmp_data.close()
+                    except Exception as e:
+                        pass
                     bar.update(1)
+
                 bar.close()
         assert True
 
