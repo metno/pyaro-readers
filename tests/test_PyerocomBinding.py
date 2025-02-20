@@ -27,7 +27,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         url = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv"
         obsconfig = PyaroConfig(
             name=data_name,
-            data_id=data_id,
+            reader_id=data_id,
             filename_or_obj_or_url=url,
             filters={"variables": {"include": ["AOD_440nm"]}},
             name_map={"AOD_440nm": self.AERONETVAR},
@@ -63,7 +63,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         url = self.ACTRISEBASVAR
         obsconfig = PyaroConfig(
             name=data_name,
-            data_id=data_id,
+            reader_id=data_id,
             filename_or_obj_or_url=url,
             filters=station_filter,
         )
@@ -102,12 +102,12 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         url = self.ACTRISEBASVARLIST
         obsconfig = PyaroConfig(
             name=data_name,
-            data_id=data_id,
+            reader_id=data_id,
             filename_or_obj_or_url=url,
             filters=station_filter,
         )
         reader = ReadUngridded(f"{data_name}")
-        data = reader._read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Ispra", data.unique_station_names)
         self.assertIn(url[0], data.contains_vars)
