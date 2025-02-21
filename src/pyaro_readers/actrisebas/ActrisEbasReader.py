@@ -126,6 +126,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._set_filters(filters)
         # self._header = []
         self._metadata = {}
+        self._tmp_metadata = {}
         # used for variable matching in the EBAS data files
         # gives a mapping between the EBAS or pyaerocom variable name
         # and the CF standard name found in the EBAS data files
@@ -134,6 +135,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # _laststatstr = ""
         self._revision = datetime.datetime.now()
         self._metadata["revision"] = datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S")
+        self._tmp_metadata["revision"] = datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S")
         self.ebas_valid_flags = self.get_ebas_valid_flags()
         self.sites_to_read = []
         self.sites_to_exclude = []
@@ -210,7 +212,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # of ACTRIS variables to read. values are a list
         self.actris_vars_to_read = {}
         for var in self.vars_to_read:
-            self._metadata[var] = {}
+            self._tmp_metadata[var] = {}
             # handle pyaerocom variables here:
             # if a given variable name is in the list of pyaerocom variable names in definitions.toml
             self.actris_vars_to_read[var] = []
@@ -283,7 +285,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             json_resp_tmp = ""
                             continue
 
-                self._metadata[_pyaro_var][_actris_var] = json_resp
+                self._tmp_metadata[_pyaro_var][_actris_var] = json_resp
                 self.urls_to_dl[_actris_var] = self.extract_urls(
                     json_resp,
                     sites_to_read=self.sites_to_read,
@@ -295,7 +297,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 # self.read_data(
                 #     actris_variable=_pyaro_var, urls_to_dl=self.urls_to_dl[_actris_var]
                 # )
-                assert self._metadata[_pyaro_var][_actris_var]
+                assert self._tmp_metadata[_pyaro_var][_actris_var]
                 # return _pyaro_var, self.urls_to_dl
 
     def metadata(self):
@@ -318,10 +320,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 urls_to_dl = self.urls_to_dl[actris_variable]
                 bar = tqdm(desc=tqdm_desc, total=len(urls_to_dl), disable=None)
                 for s_idx, site_name in enumerate(urls_to_dl):
+                    assert site_name
+                    self._metadata[site_name] = {}
                     for f_idx, thredds_url in enumerate(urls_to_dl[site_name]):
                         _local_file_flag = False
                         if self.cache_flag:
-                            _local_file = self.cache_dir / Path(thredds_url).name
+                            # _local_file = self.cache_dir / Path(thredds_url).name
+                            _local_file = self.cache_dir / "_".join(Path(thredds_url).parts[-4:])
                             if _local_file.exists():
                                 url = _local_file
                                 _local_file_flag = True
@@ -329,9 +334,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 url = thredds_url
                         else:
                             url = thredds_url
-                        logger.info(f"reading file {url}")
                         try:
+                            logger.info(f"trying to read URL {url}")
                             tmp_data = xr.open_dataset(url)
+                            logger.info(f"Successfully read URL {url}")
                         except Exception as e:
                             logger.error(f"failed to read {url} with error {e}")
                             assert url
@@ -458,6 +464,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             )
                             break
                         if stat_code is not None:
+                            if site_name == "Schmücke":
+                                assert site_name
                             if not site_name in self._stations:
                                 self._stations[site_name] = Station(
                                     {

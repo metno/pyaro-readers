@@ -145,7 +145,7 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         with engine.open(
             self.file, filters=[vfilter], tqdm_desc="test_variables_filter"
         ) as ts:
-            ts.read()
+            ts._read()
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
 
 

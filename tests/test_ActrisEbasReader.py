@@ -23,13 +23,13 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # pyaerocom_vars_to_read = ["concso2"]
     # pyaerocom_vars_to_read = ["vmrso2"]
 
-    # pyaerocom_vars_to_read = ["concso4t"]
-    pyaerocom_vars_to_read = ["concpm10"]
+    pyaerocom_vars_to_read = ["concso4t"]
+    # pyaerocom_vars_to_read = ["concpm10"]
     # pyaerocom_vars_to_read = ["concpm25"]
     # pyaerocom_vars_to_read = ["concpm1"]
 
     station_filter = pyaro.timeseries.Filter.StationFilter(
-        ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []
+        ["Schmücke", "Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []
     )
 
     variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
