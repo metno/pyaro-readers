@@ -348,30 +348,30 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         # and
                         # np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
                         # fall back to the time variable
-                        try:
-                            file_start_time = np.datetime64(
-                                tmp_data.attrs["time_coverage_start"].split()[0]
-                            )
-                        except Exception as e:
-                            logger.error(f"URL {url} is missing the global attribute 'time_coverage_start'; Error: {e}")
-                            logger.error(f"reading time values instead")
-                            file_start_time = np.min(np.asarray(tmp_data["time_bnds"][:, 0]))
+                        # try:
+                        #     file_start_time = np.datetime64(
+                        #         tmp_data.attrs["time_coverage_start"].split()[0]
+                        #     )
+                        # except Exception as e:
+                        #     logger.error(f"URL {url} is missing the global attribute 'time_coverage_start'; Error: {e}")
+                        #     logger.error(f"reading time values instead")
+                        #     file_start_time = np.min(np.asarray(tmp_data["time_bnds"][:, 0]))
+                        #
 
-                        try:
-                            file_end_time = np.datetime64(
-                                tmp_data.attrs["time_coverage_end"].split()[0]
-                            )
-                        except Exception as e:
-                            logger.error(f"URL {url} is missing the global attribute 'time_coverage_end'; Error: {e}")
-                            logger.error(f"reading time values instead")
-                            file_end_time = np.max(np.asarray(tmp_data["time_bnds"][:, 1]))
+                        # try:
+                        #     file_end_time = np.datetime64(
+                        #         tmp_data.attrs["time_coverage_end"].split()[0]
+                        #     )
+                        # except Exception as e:
+                        #     logger.error(f"URL {url} is missing the global attribute 'time_coverage_end'; Error: {e}")
+                        #     logger.error(f"reading time values instead")
+                        #     file_end_time = np.max(np.asarray(tmp_data["time_bnds"][:, 1]))
+                        file_start_time = np.min(np.asarray(tmp_data["time_bnds"][:, 0]))
+                        file_end_time = np.max(np.asarray(tmp_data["time_bnds"][:, 1]))
 
                         # if (file_start_time >= self.times_to_read[0] and file_start_time <= self.times_to_read[1]) \
                         #     or (file_end_time >= self.times_to_read[0] and file_end_time <= self.times_to_read[1]):
-                        if (
-                                file_end_time < self.times_to_read[0]
-                                or file_start_time > self.times_to_read[1]
-                        ):
+                        if file_end_time < self.times_to_read[0] or file_start_time > self.times_to_read[1]:
                             logger.info(f"url {url} not read. Outside of time bounds.")
                             continue
                         # write cache file if needed
@@ -417,6 +417,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
                             # assert f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
                             long_name = tmp_data.attrs["ebas_station_name"]
+                            # the station name from the API might not match the one from the data file
+                            # always use the one from the API, but keep the line above for documentation
+                            # we might decide later on to use the name from the data file instead
+                            if long_name != site_name:
+                                long_name = site_name
                             stat_code = tmp_data.attrs["ebas_station_code"]
                             # create variables valid for all measured variables...
                             start_time = np.asarray(tmp_data["time_bnds"][:, 0])
@@ -472,7 +477,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             )
                             break
                         if stat_code is not None:
-                            if site_name == "Schmücke":
+                            if site_name == "Schmucke":
                                 assert site_name
                             if not site_name in self._stations:
                                 self._stations[site_name] = Station(
