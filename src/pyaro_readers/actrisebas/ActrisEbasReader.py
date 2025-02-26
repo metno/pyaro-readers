@@ -322,6 +322,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 for s_idx, site_name in enumerate(urls_to_dl):
                     assert site_name
                     self._metadata[site_name] = {}
+
                     for f_idx, thredds_url in enumerate(urls_to_dl[site_name]):
                         _local_file_flag = False
                         if self.cache_flag:
@@ -373,7 +374,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         ):
                             logger.info(f"url {url} not read. Outside of time bounds.")
                             continue
-
                         # write cache file if needed
                         if self.cache_flag and not _local_file_flag:
                             # some of the data files can't be read by xarray due to errors. So we
@@ -406,6 +406,14 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             else:
                                 log_str = f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
                                 logger.info(log_str)
+
+                            # check units...
+                            netcdf_unit = tmp_data[_data_var].attrs["units"]
+                            ebas_unit = tmp_data[_data_var].attrs["ebas_unit"]
+                            if netcdf_unit != ebas_unit:
+                                logger.error(
+                                    f"var {_data_var} unit mismatch: unit arr: {netcdf_unit}; ebas_unit attr: {ebas_unit} for URL {url}")
+
 
                             # assert f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
                             long_name = tmp_data.attrs["ebas_station_name"]
@@ -527,7 +535,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def get_ebas_data_units(self, tmp_data, var_name):
         """small helper method to get the ebas unit from the data file"""
         unit = tmp_data[var_name].attrs["units"]
-        return unit
+        ebas_unit = tmp_data[var_name].attrs["ebas_unit"]
+        if unit != ebas_unit:
+            logger.error(f"Error: mismatch between units {unit} and ebas_unit {ebas_unit} attributes")
+        return ebas_unit
 
     def get_ebas_data_standard_name(self, tmp_data, var_name):
         """small helper method to get the ebas standard_name for a given variable from the data file"""
