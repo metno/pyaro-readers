@@ -10,8 +10,8 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         },
     }
     AERONETVAR = "od440aer"
-    ACTRISEBASVAR = "concso4t"
-    # ACTRISEBASVAR = "vmro3"
+    # ACTRISEBASVAR = "concso4t"
+    ACTRISEBASVAR = "vmro3"
     ACTRISEBASVARLIST = ["concso4t", "concso4c"]
 
     def test_pyaerocom_aeronet(self):
@@ -34,7 +34,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             name_map={"AOD_440nm": self.AERONETVAR},
         )
         reader = ReadUngridded(f"{data_name}")
-        data = reader._read(vars_to_retrieve=self.AERONETVAR, configs=obsconfig)
+        data = reader.read(vars_to_retrieve=self.AERONETVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Alta_Floresta", data.unique_station_names)
 
@@ -50,17 +50,18 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         data_name = "PYARO_actrisebas"
         data_id = "actrisebas"
         station_filter = {
-            # "stations": {
-            #     "include": [
-            #         "Birkenes II",
-            #         "Jungfraujoch",
-            #         "Ispra",
-            #         "Melpitz",
-            #         "Westerland",
-            #     ]
-            # },
+            "stations": {
+                "include": [
+                    "Schmucke",
+                    "Birkenes II",
+                    "Jungfraujoch",
+                    "Ispra",
+                    "Melpitz",
+                    "Westerland",
+                ]
+            },
             "variables": {"include": [self.ACTRISEBASVAR, ]},
-            "time_bounds":{"startend_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]}
+            "time_bounds":{"startend_include": [("2019-01-01 00:00:00", "2020-12-24 00:00:00")]}
         }
         # needs to be the variable name for actrisebas
         url = self.ACTRISEBASVAR
@@ -73,7 +74,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         reader = ReadUngridded(f"{data_name}")
         data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
-        self.assertIn("Ispra", data.unique_station_names)
+        self.assertIn("Schmucke", data.unique_station_names)
         self.assertIn(url, data.contains_vars)
 
     def test_pyaerocom_actrisebas_many_var(self):

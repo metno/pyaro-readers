@@ -18,18 +18,19 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # vars_to_read = ["aerosol particle sulphate mass concentration"]
     actris_vars_to_read = ["aerosol particle elemental carbon mass concentration"]
     # pyaerocom_vars_to_read = ["conco3"]
-    # pyaerocom_vars_to_read = ["vmro3"]
+    pyaerocom_vars_to_read = ["vmro3"]
     # pyaerocom_vars_to_read = ["concca"]
     # pyaerocom_vars_to_read = ["concso2"]
     # pyaerocom_vars_to_read = ["vmrso2"]
 
-    pyaerocom_vars_to_read = ["concso4t"]
+    # pyaerocom_vars_to_read = ["concso4t"]
+    # pyaerocom_vars_to_read = ["concso4c"]
     # pyaerocom_vars_to_read = ["concpm10"]
     # pyaerocom_vars_to_read = ["concpm25"]
     # pyaerocom_vars_to_read = ["concpm1"]
 
     station_filter = pyaro.timeseries.Filter.StationFilter(
-        ["Schmücke", "Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []
+        ["Schmucke", "Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []
     )
 
     variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
@@ -44,7 +45,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
 
     # filters on "start_include"
     # time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2019-12-31 23:59:59")])
-    time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2014-01-01 00:00:00", "2019-12-31 23:59:59")])
+    time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2020-12-31 23:59:59")])
 
     def test_api_online(self, url=TEST_URL):
         try:
@@ -97,6 +98,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             with engine.open(TEST_URL, filters=filters) as ts:
                 self.assertGreaterEqual(len(ts.variables()), 1)
                 self.assertGreaterEqual(len(ts.stations()), 1)
+                self.assertIn("Schmucke", ts.stations())
                 self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
                 self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
                 self.assertIn("revision", ts.metadata())
