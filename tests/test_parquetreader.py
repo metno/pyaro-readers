@@ -48,3 +48,4 @@ def test_reading():
     data_slice = data[:500]
     assert len(data_slice) == 500
     assert np.all(ds_tmp["value"][:500].to_numpy() == data_slice.values)
+    assert data.units == "kg/m^3"

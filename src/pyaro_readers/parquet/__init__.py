@@ -58,6 +58,15 @@ class ParquetData(Data):
     def values(self):
         return self._dataset["value"].to_numpy()
 
+    @property
+    def units(self):
+        units = self._dataset["units"].unique()
+        if len(units) > 1:
+            raise ParquetReaderException(
+                f"This dataset contains more than one unit: {units}"
+            )
+        return units[0]
+
 
 class ParquetTimeseriesReader(AutoFilterReader):
     MANDATORY_COLUMNS = {
