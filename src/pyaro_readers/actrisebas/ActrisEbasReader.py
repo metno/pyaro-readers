@@ -83,6 +83,10 @@ TIME_VAR_NAME = ["time"]
 
 CACHE_ENVIRONMENT_VAR_NAME = "PYARO_CACHE_DIR_EBAS_ACTRIS"
 
+# EBAS also contains measuremenmts e.g. from chambers the that pyaro is nor interested in
+# define a list of interesting conten types
+CONTENT_TYPES_TO_COPY = ["physicalMeasurement",]
+
 
 class ActrisEbasRetryException(Exception):
     pass
@@ -665,6 +669,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             site_name = site_data[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
                 LOCATION_NAME_KEY
             ]
+            content_type = site_data['md_content_information']['content_type']
+            logger.info(f"content type station {site_name}: {content_type}")
+            if content_type not in CONTENT_TYPES_TO_COPY:
+                logger.info(f"station {site_name} not copying content type {content_type}")
+                continue
+
             if site_name in sites_to_exclude:
                 logger.info(f"site {site_name} excluded due to exclusion filter")
                 continue
