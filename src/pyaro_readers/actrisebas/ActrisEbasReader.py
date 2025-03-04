@@ -417,7 +417,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             ebas_unit = tmp_data[_data_var].attrs["ebas_unit"]
                             if netcdf_unit != ebas_unit:
                                 logger.error(
-                                    f"var {_data_var} unit mismatch: unit arr: {netcdf_unit}; ebas_unit attr: {ebas_unit} for URL {url}")
+                                    f"var {_data_var} unit mismatch: unit attr: {netcdf_unit}; ebas_unit attr: {ebas_unit} for URL {url}")
 
 
                             # assert f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
