@@ -113,6 +113,33 @@ ebas_matrix = ["pm25",]
 standard_names = ["mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air", ]
 
 
+[variables.concprcpso4]
+actris_variable = ["precipitation sulphate mass concentration"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["sulphate_corrected"]
+ebas_matrix = ["precip",]
+# unit = "mg S/l"
+#standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_precipitation", ]
+# units = "mg/l"
+standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation", ]
+
+# Att! needs 2 variables to be calculated, but both need to be in the same file
+[variables.wetso4]
+actris_variable = ["precipitation sulphate mass concentration"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["sulphate_corrected"]
+ebas_matrix = ["precip", ]
+standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation",
+    "", ]
+standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
+
+[variables.prmm]
+actris_variable = ["precipitation depth"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["precipitation_amount_off", "precipitation_amount"]
+ebas_matrix = ["precip"]
+standard_names = ["lwe_thickness_of_precipitation_amount", ]
+
 #[variables.]
 #actris_variable = [""]
 #actris_matrix = [""]

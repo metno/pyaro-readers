@@ -11,7 +11,9 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     }
     AERONETVAR = "od440aer"
     # ACTRISEBASVAR = "concso4t"
-    ACTRISEBASVAR = "concso4c"
+    # ACTRISEBASVAR = "concso4c"
+    ACTRISEBASVAR = "concprcpso4"
+    # ACTRISEBASVAR = "prmm"
     # ACTRISEBASVAR = "vmro3"
     ACTRISEBASVARLIST = ["concso4t", "concso4c"]
 

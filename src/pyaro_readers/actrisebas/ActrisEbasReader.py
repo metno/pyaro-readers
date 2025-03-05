@@ -28,7 +28,8 @@ logger = logging.getLogger(__name__)
 # default API URL base
 # BASE_API_URL = "https://dev-actris-md.nilu.no/"
 # BASE_API_URL = "https://prod-actris-md.nilu.no/"
-BASE_API_URL = "https://dev-actris-md2.nilu.no/"
+# BASE_API_URL = "https://dev-actris-md2.nilu.no/"
+BASE_API_URL = "https://prod-actris-md2.nilu.no/"
 # base URL to query for data for a certain variable
 VAR_QUERY_URL = f"{BASE_API_URL}metadata/content/"
 # basename of definitions.toml which connects the pyaerocom variable names with the ACTRIS variable names
@@ -314,6 +315,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         """
         read the data from EBAS thredds server (or the local cache)
         """
+        stat_code = None
         # for actris vocabulary key and value of self.actris_vars_to_read are the same
         # for pyaerocom vocabulary they are not (key is pyaerocom variable name there)!
         for _var in self.actris_vars_to_read:
@@ -436,10 +438,21 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
                             # station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
                             station = np.full(ts_no, long_name)
-                            altitude = np.full(
-                                ts_no, tmp_data.attrs["geospatial_vertical_min"]
-                            )
+                            # the altitude might not be in the file
+                            try:
+                                altitude = np.full(
+                                    ts_no, tmp_data.attrs["geospatial_vertical_min"]
+                                )
+                            except KeyError as e:
+                                logger.error(f"URL: {url} contains no height information. Skipping this URL.")
+                                continue
+
                             standard_deviation = np.full(ts_no, np.nan)
+
+                            # check if the read variable is a composition variable like deposition
+                            if 'standard_names_2nd_var' in self.def_data['variables'][_var]:
+                                pass
+
                             vals = tmp_data[_data_var].values
                             # apply flags
 
