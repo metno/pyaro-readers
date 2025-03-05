@@ -79,14 +79,20 @@ class ParquetTimeseriesReader(AutoFilterReader):
         "start_time",
         "end_time",
     }
-    OPTIONAL_COLUMNS = {
+    OPTIONAL_COLUMNS_WITH_DEFAULTS = {
         "country": "",
         "flag": 0,
         "altitude": np.nan,
         "standard_deviation": np.nan,
     }
 
-    def __init__(self, filename: str, filters):
+    def __init__(
+        self,
+        filename: str,
+        station_metadata_fields: list[str] | None = None,
+        *,
+        filters,
+    ):
         self._set_filters(filters)
         dataset = polars.read_parquet(filename)
 
@@ -97,21 +103,26 @@ class ParquetTimeseriesReader(AutoFilterReader):
                 f"Expected the mandatory columns missing: {missing_mandatory}"
             )
 
-        missing_optional = set(self.OPTIONAL_COLUMNS.keys()) - set(ds_cols)
+        missing_optional = set(self.OPTIONAL_COLUMNS_WITH_DEFAULTS.keys()) - set(
+            ds_cols
+        )
         for missing in missing_optional:
             dataset = dataset.with_columns(
-                polars.lit(self.OPTIONAL_COLUMNS[missing]).alias(missing)
+                polars.lit(self.OPTIONAL_COLUMNS_WITH_DEFAULTS[missing]).alias(missing)
             )
 
-        self.dataset = dataset
+        self._dataset = dataset
+        self._stationmetadatacols = (
+            station_metadata_fields if station_metadata_fields is not None else []
+        )
 
     def _unfiltered_data(self, varname: str) -> ParquetData:
         return ParquetData(
-            self.dataset.filter(polars.col("variable").eq(varname)), varname
+            self._dataset.filter(polars.col("variable").eq(varname)), varname
         )
 
     def _unfiltered_stations(self) -> dict[str, Station]:
-        ds = self.dataset.group_by("station").first()
+        ds = self._dataset.group_by("station").first()
 
         stations = dict()
         for row in ds.rows(named=True):
@@ -124,12 +135,13 @@ class ParquetTimeseriesReader(AutoFilterReader):
                     "country": row["country"],
                     "url": "",
                     "long_name": row["station"],
-                }
+                },
+                metadata={m: row[m] for m in self._stationmetadatacols},
             )
         return stations
 
     def _unfiltered_variables(self) -> list[str]:
-        return list(self.dataset["variable"].unique())
+        return list(self._dataset["variable"].unique())
 
     def close(self):
         pass
@@ -143,5 +155,5 @@ class ParquetTimeseriesEngine(AutoFilterEngine):
     def url(self) -> str:
         return "https://github.com/metno/pyaro-readers"
 
-    def reader_class(self) -> AutoFilterReader:
+    def reader_class(self) -> Reader:
         return ParquetTimeseriesReader
