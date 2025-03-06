@@ -129,9 +129,11 @@ actris_variable = ["precipitation sulphate mass concentration"]
 actris_matrix = ["precipitation phase"]
 ebas_component = ["sulphate_corrected"]
 ebas_matrix = ["precip", ]
-standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation",
-    "", ]
+standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation", ]
+# This field indicates, that another variable needs to read and that the variable above needs to be calculated
 standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
+# only used for calculated variables
+units = "mm / d"
 
 [variables.prmm]
 actris_variable = ["precipitation depth"]
@@ -176,3 +178,5 @@ standard_names = ["lwe_thickness_of_precipitation_amount", ]
     "mass_concentration_of_elemental_carbon_in_pm1_in_air", ]
 "aerosol particle organic carbon mass concentration" = ["mass_concentration_of_organic_carbon_in_pm2p5_in_air",
     "mass_concentration_of_organic_carbon_in_pm1_in_air", ]
+"precipitation depth" = ["lwe_thickness_of_precipitation_amount"]
+"precipitation sulphate mass concentration" = ["mass_concentration_of_sulphate_corrected_in_precipitation"]

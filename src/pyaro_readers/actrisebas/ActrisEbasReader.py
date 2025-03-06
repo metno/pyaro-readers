@@ -23,6 +23,10 @@ from pyaro.timeseries import (
     Filter,
 )
 
+from pyaerocom import tstype
+from pyaerocom.io import readungridded
+
+
 logger = logging.getLogger(__name__)
 
 # default API URL base
@@ -78,6 +82,11 @@ LOCATION_LAT_KEY = "lat"
 LOCATION_LON_KEY = "lon"
 LOCATION_ALT_KEY = "alt"
 
+# Keys to get to the time coverage of an URL
+TIME_COVERAGE_ROOT_KEY = "ex_temporal_extent"
+TIME_COVERAGE_START_KEY = 'time_period_begin'
+TIME_COVERAGE_END_KEY = 'time_period_end'
+
 # name of netcdf time variable in the netcdf files
 # should be "time" as of CF convention, but other names can be added here
 TIME_VAR_NAME = ["time"]
@@ -127,6 +136,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         #     self.vars_to_read = vars_to_read
         self._stations = {}
         self.urls_to_dl = {}
+        # tiem coverage from the API; keys are the URL
+        self.time_coverages = {}
         self._data = {}  # var -> {data-array}
         self._set_filters(filters)
         # self._header = []
@@ -145,6 +156,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.sites_to_read = []
         self.sites_to_exclude = []
         self.vars_to_read = None
+        self.units = None
         self.times_to_read = (np.datetime64(1, "Y"), np.datetime64(120, "Y"))
 
         self.cache_dir = None
@@ -291,7 +303,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             continue
 
                 self._tmp_metadata[_pyaro_var][_actris_var] = json_resp
-                self.urls_to_dl[_actris_var] = self.extract_urls(
+                self.urls_to_dl[_actris_var] = self.extract_url_info(
                     json_resp,
                     sites_to_read=self.sites_to_read,
                     sites_to_exclude=self.sites_to_exclude,
@@ -332,6 +344,23 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
                     for f_idx, thredds_url in enumerate(urls_to_dl[site_name]):
                         _local_file_flag = False
+                        # time coverage per URL is in the API response
+                        # but build a fall back in case that's not working
+                        get_coverage_from_url_flag = False
+                        try:
+                            file_start_time = self.time_coverages[thredds_url][0]
+                            file_end_time = self.time_coverages[thredds_url][1]
+                            # check for time coverage
+                            # the same code appears later on for data read from the data file...
+                            if file_end_time < self.times_to_read[0] or file_start_time > self.times_to_read[1]:
+                                logger.info(f"url {thredds_url} not read. Outside of time bounds.")
+                                continue
+
+                        except Exception as e:
+                            logger.error(f"failed to read time coverage for {thredds_url} from API response. reading the data URL instead.")
+                            get_coverage_from_url_flag = True
+
+
                         if self.cache_flag:
                             # _local_file = self.cache_dir / Path(thredds_url).name
                             _local_file = self.cache_dir / "_".join(Path(thredds_url).parts[-4:])
@@ -350,37 +379,17 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             logger.error(f"failed to read {url} with error {e}")
                             assert url
                             continue
-                        # check for time filter by looking into
-                        # np.datetime64(tmp_data.attrs["time_coverage_start"].split()[0])
-                        # and
-                        # np.datetime64(tmp_data.attrs["time_coverage_end"].split()[0])
-                        # fall back to the time variable
-                        # try:
-                        #     file_start_time = np.datetime64(
-                        #         tmp_data.attrs["time_coverage_start"].split()[0]
-                        #     )
-                        # except Exception as e:
-                        #     logger.error(f"URL {url} is missing the global attribute 'time_coverage_start'; Error: {e}")
-                        #     logger.error(f"reading time values instead")
-                        #     file_start_time = np.min(np.asarray(tmp_data["time_bnds"][:, 0]))
-                        #
 
-                        # try:
-                        #     file_end_time = np.datetime64(
-                        #         tmp_data.attrs["time_coverage_end"].split()[0]
-                        #     )
-                        # except Exception as e:
-                        #     logger.error(f"URL {url} is missing the global attribute 'time_coverage_end'; Error: {e}")
-                        #     logger.error(f"reading time values instead")
-                        #     file_end_time = np.max(np.asarray(tmp_data["time_bnds"][:, 1]))
-                        file_start_time = np.min(np.asarray(tmp_data["time_bnds"][:, 0]))
-                        file_end_time = np.max(np.asarray(tmp_data["time_bnds"][:, 1]))
+                        # determaning time coverage from the API response failed somehow
+                        if get_coverage_from_url_flag:
+                            file_start_time = np.min(np.asarray(tmp_data["time_bnds"][:, 0]))
+                            file_end_time = np.max(np.asarray(tmp_data["time_bnds"][:, 1]))
 
-                        # if (file_start_time >= self.times_to_read[0] and file_start_time <= self.times_to_read[1]) \
-                        #     or (file_end_time >= self.times_to_read[0] and file_end_time <= self.times_to_read[1]):
-                        if file_end_time < self.times_to_read[0] or file_start_time > self.times_to_read[1]:
-                            logger.info(f"url {url} not read. Outside of time bounds.")
-                            continue
+                            # if (file_start_time >= self.times_to_read[0] and file_start_time <= self.times_to_read[1]) \
+                            #     or (file_end_time >= self.times_to_read[0] and file_end_time <= self.times_to_read[1]):
+                            if file_end_time < self.times_to_read[0] or file_start_time > self.times_to_read[1]:
+                                logger.info(f"url {url} not read. Outside of time bounds.")
+                                continue
                         # write cache file if needed
                         if self.cache_flag and not _local_file_flag:
                             # some of the data files can't be read by xarray due to errors. So we
@@ -414,13 +423,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 log_str = f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
                                 logger.info(log_str)
 
-                            # check units...
-                            netcdf_unit = tmp_data[_data_var].attrs["units"]
-                            ebas_unit = tmp_data[_data_var].attrs["ebas_unit"]
-                            if netcdf_unit != ebas_unit:
-                                logger.error(
-                                    f"var {_data_var} unit mismatch: unit attr: {netcdf_unit}; ebas_unit attr: {ebas_unit} for URL {url}")
-
+                            # units...
+                            # logs if netcdf-CF units and EBAS units are not equal
+                            self.units = self.get_ebas_data_units(tmp_data, _data_var, url)
 
                             # assert f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
                             long_name = tmp_data.attrs["ebas_station_name"]
@@ -451,31 +456,18 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
                             # check if the read variable is a composition variable like deposition
                             if 'standard_names_2nd_var' in self.def_data['variables'][_var]:
-                                pass
-
-                            vals = tmp_data[_data_var].values
-                            # apply flags
-
-                            ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
-                            # quick test if we need to apply flags at all
-                            if (
-                                    np.nansum(ebas_flags)
-                                    == ebas_flags.size * EBAS_FLAG_NAN_NUMBER
-                            ):
-                                flags = np.full(ts_no, Flag.VALID, dtype="i2")
+                                try:
+                                    vals, flags, self.units = self.calc_var(tmp_data, _data_var, _var)
+                                except ActrisEbasStdNameNotFoundException:
+                                    logger.info(f"URL: {url} no precipitation found for deposition calculation.")
+                                    continue
                             else:
-                                flags = np.full(ts_no, Flag.INVALID, dtype="i2")
-                                for _ebas_flag in ebas_flags:
-                                    for f_idx, flag in enumerate(_ebas_flag):
-                                        if (flag == 0) or (
-                                                flag in self.ebas_valid_flags
-                                        ):
-                                            flags[f_idx] = Flag.VALID
+                                vals, flags = self.get_var_data_flags_applied(tmp_data, _data_var)
 
                             if _var not in self._data:
                                 self._data[_var] = NpStructuredData(
                                     _var,
-                                    self.get_ebas_data_units(tmp_data, _data_var),
+                                    self.units,
                                 )
 
                             self._data[_var].append(
@@ -537,30 +529,78 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         return flags.astype(int)
 
+    def get_ebas_var_names_with_std_names(self, tmp_data, std_names):
+        """small helper method to find variable names that match a certain std_names"""
+        ret_list = []
+        for d_idx, _data_var in enumerate(self._get_ebas_data_vars(tmp_data,)):
+            var_std_name = self.get_ebas_data_standard_name(tmp_data, _data_var)
+            if var_std_name in std_names:
+                ret_list.append(_data_var)
+        if len(ret_list) == 0:
+            raise ActrisEbasStdNameNotFoundException(std_name)
+        return ret_list
+
+
+    def get_var_data_flags_applied(self, tmp_data, _data_var):
+        """helper method to get the data variable with flags"""
+        vals = tmp_data[_data_var].values
+        # apply flags
+
+        ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
+        ts_no = len(vals)
+        # quick test if we need to apply flags at all
+        if (
+                np.nansum(ebas_flags)
+                == ebas_flags.size * EBAS_FLAG_NAN_NUMBER
+        ):
+            flags = np.full(ts_no, Flag.VALID, dtype="i2")
+        else:
+            flags = np.full(ts_no, Flag.INVALID, dtype="i2")
+            for _ebas_flag in ebas_flags:
+                for f_idx, flag in enumerate(_ebas_flag):
+                    if (flag == 0) or (
+                            flag in self.ebas_valid_flags
+                    ):
+                        flags[f_idx] = Flag.VALID
+        return vals, flags
+
+    def calc_var(self, tmp_data, _data_var, _var):
+        """helper method to calculate compound variables like depositions"""
+
+        # for the moment this will just multiply 2 variables within the same file
+
+        if 'standard_names_2nd_var' in self.def_data['variables'][_var]:
+            var_names_to_check = self.get_ebas_var_names_with_std_names(tmp_data, self.def_data['variables'][_var]['standard_names'])
+            if len(var_names_to_check) > 1:
+                logger.info(f"calc_var: more than one matching variable name found for std_names {self.def_data['variables'][_var]}. Using the 1st match. ")
+            vals1, flags1 = self.get_var_data_flags_applied(tmp_data, _data_var)
+            vals2, flags2 = self.get_var_data_flags_applied(tmp_data, var_names_to_check[0])
+
+            vals = vals1 * vals2
+            units = self.def_data['variables'][_var]['units']
+            # unifying flags from 2 variables might be a bit problematic, but in principle they should be the same anyway
+            # just return the flags from the precipitation here for now
+
+            return vals, flags2, units
+        else:
+            raise ActrisEbasStdNameNotFoundException
+
+
     def get_ebas_valid_flags(self, url: str = EBAS_FLAG_URL) -> dict:
-        """small helper to download the bas flag file from NILU"""
+        """small helper to download the ebas flag file from NILU"""
 
         df = polars.read_csv(url)
         idx_arr = np.where(df[df.columns[-1]].to_numpy() == "V")
         ret_data = df[df.columns[0]].to_numpy()[idx_arr]
-        # return this as a python dict for now
-        # ret_data = {}
-        # for var in df.columns:
-        #     ret_data[var] = df[var].to_list()
-        #
-        # # for simplicity add a dict entry listing the valid flags
-        # # last column is the explanation ("V" for valid)
-        # ret_data["valid"] = ret_data["Flag"][var == "V"]
 
         return ret_data
 
-    # decoded_content = download.content.decode('utf-8')
-    def get_ebas_data_units(self, tmp_data, var_name):
+    def get_ebas_data_units(self, tmp_data, var_name, url):
         """small helper method to get the ebas unit from the data file"""
         unit = tmp_data[var_name].attrs["units"]
         ebas_unit = tmp_data[var_name].attrs["ebas_unit"]
         if unit != ebas_unit:
-            logger.error(f"Error: mismatch between units {unit} and ebas_unit {ebas_unit} attributes")
+            logger.error(f"Error: mismatch between units {unit} and ebas_unit {ebas_unit} attributes for URL {url}")
         return ebas_unit
 
     def get_ebas_data_standard_name(self, tmp_data, var_name):
@@ -667,7 +707,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         return data_vars
 
-    def extract_urls(
+    def extract_url_info(
             self,
             json_resp: dict,
             sites_to_read: list[str] = [],
@@ -709,12 +749,17 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                         continue
                     else:
-                        urls_to_dl[site_name].append(
-                            distribution_data[DISTRIBUTION_URL_KEY]
-                        )
+                        url = distribution_data[DISTRIBUTION_URL_KEY]
+                        urls_to_dl[site_name].append(url)
                         logger.info(
                             f"site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
                         )
+                        if url not in self.time_coverages:
+                            self.time_coverages[url] = \
+                                (np.datetime64(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_START_KEY]),
+                                np.datetime64(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_END_KEY]))
+                        else:
+                            logger.info(f"Error: URL {url} already included in site used for a 2nd station!")
                         break
         return urls_to_dl
 

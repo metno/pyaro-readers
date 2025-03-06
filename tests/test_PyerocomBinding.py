@@ -12,9 +12,10 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     AERONETVAR = "od440aer"
     # ACTRISEBASVAR = "concso4t"
     # ACTRISEBASVAR = "concso4c"
-    ACTRISEBASVAR = "concprcpso4"
+    # ACTRISEBASVAR = "concprcpso4"
+    # ACTRISEBASVAR = "wetso4"
     # ACTRISEBASVAR = "prmm"
-    # ACTRISEBASVAR = "vmro3"
+    ACTRISEBASVAR = "vmro3"
     ACTRISEBASVARLIST = ["concso4t", "concso4c"]
 
     def test_pyaerocom_aeronet(self):
@@ -53,18 +54,18 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         data_name = "PYARO_actrisebas"
         data_id = "actrisebas"
         station_filter = {
-            "stations": {
-                "include": [
-                    "Schmucke",
-                    "Birkenes II",
-                    "Jungfraujoch",
-                    "Ispra",
-                    "Melpitz",
-                    "Westerland",
-                ]
-            },
+            # "stations": {
+            #     "include": [
+            #         "Schmucke",
+            #         "Birkenes II",
+            #         "Jungfraujoch",
+            #         "Ispra",
+            #         "Melpitz",
+            #         "Westerland",
+            #     ]
+            # },
             "variables": {"include": [self.ACTRISEBASVAR, ]},
-            "time_bounds":{"startend_include": [("2019-01-01 00:00:00", "2020-12-24 00:00:00")]}
+            "time_bounds":{"startend_include": [("2019-01-01 00:00:00", "2020-12-31 00:00:00")]}
         }
         # needs to be the variable name for actrisebas
         url = self.ACTRISEBASVAR
