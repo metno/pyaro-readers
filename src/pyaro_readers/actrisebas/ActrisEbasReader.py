@@ -95,6 +95,11 @@ CACHE_ENVIRONMENT_VAR_NAME = "PYARO_CACHE_DIR_EBAS_ACTRIS"
 # define a list of interesting conten types
 CONTENT_TYPES_TO_COPY = ["physicalMeasurement",]
 
+# to read only observations
+PRODUCT_TYPE_ROOT_KEY = "md_actris_specific"
+PRODUCT_TYPE_KEY = "product_type"
+PRODUCT_TYPES_TO_COPY = ["observation", ]
+
 
 class ActrisEbasRetryException(Exception):
     pass
@@ -398,8 +403,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 logger.info(f"saved cache file {_local_file}")
                             except Exception as e:
                                 logger.error(f"failed to save cache file {_local_file} with error {e}")
-                                logger.error(f"URL: {url}")
-                                _local_file.unlink()
+                                logger.error(f"URL: {url}. Ignoring that URL.")
+                                try:
+                                    _local_file.unlink()
+                                except Exception:
+                                    pass
+                                tmp_data.close()
+                                continue
 
                         # read needed data
                         for d_idx, _data_var in enumerate(
@@ -826,11 +836,17 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             site_name = site_data[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
                 LOCATION_NAME_KEY
             ]
-            content_type = site_data['md_content_information']['content_type']
-            logger.info(f"content type station {site_name}: {content_type}")
-            if content_type not in CONTENT_TYPES_TO_COPY:
-                logger.info(f"station {site_name} not copying content type {content_type}")
+            product_type = site_data[PRODUCT_TYPE_ROOT_KEY][PRODUCT_TYPE_KEY]
+            logger.info(f"product type station {site_name}: {product_type}")
+            if content_type not in PRODUCT_TYPES_TO_COPY:
+                logger.info(f"station {site_name} skipping product type {product_type}")
                 continue
+
+            # content_type = site_data['md_content_information']['content_type']
+            # logger.info(f"content type station {site_name}: {content_type}")
+            # if content_type not in CONTENT_TYPES_TO_COPY:
+            #     logger.info(f"station {site_name} not copying content type {content_type}")
+            #     continue
 
             if site_name in sites_to_exclude:
                 logger.info(f"site {site_name} excluded due to exclusion filter")

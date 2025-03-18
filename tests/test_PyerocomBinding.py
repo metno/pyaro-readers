@@ -12,10 +12,10 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     AERONETVAR = "od440aer"
     # ACTRISEBASVAR = "concso4t"
     # ACTRISEBASVAR = "concso4c"
-    # ACTRISEBASVAR = "concprcpso4"
+    ACTRISEBASVAR = "concprcpso4"
     # ACTRISEBASVAR = "wetso4"
     # ACTRISEBASVAR = "prmm"
-    ACTRISEBASVAR = "vmro3"
+    # ACTRISEBASVAR = "vmro3"
     ACTRISEBASVARLIST = ["concso4t", "concso4c"]
 
     def test_pyaerocom_aeronet(self):
