@@ -7,12 +7,14 @@ from pathlib import Path
 from urllib.parse import urlparse, quote
 
 import numpy as np
+import numpy.typing as npt
 import polars
 import xarray as xr
 from tqdm import tqdm
 from urllib3.poolmanager import PoolManager
 from urllib3.util.retry import Retry
 
+import pyaerocom.exceptions
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -22,10 +24,6 @@ from pyaro.timeseries import (
     Reader,
     Filter,
 )
-
-from pyaerocom import tstype
-from pyaerocom.io import readungridded
-
 
 logger = logging.getLogger(__name__)
 
@@ -438,7 +436,17 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             # create variables valid for all measured variables...
                             start_time = np.asarray(tmp_data["time_bnds"][:, 0])
                             stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
-                            ts_no = len(start_time)
+
+                            # remove time steps that don't fit pyaerocom
+                            ts_no_all = len(start_time)
+
+                            valid_idxs = self.get_valid_ts_indizes(start_time, stop_time)
+
+                            ts_no = len(valid_idxs)
+                            if ts_no == 0:
+                                ts_type = self.get_pyaerocom_ts_sizes(start_time, stop_time)
+                                logger.info(f"all timesteps of URL {url} were non standard lengths (e.g. {ts_type[0]}). Skipping this URL...")
+                                continue
                             lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
                             lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
                             # station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
@@ -461,6 +469,22 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 except ActrisEbasStdNameNotFoundException:
                                     logger.info(f"URL: {url} no precipitation found for deposition calculation.")
                                     continue
+                            else:
+                                vals = tmp_data[_data_var].values
+                                ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
+                            if ts_no_all > ts_no:
+                                start_time = start_time[valid_idxs]
+                                stop_time = stop_time[valid_idxs]
+                                vals = vals[valid_idxs]
+                                ebas_flags = ebas_flags[valid_idxs]
+
+                            # apply flags
+                            # quick test if we need to apply flags at all
+                            if (
+                                    np.nansum(ebas_flags)
+                                    == ebas_flags.size * EBAS_FLAG_NAN_NUMBER
+                            ):
+                                flags = np.full(ts_no, Flag.VALID, dtype="i2")
                             else:
                                 vals, flags = self.get_var_data_flags_applied(tmp_data, _data_var)
 
@@ -490,18 +514,23 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             if site_name == "Schmucke":
                                 assert site_name
                             if not site_name in self._stations:
-                                self._stations[site_name] = Station(
-                                    {
-                                        "station": stat_code,
-                                        "longitude": lon[0],
-                                        "latitude": lat[0],
-                                        "altitude": altitude[0],
-                                        "country": self.get_ebas_data_country_code(tmp_data),
-                                        "url": "",
-                                        # This is used by pyaerocom
-                                        "long_name": site_name,
-                                    }
-                                )
+                                # exception in case all time step sizes were not pyaerocom compatible
+                                try:
+                                    self._stations[site_name] = Station(
+                                        {
+                                            "station": stat_code,
+                                            "longitude": lon[0],
+                                            "latitude": lat[0],
+                                            "altitude": altitude[0],
+                                            "country": self.get_ebas_data_country_code(tmp_data),
+                                            "url": "",
+                                            # This is used by pyaerocom
+                                            "long_name": site_name,
+                                        }
+                                    )
+                                except UnboundLocalError:
+                                    logger.info(f"site_name: {site_name} all time steps for variable {_var} were non pyaerocom standard.")
+                                    continue
                     try:
                         tmp_data.close()
                     except Exception as e:
@@ -510,6 +539,80 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
                 bar.close()
         assert True
+
+    def remove_non_pyaerocom_ts_step_sizes(self):
+        """
+        helper method to remove time step sizes not understood by pyaerocom
+        using pyaerocom functionality to determine these sizes
+        """
+        pass
+
+    def interpolate_non_pyaerocom_ts_step_sizes(self):
+        """
+        helper method to interpolate time step sizes not understood by pyaerocom
+        to the next higher resolution time step size
+        """
+        pass
+
+    def get_valid_ts_indizes(self, start_time: npt.NDArray[np.datetime64], stop_time: npt.NDArray[np.datetime64]):
+        """
+        helper method to get the indices of valid time step sizes form the start and the end times
+
+        :param start:
+        start time
+        :param end:
+        end time
+        :return:
+        :type TS
+        """
+        from pyaerocom.time_config import (
+            PANDAS_FREQ_TO_TS_TYPE,
+            TS_TYPE_TO_NUMPY_FREQ,
+            TS_TYPE_TO_PANDAS_FREQ,
+            TS_TYPE_TO_SI,
+            TS_TYPES,
+        )
+        pass
+        ts_types = self.get_pyaerocom_ts_sizes(start_time, stop_time)
+        retlist = []
+        for i_idx in range(len(ts_types)):
+           if ts_types[i_idx] in TS_TYPES:
+               retlist.append(i_idx)
+
+        return retlist
+
+
+
+    def get_pyaerocom_ts_sizes(self, start: npt.NDArray[np.datetime64], end: npt.NDArray[np.datetime64]):
+        """
+        helper method to get pyaerocom time step sizes
+
+        :return:
+        """
+        pass
+        from pyaerocom.tstype import TsType
+        import functools
+
+
+        def _calculate_ts_type(start: npt.NDArray[np.datetime64], end: npt.NDArray[np.datetime64]) -> npt.NDArray[TsType]:
+
+            seconds = (end - start).astype("timedelta64[s]").astype(np.int64)
+
+            @np.vectorize(otypes=[TsType])
+            @functools.lru_cache(maxsize=128)
+            def memoized_ts_type(x: np.int32) -> TsType:
+                if x == 0:
+                    return TsType("hourly")
+                try:
+                    return TsType.from_total_seconds(x)
+                except pyaerocom.exceptions.TemporalResolutionError:
+                    return
+
+            return memoized_ts_type(seconds)
+
+        return _calculate_ts_type(start, end)
+
+
 
     def get_ebas_var_flags(self, tmp_data, _data_var):
         """helper method to return ebas flags for _data_var"""
@@ -536,8 +639,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             var_std_name = self.get_ebas_data_standard_name(tmp_data, _data_var)
             if var_std_name in std_names:
                 ret_list.append(_data_var)
-        if len(ret_list) == 0:
-            raise ActrisEbasStdNameNotFoundException(std_name)
+            if len(ret_list) == 0:
+                # This shouldn't happen
+                raise ActrisEbasStdNameNotFoundException(_data_var)
         return ret_list
 
 
