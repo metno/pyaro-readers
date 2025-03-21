@@ -15,6 +15,7 @@ from urllib3.poolmanager import PoolManager
 from urllib3.util.retry import Retry
 
 import pyaerocom.exceptions
+from pyaerocom.tstype import TsType
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -100,6 +101,13 @@ PRODUCT_TYPE_ROOT_KEY = "md_actris_specific"
 PRODUCT_TYPE_KEY = "product_type"
 PRODUCT_TYPES_TO_COPY = ["observation", ]
 
+# define CF versions of the EBAS units
+CF_UNITS = {}
+CF_UNITS["ug/m3"] = "ug m-3"
+CF_UNITS["nmol/mol"] = "nmol mol-1"
+# CF_UNITS["mg/l"] = ""
+# CF_UNITS[""] = ""
+# CF_UNITS[""] = ""
 
 class ActrisEbasRetryException(Exception):
     pass
@@ -411,6 +419,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 tmp_data.close()
                                 continue
 
+
                         # read needed data
                         for d_idx, _data_var in enumerate(
                                 self._get_ebas_data_vars(
@@ -431,6 +440,29 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 log_str = f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
                                 logger.info(log_str)
 
+
+                            # check for time steps not fitting pyaerocom
+                            start_time = np.asarray(tmp_data["time_bnds"][:, 0])
+                            stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
+                            ts_no_all = len(start_time)
+                            valid_idxs = self.get_valid_ts_indizes(start_time, stop_time)
+                            ts_no = len(valid_idxs)
+                            if ts_no == 0:
+                                ts_type = self.get_pyaerocom_ts_sizes(start_time, stop_time)
+                                logger.info(f"all timesteps of URL {url} were non standard lengths (e.g. {ts_type[0]}). Skipping this URL...")
+                                continue
+
+
+                            # Not all files contain height information unfortunately
+                            # skip those that don't
+                            try:
+                                altitude = np.full(
+                                    ts_no, tmp_data.attrs["geospatial_vertical_min"]
+                                )
+                            except KeyError as e:
+                                logger.error(f"URL: {url} contains no height information. Skipping this URL.")
+                                continue
+
                             # units...
                             # logs if netcdf-CF units and EBAS units are not equal
                             self.units = self.get_ebas_data_units(tmp_data, _data_var, url)
@@ -444,49 +476,25 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 long_name = site_name
                             stat_code = tmp_data.attrs["ebas_station_code"]
                             # create variables valid for all measured variables...
-                            start_time = np.asarray(tmp_data["time_bnds"][:, 0])
-                            stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
-
-                            # remove time steps that don't fit pyaerocom
-                            ts_no_all = len(start_time)
-
-                            valid_idxs = self.get_valid_ts_indizes(start_time, stop_time)
-
-                            ts_no = len(valid_idxs)
-                            if ts_no == 0:
-                                ts_type = self.get_pyaerocom_ts_sizes(start_time, stop_time)
-                                logger.info(f"all timesteps of URL {url} were non standard lengths (e.g. {ts_type[0]}). Skipping this URL...")
-                                continue
                             lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
                             lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
                             # station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
                             station = np.full(ts_no, long_name)
                             # the altitude might not be in the file
-                            try:
-                                altitude = np.full(
-                                    ts_no, tmp_data.attrs["geospatial_vertical_min"]
-                                )
-                            except KeyError as e:
-                                logger.error(f"URL: {url} contains no height information. Skipping this URL.")
-                                continue
 
                             standard_deviation = np.full(ts_no, np.nan)
 
                             # check if the read variable is a composition variable like deposition
                             if 'standard_names_2nd_var' in self.def_data['variables'][_var]:
                                 try:
-                                    vals, flags, self.units = self.calc_var(tmp_data, _data_var, _var)
+                                    vals, ebas_flags, self.units = self.calc_var(tmp_data, _data_var, _var)
                                 except ActrisEbasStdNameNotFoundException:
                                     logger.info(f"URL: {url} no precipitation found for deposition calculation.")
                                     continue
                             else:
                                 vals = tmp_data[_data_var].values
                                 ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
-                            if ts_no_all > ts_no:
-                                start_time = start_time[valid_idxs]
-                                stop_time = stop_time[valid_idxs]
-                                vals = vals[valid_idxs]
-                                ebas_flags = ebas_flags[valid_idxs]
+                            # remove non standard time step sizes
 
                             # apply flags
                             # quick test if we need to apply flags at all
@@ -494,9 +502,24 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                     np.nansum(ebas_flags)
                                     == ebas_flags.size * EBAS_FLAG_NAN_NUMBER
                             ):
-                                flags = np.full(ts_no, Flag.VALID, dtype="i2")
+                                flags = np.full(ts_no_all, Flag.VALID, dtype="i2")
                             else:
-                                vals, flags = self.get_var_data_flags_applied(tmp_data, _data_var)
+                                vals, flags = self.get_var_data_flags_applied_from_vars(vals, ebas_flags)
+
+                            # remove non standard time step sizes
+                            if ts_no_all > ts_no:
+                                try:
+                                    flags = flags[valid_idxs]
+                                except Exception as e:
+                                    logger.error(f"failed to set flags right for {site_name} with error {e}")
+                                start_time = start_time[valid_idxs]
+                                stop_time = stop_time[valid_idxs]
+                                vals = vals[valid_idxs]
+                                # flags can be multidimensional...
+                                # try:
+                                #     flags = flags[:, valid_idxs]
+                                # except IndexError:
+                                #     flags = flags[valid_idxs]
 
                             if _var not in self._data:
                                 self._data[_var] = NpStructuredData(
@@ -521,7 +544,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             )
                             break
                         if stat_code is not None:
-                            if site_name == "Schmucke":
+                            if site_name == "Carnsore Point":
                                 assert site_name
                             if not site_name in self._stations:
                                 # exception in case all time step sizes were not pyaerocom compatible
@@ -600,7 +623,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         :return:
         """
         pass
-        from pyaerocom.tstype import TsType
+
         import functools
 
 
@@ -654,13 +677,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 raise ActrisEbasStdNameNotFoundException(_data_var)
         return ret_list
 
-
-    def get_var_data_flags_applied(self, tmp_data, _data_var):
+    def get_var_data_flags_applied_from_vars(self, vals, ebas_flags):
         """helper method to get the data variable with flags"""
-        vals = tmp_data[_data_var].values
+        # vals = tmp_data[_data_var].values
         # apply flags
 
-        ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
+        # ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
         ts_no = len(vals)
         # quick test if we need to apply flags at all
         if (
@@ -678,6 +700,31 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         flags[f_idx] = Flag.VALID
         return vals, flags
 
+
+    def get_var_data_flags_applied_from_file(self, tmp_data, _data_var):
+        """helper method to get the data variable with flags"""
+        vals = tmp_data[_data_var].values
+        # apply flags
+
+        ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
+        return self.get_var_data_flags_applied_from_vars(vals, ebas_flags)
+        # ts_no = len(vals)
+        # # quick test if we need to apply flags at all
+        # if (
+        #         np.nansum(ebas_flags)
+        #         == ebas_flags.size * EBAS_FLAG_NAN_NUMBER
+        # ):
+        #     flags = np.full(ts_no, Flag.VALID, dtype="i2")
+        # else:
+        #     flags = np.full(ts_no, Flag.INVALID, dtype="i2")
+        #     for _ebas_flag in ebas_flags:
+        #         for f_idx, flag in enumerate(_ebas_flag):
+        #             if (flag == 0) or (
+        #                     flag in self.ebas_valid_flags
+        #             ):
+        #                 flags[f_idx] = Flag.VALID
+        # return vals, flags
+
     def calc_var(self, tmp_data, _data_var, _var):
         """helper method to calculate compound variables like depositions"""
 
@@ -687,8 +734,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             var_names_to_check = self.get_ebas_var_names_with_std_names(tmp_data, self.def_data['variables'][_var]['standard_names'])
             if len(var_names_to_check) > 1:
                 logger.info(f"calc_var: more than one matching variable name found for std_names {self.def_data['variables'][_var]}. Using the 1st match. ")
-            vals1, flags1 = self.get_var_data_flags_applied(tmp_data, _data_var)
-            vals2, flags2 = self.get_var_data_flags_applied(tmp_data, var_names_to_check[0])
+            vals1, flags1 = self.get_var_data_flags_applied_from_file(tmp_data, _data_var)
+            vals2, flags2 = self.get_var_data_flags_applied_from_file(tmp_data, var_names_to_check[0])
 
             vals = vals1 * vals2
             units = self.def_data['variables'][_var]['units']
@@ -715,7 +762,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         ebas_unit = tmp_data[var_name].attrs["ebas_unit"]
         if unit != ebas_unit:
             logger.error(f"Error: mismatch between units {unit} and ebas_unit {ebas_unit} attributes for URL {url}")
-        return ebas_unit
+        try:
+            return CF_UNITS[ebas_unit]
+        except KeyError:
+            logger.info(f"No CF unit found for {ebas_unit}. Please add if needed.")
+            return ebas_unit
 
     def get_ebas_data_standard_name(self, tmp_data, var_name):
         """small helper method to get the ebas standard_name for a given variable from the data file"""
@@ -838,7 +889,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             ]
             product_type = site_data[PRODUCT_TYPE_ROOT_KEY][PRODUCT_TYPE_KEY]
             logger.info(f"product type station {site_name}: {product_type}")
-            if content_type not in PRODUCT_TYPES_TO_COPY:
+            if product_type not in PRODUCT_TYPES_TO_COPY:
                 logger.info(f"station {site_name} skipping product type {product_type}")
                 continue
 
