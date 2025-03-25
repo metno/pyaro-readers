@@ -148,6 +148,18 @@ ebas_component = ["precipitation_amount_off", "precipitation_amount"]
 ebas_matrix = ["precip"]
 standard_names = ["lwe_thickness_of_precipitation_amount", ]
 
+# The following is WIP since there's several wavelengths in the file
+# (as additional data dimension)
+[variables.sc550aer]
+actris_variable = ["aerosol particle light scattering coefficient"]
+actris_matrix = ["aerosol", "pm10"]
+ebas_component = ["aerosol_light_scattering_coefficient"]
+ebas_matrix = ["aerosol", "pm25", "pm25", "pm1"]
+standard_names = ["volume_scattering_coefficient_in_air_due_to_dried_aerosol_particles", ]
+treatment_flag = "wavelength"
+wavelength = 550
+
+
 #[variables.]
 #actris_variable = [""]
 #actris_matrix = [""]

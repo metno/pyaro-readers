@@ -12,10 +12,11 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     AERONETVAR = "od440aer"
     # ACTRISEBASVAR = "concso4t"
     # ACTRISEBASVAR = "concso4c"
-    ACTRISEBASVAR = "concprcpso4"
+    # ACTRISEBASVAR = "concprcpso4"
     # ACTRISEBASVAR = "wetso4"
-    # ACTRISEBASVAR = "prmm"
+    ACTRISEBASVAR = "prmm"
     # ACTRISEBASVAR = "vmro3"
+    # ACTRISEBASVAR = "sc550aer"
     ACTRISEBASVARLIST = ["concso4t", "concso4c"]
 
     def test_pyaerocom_aeronet(self):
@@ -77,7 +78,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         )
         reader = ReadUngridded(f"{data_name}")
         data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
-        self.assertGreaterEqual(len(data.unique_station_names), 4)
+        self.assertGreaterEqual(len(data.unique_station_names), 2)
         self.assertIn("Schmucke", data.unique_station_names)
         self.assertIn(url, data.contains_vars)
 

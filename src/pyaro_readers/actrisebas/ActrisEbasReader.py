@@ -29,8 +29,6 @@ from pyaro.timeseries import (
 logger = logging.getLogger(__name__)
 
 # default API URL base
-# BASE_API_URL = "https://dev-actris-md.nilu.no/"
-# BASE_API_URL = "https://prod-actris-md.nilu.no/"
 # BASE_API_URL = "https://dev-actris-md2.nilu.no/"
 BASE_API_URL = "https://prod-actris-md2.nilu.no/"
 # base URL to query for data for a certain variable
@@ -58,6 +56,7 @@ CELL_METHODS_TO_COPY = [
     "time: mean",
     "time: median",
     "time: detection limit",
+    "time: sum"
 ]
 
 # number of times an api  request is tried before we consider it failed
@@ -70,7 +69,8 @@ EBAS_FLAG_NAN_NUMBER = 0
 # name of the root key containing the download information
 DISTRIBUTION_ROOT_KEY = "md_distribution_information"
 DISTRIBUTION_PROTOCOL_KEY = "protocol"
-DISTRIBUTION_PROTOCOL_NAME = "OPeNDAP"
+DISTRIBUTION_PROTOCOL_NAME_OPENDAP = "OPeNDAP".lower()
+DISTRIBUTION_PROTOCOL_NAME_HTTP = "http".lower()
 DISTRIBUTION_URL_KEY = "dataset_url"
 
 # some info to get to station name and location
@@ -105,8 +105,8 @@ PRODUCT_TYPES_TO_COPY = ["observation", ]
 CF_UNITS = {}
 CF_UNITS["ug/m3"] = "ug m-3"
 CF_UNITS["nmol/mol"] = "nmol mol-1"
+CF_UNITS["mm"] = "mm"
 # CF_UNITS["mg/l"] = ""
-# CF_UNITS[""] = ""
 # CF_UNITS[""] = ""
 
 class ActrisEbasRetryException(Exception):
@@ -138,6 +138,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             # ts_type: str = "daily",
             test_flag: bool = False,
             cache_flag: bool = True,
+            extract_http_urls: bool = False,
+            remove_non_pyaerocom_time_steps :bool = False,
     ):
         """ """
         self._filename = None
@@ -146,7 +148,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # else:
         #     self.vars_to_read = vars_to_read
         self._stations = {}
-        self.urls_to_dl = {}
+        # dict with station name as key and a list of opendap urls as values
+        self.open_dap_urls_to_dl = {}
+        # dict with station name as key and a list of download urls as values
+        # the urls need to be read using the http protocol
+        self.dl_urls_to_dl = {}
         # tiem coverage from the API; keys are the URL
         self.time_coverages = {}
         self._data = {}  # var -> {data-array}
@@ -169,6 +175,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.vars_to_read = None
         self.units = None
         self.times_to_read = (np.datetime64(1, "Y"), np.datetime64(120, "Y"))
+        self.remove_non_pyaerocom_time_steps = remove_non_pyaerocom_time_steps
 
         self.cache_dir = None
         try:
@@ -256,21 +263,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         logger.info(
                             f"No ebas standard names found for {var}. Trying those of the actris variable {self.actris_vars_to_read[var][0]} instead...")
                         self.standard_names[_actris_var] = self.get_actris_standard_name(_actris_var)
-                # for _actris_var in self.actris_vars_to_read[var]:
-                #     try:
-                #         self.standard_names[var].extend(
-                #             self.get_actris_standard_name(_actris_var)
-                #         )
-                #         self.standard_names[_actris_var].extend(
-                #             self.get_actris_standard_name(_actris_var)
-                #         )
-                #     except KeyError:
-                #         self.standard_names[var] = self.get_actris_standard_name(
-                #             _actris_var
-                #         )
-                #         self.standard_names[_actris_var] = (
-                #             self.get_actris_standard_name(_actris_var)
-                #         )
 
             else:
                 # user gave ACTRIS name
@@ -281,6 +273,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             self._metadata[_pyaro_var] = {}
             for _actris_var in self.actris_vars_to_read[_pyaro_var]:
                 # for testing since the API is error-prone and slow at the time of this writing
+                # might also be useful for caching at some point, but for now test_file
+                # never exists
                 test_file = os.path.join(
                     os.path.dirname(os.path.realpath(__file__)),
                     f"{_actris_var}.json",
@@ -314,17 +308,20 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             continue
 
                 self._tmp_metadata[_pyaro_var][_actris_var] = json_resp
-                self.urls_to_dl[_actris_var] = self.extract_url_info(
+                # extract opendap urls
+                self.open_dap_urls_to_dl[_actris_var] = self.extract_opendap_info(
                     json_resp,
                     sites_to_read=self.sites_to_read,
                     sites_to_exclude=self.sites_to_exclude,
                 )
-                # The following needs some refinement once we read pyaerocom variables that hold more than
-                # one EBAS variable
-                # we need to decide per station which EBAS variable to return at a certain station and potentially time
-                # self.read_data(
-                #     actris_variable=_pyaro_var, urls_to_dl=self.urls_to_dl[_actris_var]
-                # )
+                if extract_http_urls:
+                    # extract download urls (to be read using http) urls
+                    # these are unused atm, but might serve as a sanity check later on
+                    self.dl_urls_to_dl[_actris_var] = self.extract_dl_url_info(
+                        json_resp,
+                        sites_to_read=self.sites_to_read,
+                        sites_to_exclude=self.sites_to_exclude,
+                    )
                 assert self._tmp_metadata[_pyaro_var][_actris_var]
                 # return _pyaro_var, self.urls_to_dl
 
@@ -346,10 +343,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 logger.info(f"var {_var} already read")
                 continue
             for actris_variable in self.actris_vars_to_read[_var]:
-                urls_to_dl = self.urls_to_dl[actris_variable]
+                urls_to_dl = self.open_dap_urls_to_dl[actris_variable]
                 bar = tqdm(desc=tqdm_desc, total=len(urls_to_dl), disable=None)
                 for s_idx, site_name in enumerate(urls_to_dl):
-                    if site_name == "Schmucke" or site_name == "Schmücke":
+                    # if site_name == "Schmucke" or site_name == "Schmücke":
+                    if site_name == "Hallahus":
                         assert site_name
                     self._metadata[site_name] = {}
 
@@ -445,12 +443,16 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             start_time = np.asarray(tmp_data["time_bnds"][:, 0])
                             stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
                             ts_no_all = len(start_time)
-                            valid_idxs = self.get_valid_ts_indizes(start_time, stop_time)
-                            ts_no = len(valid_idxs)
-                            if ts_no == 0:
-                                ts_type = self.get_pyaerocom_ts_sizes(start_time, stop_time)
-                                logger.info(f"all timesteps of URL {url} were non standard lengths (e.g. {ts_type[0]}). Skipping this URL...")
-                                continue
+                            # if we need to remove non pyaerocom time step sizes
+                            if self.remove_non_pyaerocom_time_steps:
+                                valid_idxs = self.get_valid_ts_indizes(start_time, stop_time)
+                                ts_no = len(valid_idxs)
+                                if ts_no == 0:
+                                    ts_type = self.get_pyaerocom_ts_sizes(start_time, stop_time)
+                                    logger.info(f"all timesteps of URL {url} were non standard lengths (e.g. {ts_type[0]}). Skipping this URL...")
+                                    continue
+                            else:
+                                ts_no = ts_no_all
 
 
                             # Not all files contain height information unfortunately
@@ -494,7 +496,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             else:
                                 vals = tmp_data[_data_var].values
                                 ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
-                            # remove non standard time step sizes
 
                             # apply flags
                             # quick test if we need to apply flags at all
@@ -506,7 +507,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             else:
                                 vals, flags = self.get_var_data_flags_applied_from_vars(vals, ebas_flags)
 
-                            # remove non standard time step sizes
+                            # remove non standard time step sizes if needed
                             if ts_no_all > ts_no:
                                 try:
                                     flags = flags[valid_idxs]
@@ -515,11 +516,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 start_time = start_time[valid_idxs]
                                 stop_time = stop_time[valid_idxs]
                                 vals = vals[valid_idxs]
-                                # flags can be multidimensional...
-                                # try:
-                                #     flags = flags[:, valid_idxs]
-                                # except IndexError:
-                                #     flags = flags[valid_idxs]
 
                             if _var not in self._data:
                                 self._data[_var] = NpStructuredData(
@@ -544,7 +540,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             )
                             break
                         if stat_code is not None:
-                            if site_name == "Carnsore Point":
+                            # if site_name == "Carnsore Point":
+                            if site_name == "Hallahus":
                                 assert site_name
                             if not site_name in self._stations:
                                 # exception in case all time step sizes were not pyaerocom compatible
@@ -872,16 +869,16 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         return data_vars
 
-    def extract_url_info(
+    def extract_opendap_info(
             self,
             json_resp: dict,
             sites_to_read: list[str] = [],
             sites_to_exclude: list[str] = [],
     ) -> dict:
         """
-        small helper method to extract URLs to download from json reponse from the EBAS API
+        small helper method to extract opebdap URLs to download from json reponse from the EBAS API
         """
-        urls_to_dl = {}
+        opendap_urls_to_dl = {}
         # highest hierachy is a list
         for site_idx, site_data in enumerate(json_resp):
             site_name = site_data[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
@@ -903,6 +900,76 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 logger.info(f"site {site_name} excluded due to exclusion filter")
                 continue
             if site_name in sites_to_read or len(sites_to_read) == 0:
+                if site_name not in opendap_urls_to_dl:
+                    opendap_urls_to_dl[site_name] = []
+
+                # site_data[DISTRIBUTION_ROOT_KEY] is also a list
+                # search for protocol DISTRIBUTION_PROTOCOL_NAME
+                for url_idx, distribution_data in enumerate(
+                        site_data[DISTRIBUTION_ROOT_KEY]
+                ):
+                    if (
+                            distribution_data[DISTRIBUTION_PROTOCOL_KEY].lower()
+                            != DISTRIBUTION_PROTOCOL_NAME_OPENDAP
+                    ):
+                        logger.info(
+                            f"skipping site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]}"
+                        )
+                        continue
+                    else:
+                        url = distribution_data[DISTRIBUTION_URL_KEY]
+                        opendap_urls_to_dl[site_name].append(url)
+                        logger.info(
+                            f"site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
+                        )
+                        if url not in self.time_coverages:
+                            time_dummy = \
+                                (site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_START_KEY],
+                                 site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_END_KEY])
+                            # check for time zone info in the time coverage string (times should be in UTC)
+                            if len(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_START_KEY]) > 19 or len(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_END_KEY]) > 19:
+                                # ts_str_dummy = site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_START_KEY]
+                                logger.info(f"Non UTC time coverage string {time_dummy} in API response for URL {url}. Please check for errors. Removing TZ info for speed")
+                                time_dummy = \
+                                    (site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_START_KEY][0:19],
+                                     np.datetime64(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_END_KEY][0:19]))
+                                self.time_coverages[url] = \
+                                    (np.datetime64(time_dummy[0]), np.datetime64(time_dummy[1]))
+                            else:
+                                self.time_coverages[url] = \
+                                    (np.datetime64(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_START_KEY]),
+                                    np.datetime64(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_END_KEY]))
+                        else:
+                            logger.info(f"Error: URL {url} already included in site used for a 2nd station!")
+                        break
+        return opendap_urls_to_dl
+
+    def extract_dl_url_info(
+            self,
+            json_resp: dict,
+            sites_to_read: list[str] = [],
+            sites_to_exclude: list[str] = [],
+    ) -> dict:
+        """
+        small helper method to extract download URLs to download from json reponse from the EBAS API
+        These files need to be read using the http protocol
+        """
+        urls_to_dl = {}
+        # highest hierachy is a list
+        for site_idx, site_data in enumerate(json_resp):
+            site_name = site_data[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
+                LOCATION_NAME_KEY
+            ]
+            product_type = site_data[PRODUCT_TYPE_ROOT_KEY][PRODUCT_TYPE_KEY]
+            logger.info(f"DL: product type station {site_name}: {product_type}")
+            if product_type not in PRODUCT_TYPES_TO_COPY:
+                logger.info(f"DL: station {site_name} skipping product type {product_type}")
+                continue
+
+            if site_name in sites_to_exclude:
+                logger.info(f"DL: site {site_name} excluded due to exclusion filter")
+                continue
+            if site_name in sites_to_read or len(sites_to_read) == 0:
                 if site_name not in urls_to_dl:
                     urls_to_dl[site_name] = []
 
@@ -912,25 +979,25 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         site_data[DISTRIBUTION_ROOT_KEY]
                 ):
                     if (
-                            distribution_data[DISTRIBUTION_PROTOCOL_KEY]
-                            != DISTRIBUTION_PROTOCOL_NAME
+                            distribution_data[DISTRIBUTION_PROTOCOL_KEY].lower()
+                            != DISTRIBUTION_PROTOCOL_NAME_HTTP
                     ):
                         logger.info(
-                            f"skipping site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]}"
+                            f"DL: skipping site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]}"
                         )
                         continue
                     else:
                         url = distribution_data[DISTRIBUTION_URL_KEY]
                         urls_to_dl[site_name].append(url)
                         logger.info(
-                            f"site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
+                            f"DL: site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
                         )
                         if url not in self.time_coverages:
                             self.time_coverages[url] = \
                                 (np.datetime64(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_START_KEY]),
                                 np.datetime64(site_data[TIME_COVERAGE_ROOT_KEY][TIME_COVERAGE_END_KEY]))
                         else:
-                            logger.info(f"Error: URL {url} already included in site used for a 2nd station!")
+                            logger.info(f"Error: dl URL {url} already included in site used for a 2nd station!")
                         break
         return urls_to_dl
 
