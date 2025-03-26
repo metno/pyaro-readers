@@ -1,6 +1,8 @@
+import os
 import unittest
 import urllib.request
 import logging
+from logging.config import fileConfig
 
 import pyaro
 import pyaro.timeseries
@@ -12,13 +14,22 @@ VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
 logger = logging.getLogger(__name__)
 
 
+
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
+    log_file = os.getenv("PYAEROCOM_LOG_FILE")
+    if log_file is not None:
+        log_file = f"actrisebas.log"
+        # log_file = f"/home/jang/tmp/logging/pyaerocom.log"
+    logging.basicConfig(filename=log_file, level=logging.DEBUG)
+    logger.info('Started')
+
     engine = "actrisebas"
     # vars_to_read = ["ozone mass concentration"]
     # vars_to_read = ["aerosol particle sulphate mass concentration"]
     actris_vars_to_read = ["aerosol particle elemental carbon mass concentration"]
     # pyaerocom_vars_to_read = ["conco3"]
-    pyaerocom_vars_to_read = ["vmro3"]
+    # pyaerocom_vars_to_read = ["vmro3"]
+    pyaerocom_vars_to_read = ["wetso4"]
     # pyaerocom_vars_to_read = ["concca"]
     # pyaerocom_vars_to_read = ["concso2"]
     # pyaerocom_vars_to_read = ["vmrso2"]

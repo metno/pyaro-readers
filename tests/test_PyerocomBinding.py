@@ -13,8 +13,8 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "concso4t"
     # ACTRISEBASVAR = "concso4c"
     # ACTRISEBASVAR = "concprcpso4"
-    # ACTRISEBASVAR = "wetso4"
-    ACTRISEBASVAR = "prmm"
+    ACTRISEBASVAR = "wetso4"
+    # ACTRISEBASVAR = "prmm"
     # ACTRISEBASVAR = "vmro3"
     # ACTRISEBASVAR = "sc550aer"
     ACTRISEBASVARLIST = ["concso4t", "concso4c"]

@@ -139,7 +139,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             test_flag: bool = False,
             cache_flag: bool = True,
             extract_http_urls: bool = False,
-            remove_non_pyaerocom_time_steps :bool = False,
+            remove_non_pyaerocom_time_steps :bool = True,
     ):
         """ """
         self._filename = None
@@ -689,12 +689,22 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             flags = np.full(ts_no, Flag.VALID, dtype="i2")
         else:
             flags = np.full(ts_no, Flag.INVALID, dtype="i2")
-            for _ebas_flag in ebas_flags:
-                for f_idx, flag in enumerate(_ebas_flag):
+            # ebas_flags can be one or multidimensional...
+            if len(ebas_flags.shape) > 1:
+                for _ebas_flag in ebas_flags:
+                    for f_idx, flag in enumerate(_ebas_flag):
+                        if (flag == 0) or (
+                                flag in self.ebas_valid_flags
+                        ):
+                            flags[f_idx] = Flag.VALID
+            else:
+                for f_idx, flag in enumerate(ebas_flags):
                     if (flag == 0) or (
                             flag in self.ebas_valid_flags
                     ):
                         flags[f_idx] = Flag.VALID
+
+
         return vals, flags
 
 
@@ -728,7 +738,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # for the moment this will just multiply 2 variables within the same file
 
         if 'standard_names_2nd_var' in self.def_data['variables'][_var]:
-            var_names_to_check = self.get_ebas_var_names_with_std_names(tmp_data, self.def_data['variables'][_var]['standard_names'])
+            var_names_to_check = self.get_ebas_var_names_with_std_names(tmp_data, self.def_data['variables'][_var]['standard_names_2nd_var'])
             if len(var_names_to_check) > 1:
                 logger.info(f"calc_var: more than one matching variable name found for std_names {self.def_data['variables'][_var]}. Using the 1st match. ")
             vals1, flags1 = self.get_var_data_flags_applied_from_file(tmp_data, _data_var)
