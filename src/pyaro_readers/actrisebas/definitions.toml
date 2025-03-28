@@ -3,10 +3,10 @@
 #prototype
 # the order in the list below is preserved and determines the order the data is read
 #[variables.<pyaerocom var name>]
-#actris_variable = [<list of actris variables>]
-#actris_matrix = [<list of actris matrixes>]
-#ebas_component = [<list of ebas component names>]
-#ebas_matrix = [<list of ebas matrix names>]
+#actris_variable = [<list of actris variables>] (according to the ACTRIS vocabulary)
+#actris_matrix = [<list of actris matrixes>] (unused atm)
+#ebas_component = [<list of ebas component names>] (unused atm)
+#ebas_matrix = [<list of ebas matrix names>] (unused atm)
 
 [variables.conco3]
 actris_variable = ["ozone mass concentration"]
@@ -139,18 +139,32 @@ standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation", ]
 # This field indicates, that another variable needs to read and that the variable above needs to be calculated
 standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
 # only used for calculated variables
-units = "mm / d"
+units = "mg S m-2 d-1"
+
+[variables.wetoxs]
+# Att! needs 2 variables to be calculated, but both need to be in the same file
+# This is the same wetso4 for the moment
+actris_variable = ["precipitation sulphate mass concentration"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["sulphate_corrected"]
+ebas_matrix = ["precip", ]
+standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation", ]
+# This field indicates, that another variable needs to read and that the variable above needs to be calculated
+standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
+# only used for calculated variables
+units = "mg S m-2 d-1"
 
 [variables.prmm]
+# needs an additional unit conversion from "mm" to "mm d-1"
 actris_variable = ["precipitation depth"]
 actris_matrix = ["precipitation phase"]
 ebas_component = ["precipitation_amount_off", "precipitation_amount"]
 ebas_matrix = ["precip"]
 standard_names = ["lwe_thickness_of_precipitation_amount", ]
 
+[variables.sc550aer]
 # The following is WIP since there's several wavelengths in the file
 # (as additional data dimension)
-[variables.sc550aer]
 actris_variable = ["aerosol particle light scattering coefficient"]
 actris_matrix = ["aerosol", "pm10"]
 ebas_component = ["aerosol_light_scattering_coefficient"]
@@ -159,7 +173,7 @@ standard_names = ["volume_scattering_coefficient_in_air_due_to_dried_aerosol_par
 treatment_flag = "wavelength"
 wavelength = 550
 
-
+#PROTOTYPE
 #[variables.]
 #actris_variable = [""]
 #actris_matrix = [""]
@@ -168,26 +182,17 @@ wavelength = 550
 #standard_names = ["",
 #    "", ]
 
-#[actris_std_units]
-# tell the reader which unit shall be returned in case the same property is available in several units
-# e.g. ozone mass concentration is available in the files in [ug/m3] and [nmol/mol]
-# make sure to use ACTRIS-EBAS unit notation since this is a simple string match
-# For variables not noted here, we will return the first unit found in the first data file
-#"ozone mass concentration" = "ug/m3"
-#"ozone amount fraction" = "nmol/mol"
-#"aerosol particle sulphate mass concentration" = "ug/m3"
-
 [actris_standard_names]
 # match between ACTRIS vocabulary and CF standard name
-# needed to match the variables in multicolumn files since the netcdf variable name has no meaning
-# the standard_names are not unique for a given ACTRIS species, therefore a list
+# needed to match the variables in multicolumn files since there's no 1:1 relationship
+# between the ACTRIS vocabulary and the variable to be returned in the data file
+# THE GIVEN STANDARD NAME ALSO DEFINES THE VARIABLE THE DATA IS RETURNED
+# the standard_names are not necessarily unique for a given ACTRIS species, therefore a list
 "ozone mass concentration" = ["mass_concentration_of_ozone_in_air"]
 "ozone amount fraction" = ["mole_fraction_of_ozone_in_air"]
-"aerosol particle sulphate mass concentration" = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_dry_aerosol_particles_in_air",
+"aerosol particle sulphate mass concentration" = ["mass_concentration_of_total_sulphate_in_dry_aerosol_particles_in_air",
     "mass_concentration_of_sulphate_total_in_pm10_in_air",
     "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
-#"" = "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_dry_aerosol_particles_in_air"
-#"" = ""
 "sulfur dioxide mass concentration" = ["mass_concentration_of_sulphur_dioxide_expressed_as_sulphur_in_air", ]
 "aerosol particle calcium mass concentration" = ["mass_concentration_of_calcium_in_dry_aerosol_particles_in_air",
     "mass_concentration_of_calcium_in_pm2p5_in_air", "mass_concentration_of_calcium_in_pm10_in_air",

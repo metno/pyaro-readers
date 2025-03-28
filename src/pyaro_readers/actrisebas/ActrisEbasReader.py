@@ -105,8 +105,8 @@ PRODUCT_TYPES_TO_COPY = ["observation", ]
 CF_UNITS = {}
 CF_UNITS["ug/m3"] = "ug m-3"
 CF_UNITS["nmol/mol"] = "nmol mol-1"
-CF_UNITS["mm"] = "mm"
-# CF_UNITS["mg/l"] = ""
+CF_UNITS["mm"] = "mm d-1"
+CF_UNITS["mg/l"] = "mg S m-2 d-1"
 # CF_UNITS[""] = ""
 
 class ActrisEbasRetryException(Exception):
