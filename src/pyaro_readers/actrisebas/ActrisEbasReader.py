@@ -15,7 +15,7 @@ from urllib3.poolmanager import PoolManager
 from urllib3.util.retry import Retry
 
 import pyaerocom.exceptions
-from pyaerocom.tstype import TsType
+from pyaerocom.units.datetime import TsType
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -595,7 +595,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         :return:
         :type TS
         """
-        from pyaerocom.time_config import (
+        from pyaerocom.units.datetime.time_config import (
             PANDAS_FREQ_TO_TS_TYPE,
             TS_TYPE_TO_NUMPY_FREQ,
             TS_TYPE_TO_PANDAS_FREQ,
