@@ -7,9 +7,7 @@ from pyaro.timeseries.AutoFilterReaderEngine import (
     AutoFilterEngine,
 )
 from pyaro.timeseries import (
-    Reader,
     Data,
-    Station,
 )
 import pyaro.timeseries
 
@@ -95,8 +93,11 @@ class MergingReader(AutoFilterReader):
         self._set_filters(filters)
         for d in datasets:
             readername = d.pop("readername")
+            filename = d.pop("filename_or_obj_or_url")
             self._datasets.append(
-                pyaro.open_timeseries(readername, **d, filters=self._get_filters())
+                pyaro.open_timeseries(
+                    readername, filename, **d, filters=self._get_filters()
+                )
             )
 
     def _unfiltered_data(self, varname: str) -> Data:
