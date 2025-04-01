@@ -8,7 +8,7 @@ import pyaro
 import pyaro.timeseries
 from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
-TEST_URL = "https://prod-actris-md.nilu.no/Version"
+TEST_URL = "https://prod-actris-md2.nilu.no/"
 VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
 
 logger = logging.getLogger(__name__)
