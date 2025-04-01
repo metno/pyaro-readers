@@ -14,14 +14,13 @@ VOCABULARY_URL = "https://prod-actris-md.nilu.no/V"
 logger = logging.getLogger(__name__)
 
 
-
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     log_file = os.getenv("PYAEROCOM_LOG_FILE")
     if log_file is not None:
         log_file = f"actrisebas.log"
         # log_file = f"/home/jang/tmp/logging/pyaerocom.log"
     logging.basicConfig(filename=log_file, level=logging.DEBUG)
-    logger.info('Started')
+    logger.info("Started")
 
     engine = "actrisebas"
     # vars_to_read = ["ozone mass concentration"]
@@ -41,22 +40,24 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # pyaerocom_vars_to_read = ["concpm1"]
 
     station_filter = pyaro.timeseries.Filter.StationFilter(
-        ["Schmucke", "Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []
+        ["Schmucke", "Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"],
+        [],
     )
 
     variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
-        {},
-        pyaerocom_vars_to_read,
-        []
+        {}, pyaerocom_vars_to_read, []
     )
     variable_filter_actris = pyaro.timeseries.Filter.VariableNameFilter(
-        {}, actris_vars_to_read, [])
+        {}, actris_vars_to_read, []
+    )
 
-    #"start_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]
+    # "start_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]
 
     # filters on "start_include"
     # time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2019-12-31 23:59:59")])
-    time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2020-12-31 23:59:59")])
+    time_filter = pyaro.timeseries.Filter.TimeBoundsFilter(
+        [("2019-01-01 00:00:00", "2020-12-31 23:59:59")]
+    )
 
     def test_api_online(self, url=TEST_URL):
         try:
@@ -85,7 +86,8 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     def test_api_reading_small_data_set(self):
         filters = [self.station_filter, self.variable_filter_actris, self.time_filter]
         engine = pyaro.list_timeseries_engines()[self.engine]
-        with engine.open(TEST_URL,
+        with engine.open(
+            TEST_URL,
             filters=filters,
         ) as ts:
             self.assertGreaterEqual(len(ts.variables()), 1)
@@ -100,9 +102,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         # test variable by variable
         for _var in self.pyaerocom_vars_to_read:
             variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
-                {},
-                [_var],
-                []
+                {}, [_var], []
             )
             filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
             engine = pyaro.list_timeseries_engines()[self.engine]
@@ -121,7 +121,10 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         filters = [self.station_filter, self.variable_filter_actris]
 
         with VariableNameChangingReader(
-            engine.open(TEST_URL, filters=filters, ),
+            engine.open(
+                TEST_URL,
+                filters=filters,
+            ),
             reader_to_new={ebas_var_name: new_var_name},
         ) as ts:
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)

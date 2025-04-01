@@ -276,9 +276,9 @@ def _read_hourly_files(
         )
     )
 
-    assert joined.filter(polars.col("Longitude").is_null()).shape[0] == 0, (
-        "Some stations does not have a suitable left join"
-    )
+    assert (
+        joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
+    ), "Some stations does not have a suitable left join"
 
     return joined
 
@@ -368,9 +368,9 @@ def _read_daily_files(
         .drop("Timezone")
     )
 
-    assert joined.filter(polars.col("Longitude").is_null()).shape[0] == 0, (
-        "Some stations does not have a suitable left join"
-    )
+    assert (
+        joined.filter(polars.col("Longitude").is_null()).shape[0] == 0
+    ), "Some stations does not have a suitable left join"
 
     return joined
 

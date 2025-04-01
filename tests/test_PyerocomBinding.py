@@ -65,8 +65,14 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             #         "Westerland",
             #     ]
             # },
-            "variables": {"include": [self.ACTRISEBASVAR, ]},
-            "time_bounds":{"startend_include": [("2019-01-01 00:00:00", "2020-12-31 00:00:00")]}
+            "variables": {
+                "include": [
+                    self.ACTRISEBASVAR,
+                ]
+            },
+            "time_bounds": {
+                "startend_include": [("2019-01-01 00:00:00", "2020-12-31 00:00:00")]
+            },
         }
         # needs to be the variable name for actrisebas
         url = self.ACTRISEBASVAR

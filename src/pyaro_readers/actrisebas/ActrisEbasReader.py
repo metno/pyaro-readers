@@ -252,9 +252,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         logger.info(
                             f"No ebas standard names found for {var}. Trying those of the actris variable {self.actris_vars_to_read[var][0]} instead..."
                         )
-                        self.standard_names[_actris_var] = (
-                            self.get_actris_standard_name(_actris_var)
-                        )
+                        self.standard_names[
+                            _actris_var
+                        ] = self.get_actris_standard_name(_actris_var)
 
             else:
                 # user gave ACTRIS name
@@ -664,7 +664,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         def _calculate_ts_type(
             start: npt.NDArray[np.datetime64], end: npt.NDArray[np.datetime64]
         ) -> npt.NDArray[TsType]:
-
             seconds = (end - start).astype("timedelta64[s]").astype(np.int64)
 
             @np.vectorize(otypes=[TsType])
