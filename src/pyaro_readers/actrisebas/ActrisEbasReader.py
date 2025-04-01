@@ -252,9 +252,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         logger.info(
                             f"No ebas standard names found for {var}. Trying those of the actris variable {self.actris_vars_to_read[var][0]} instead..."
                         )
-                        self.standard_names[
-                            _actris_var
-                        ] = self.get_actris_standard_name(_actris_var)
+                        self.standard_names[_actris_var] = (
+                            self.get_actris_standard_name(_actris_var)
+                        )
 
             else:
                 # user gave ACTRIS name
