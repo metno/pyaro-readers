@@ -156,7 +156,14 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.vars_to_read = None
         self.units = None
         self.times_to_read = (np.datetime64(1, "Y"), np.datetime64(120, "Y"))
-        self.remove_non_pyaerocom_time_steps = remove_non_pyaerocom_time_steps
+        # keep pyaerocom based stuff optional
+        try:
+            import pyaerocom.exceptions
+            from pyaerocom.units.datetime import TsType
+
+            self.remove_non_pyaerocom_time_steps = remove_non_pyaerocom_time_steps
+        except ImportError:
+            self.remove_non_pyaerocom_time_steps = False
 
         self.cache_dir = None
         try:
@@ -455,8 +462,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             ts_no_all = len(start_time)
                             # if we need to remove non pyaerocom time step sizes
                             if self.remove_non_pyaerocom_time_steps:
-                                import pyaerocom.exceptions
-                                from pyaerocom.units.datetime import TsType
 
                                 valid_idxs = self.get_valid_ts_indizes(
                                     start_time, stop_time
