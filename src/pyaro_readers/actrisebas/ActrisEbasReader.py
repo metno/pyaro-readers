@@ -186,11 +186,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             elif isinstance(filter, Filter.TimeBoundsFilter):
                 # this is not the full implementation. Correct filtering will be done
                 # by pyaro
-                # not the most pythonic way to do this...
-                self.times_to_read = (
-                    np.min(filter._start_include),
-                    np.max(filter._start_include),
-                )
+                if filter.has_envelope():
+                    self.times_to_read = filter.envelope()
+                else:
+                    # No filtering of time
+                    pass
                 logger.info(f"applying time include filter {self.times_to_read}...")
             # For some reason the filters come as dict from pyaerocom
             elif isinstance(filter, str):
