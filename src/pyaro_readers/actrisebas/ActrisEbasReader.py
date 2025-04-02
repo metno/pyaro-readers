@@ -192,41 +192,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     # No filtering of time
                     pass
                 logger.info(f"applying time include filter {self.times_to_read}...")
-            # For some reason the filters come as dict from pyaerocom
-            elif isinstance(filter, str):
-                if filter == "stations":
-                    assert filters[filter]
-                    try:
-                        self.sites_to_read = filters[filter]["include"]
-                    except KeyError:
-                        pass
-                    try:
-                        self.sites_to_exclude = filters[filter]["exclude"]
-                    except KeyError:
-                        pass
-                elif filter == "variables":
-                    assert filters[filter]
-                    try:
-                        self.vars_to_read = filters[filter]["include"]
-                        logger.info(
-                            f"applying variable include filter {self.vars_to_read}..."
-                        )
-                    except KeyError:
-                        pass
-                elif filter == "time_bounds":
-                    try:
-                        _time_bounds = np.array(
-                            filters[filter]["startend_include"], dtype=np.datetime64
-                        )
-                        self.times_to_read = (
-                            np.min(_time_bounds),
-                            np.max(_time_bounds),
-                        )
-                    except Exception as e:
-                        pass
-                    assert filters[filter]
-                else:
-                    pass
             else:
                 # pass on not reader supported filters
                 pass
