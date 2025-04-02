@@ -35,8 +35,6 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         is an advantage
     """
 
-    ncfile_prefix = "pyaro_netcdf_rw"
-
     def __init__(
         self,
         filename,
@@ -45,7 +43,6 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
     ):
         self._set_filters(filters)
         self._mode = mode
-        self._metadata = self.metadata()
 
         if os.path.isdir(filename):
             self._directory = filename
@@ -55,7 +52,7 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     f"no such file or directory: {filename}"
                 )
             else:
-                os.path.makedirs(filename)
+                os.makedirs(filename)
 
         dataglob = os.path.join(self._directory, f"{self.ncfile_prefix}.????.nc")
         self._years = set()
@@ -70,7 +67,12 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             self._stations = self._read_stations()
         except Exception as ex:
             raise Netcdf_RWTimeseriesException(f"unable to read definition-file: {ex}")
+
+        self._metadata = self.metadata()
+
         return
+
+    ncfile_prefix = "pyaro_netcdf_rw"
 
     def iterate_files(self):
         for y in self._years:
