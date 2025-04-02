@@ -44,7 +44,7 @@ class MergingReaderConcatData(Data):
         lengths = [len(d) for d in self._data]
         *indices, _leftover = np.split(index, np.cumsum(lengths))
         return MergingReaderConcatData(
-            [d[ind] for d, ind in zip(self._data, indices)], self._variable
+            [d.slice(ind) for d, ind in zip(self._data, indices)], self._variable
         )
 
     @property
