@@ -255,3 +255,41 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+### mergingreader
+
+This reader can merge data from different pyaro readers.
+
+```python
+import pyaro
+import pyaro.timeseries
+
+TEST_URL = "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download"
+
+
+def main():
+    with pyaro.open_timeseries(
+        "mergingreader",
+        [{
+            "reader_id": "eeareader",
+            "filename_or_obj_or_url": TEST_URL,
+            "dataset": "verified",
+        },
+        {
+            "reader_id": "eeareader",
+            "filename_or_obj_or_url": TEST_URL,
+            "dataset": "unverified",
+        }],
+        mode="concat",
+        filters=[
+            pyaro.timeseries.Filter.CountryFilter(include=["NO", "SE", "DK"]),
+        ],
+    ) as ts:
+        # help(ts)
+        data = ts.data("PM10")
+        print(data.values)
+
+
+if __name__ == "__main__":
+    main()
+```
