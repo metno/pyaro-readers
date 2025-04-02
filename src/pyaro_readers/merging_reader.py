@@ -30,7 +30,7 @@ class MergingReaderConcatData(Data):
         base_unit = self._data[0].units
         unit = cf_units.Unit(base_unit)
         for d in self._data[1:]:
-            if unit.convert_to(1, d.units) != 1.0:
+            if unit.convert(1, d.units) != 1.0:
                 raise MergingReaderException(
                     f"The units are not the same in all the datasets {base_unit} {d.units}"
                 )
