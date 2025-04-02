@@ -7,6 +7,7 @@ from pyaro.timeseries.AutoFilterReaderEngine import (
     AutoFilterEngine,
 )
 from pyaro.timeseries import (
+    Station,
     Data,
 )
 import pyaro.timeseries
@@ -114,10 +115,10 @@ class MergingReader(AutoFilterReader):
             [d.data(varname) for d in self._datasets], varname
         )
 
-    def _unfiltered_stations(self) -> list[str]:
-        stations = []
+    def _unfiltered_stations(self) -> dict[str, Station]:
+        stations = {}
         for d in self._datasets:
-            stations.extend(d.stations())
+            stations |= d.stations()
         return stations
 
     def _unfiltered_variables(self) -> list[str]:
