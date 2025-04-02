@@ -40,7 +40,10 @@ class MergingReaderConcatData(Data):
         raise NotImplementedError
 
     def slice(self, index):
-        return MergingReaderConcatData([d[index] for d in self._data], self._variable)
+        # Split the index for each part
+        lengths = [len(d) for d in self._data]
+        *indices, _leftover = np.split(index, np.cumsum(lengths))
+        return MergingReaderConcatData([d[ind] for d, ind in zip(self._data, indices)], self._variable)
 
     @property
     def values(self) -> np.ndarray:
