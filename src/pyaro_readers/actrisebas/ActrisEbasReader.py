@@ -141,7 +141,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # gives a mapping between the EBAS or pyaerocom variable name
         # and the CF standard name found in the EBAS data files
         # Due to standard_names aliases, the values are a list
-        self.standard_names = {}
+        self.standard_names: dict[str, list[str]] = {}
         # _laststatstr = ""
         self._revision = datetime.datetime.now()
         self._metadata["revision"] = datetime.datetime.strftime(
