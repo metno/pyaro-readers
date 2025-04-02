@@ -73,6 +73,11 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
         else:
             self._files.append(file)
 
+    def read(self):
+        """reading method"""
+        # check if the data has been read already
+        if len(self._data) != 0:
+            return
         bar = tqdm(total=len(self._files), disable=None)
 
         for f_idx, _file in enumerate(self._files):
@@ -84,7 +89,7 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
                 # skip coordinate names
                 if _var in self.COORD_NAMES:
                     continue
-                if vars_to_read is not None and _var not in vars_to_read:
+                if self._vars_to_read is not None and _var not in self._vars_to_read:
                     logger.info(f"Skipping {_var}")
                     continue
                 if _var not in self._data:
@@ -214,12 +219,15 @@ class AeronetHARPReader(AutoFilterReaderEngine.AutoFilterReader):
         list[str]
             The list of variable names.
         """
-        return self._data.keys()
+        self.read()
+        return list(self._data.keys())
 
     def _unfiltered_data(self, varname) -> Data:
+        self.read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self.read()
         return self._stations
 
     def close(self):

@@ -1,15 +1,18 @@
 import csv
+import datetime
 from io import BytesIO
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
 
+import numpy as np
+import requests
 from geocoder_reverse_natural_earth import (
     Geocoder_Reverse_NE,
     Geocoder_Reverse_Exception,
 )
-import numpy as np
-import requests
+from tqdm import tqdm
+
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
     Data,
@@ -17,8 +20,6 @@ from pyaro.timeseries import (
     NpStructuredData,
     Station,
 )
-from tqdm import tqdm
-import datetime
 
 # default URL
 BASE_URL = "https://aeronet.gsfc.nasa.gov/data_push/V3/All_Sites_Times_Daily_Averages_AOD20.zip"
@@ -47,7 +48,7 @@ COMPUTED_VARS = [AOD550_NAME]
 # The computed variables have to be named after the read ones, otherwise the calculation will fail!
 DATA_VARS.extend(COMPUTED_VARS)
 
-FILL_COUNTRY_FLAG = False
+FILL_COUNTRY_FLAG = True
 
 TS_TYPE_DIFFS = {
     "daily": np.timedelta64(12, "h"),
@@ -90,9 +91,20 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._data = {}  # var -> {data-array}
         self._set_filters(filters)
         self._header = []
-        _laststatstr = ""
+
         self._revision = datetime.datetime.min
+        self.fill_country_flag = fill_country_flag
+        self.ts_type = ts_type
+
+    def _read(
+        self,
+        tqdm_desc="reading stations",
+    ):
         # check if file is a URL
+        _laststatstr = ""
+        # check if the data has been read already
+        if len(self._data) != 0:
+            return
         if self.is_valid_url(self._filename):
             # try to open as zipfile
             try:
@@ -128,7 +140,7 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 lon = float(row[LON_NAME])
                 lat = float(row[LAT_NAME])
                 alt = float(row["Site_Elevation(m)"])
-                if fill_country_flag:
+                if self.fill_country_flag:
                     try:
                         country = gcd.lookup(lat, lon)["ISO_A2_EH"]
                     except Geocoder_Reverse_Exception:
@@ -173,8 +185,8 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 ]
             )
             time_dummy = np.datetime64(datestring)
-            start = time_dummy - TS_TYPE_DIFFS[ts_type]
-            end = time_dummy + TS_TYPE_DIFFS[ts_type]
+            start = time_dummy - TS_TYPE_DIFFS[self.ts_type]
+            end = time_dummy + TS_TYPE_DIFFS[self.ts_type]
 
             ts_dummy_data = {}
             for variable in DATA_VARS:
@@ -200,15 +212,19 @@ class AeronetSunTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         bar.close()
 
     def metadata(self):
+        self._read()
         return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
 
     def _unfiltered_data(self, varname) -> Data:
+        self._read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self._read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
+        self._read()
         return list(self._data.keys())
 
     def close(self):

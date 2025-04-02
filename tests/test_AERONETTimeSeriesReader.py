@@ -20,11 +20,11 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         "aeronetsun_testdata.csv",
     )
 
-    def external_resource_available(self, url):
+    def external_resource_available(self, url=TEST_URL):
         try:
-            req = urllib.request.Request(TEST_URL, method="HEAD")
+            req = urllib.request.Request(url, method="HEAD")
             resp = urllib.request.urlopen(req)
-            resp.url
+            assert resp.url
             return True
         except:
             return False
@@ -46,6 +46,23 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
             self.assertEqual(len(ts.stations()), 4)
             self.assertGreaterEqual(int(ts.metadata()["revision"]), 220622120000)
 
+    # def test_dl_data_unzipped(self):
+    #     if not self.external_resource_available(TEST_URL):
+    #         self.skipTest(f"external resource not available: {TEST_URL}")
+    #     engine = pyaro.list_timeseries_engines()["aeronetsunreader"]
+    #     with engine.open(
+    #         TEST_URL,
+    #         filters=[],
+    #         fill_country_flag=False,
+    #         tqdm_desc="test_dl_data_unzipped",
+    #     ) as ts:
+    #         count = 0
+    #         for var in ts.variables():
+    #             count += len(ts.data(var))
+    #         self.assertEqual(count, 49965)
+    #         self.assertEqual(len(ts.stations()), 4)
+    #         self.assertGreaterEqual(int(ts.metadata()["revision"]), 220622120000)
+    #
     def test_dl_data_zipped(self):
         if not self.external_resource_available(TEST_ZIP_URL):
             self.skipTest(f"external resource not available: {TEST_ZIP_URL}")

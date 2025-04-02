@@ -56,12 +56,22 @@ unverified
 ```
 where `metadata.csv` is csv file containing station metadata (https://discomap.eea.europa.eu/App/AQViewer/index.html?fqn=Airquality_Dissem.b2g.measurements).
 
+### ACTRIS-EBAS (alpha version)
+Reader for the EBAS data of the ACTRIS data portal (https://data.actris.eu/).
+This reader talks directly to the API at [https://prod-actris-md2.nilu.no/](https://prod-actris-md2.nilu.no/). 
+
+Because the variable naming supported at this early stage uses the naming scheme of the 
+[pyaerocom project](https://pyaerocom.readthedocs.io/en/latest/), this reader is depending on pyaerocom being installed
+and supports only a very limited number of variables.
+Additional variables can be added editing the file [`definitions.toml`](src/pyaro_readers/actrisebas/definitions.toml).
+The ACTRIS vocabulary is [here](https://vocabulary.actris.nilu.no/skosmos/actris_vocab/en/).
+
 ## Usage
 ### aeronetsunreader
 ```python
 import pyaro
 TEST_URL = "https://pyaerocom.met.no/pyaro-suppl/testdata/aeronetsun_testdata.csv"
-with pyro.open_timeseries("aeronetsunreader", TEST_URL, filters=[], fill_country_flag=False) as ts:
+with pyaro.open_timeseries("aeronetsunreader", TEST_URL, filters=[], fill_country_flag=False) as ts:
     print(ts.variables())
     data = ts.data('AOD_550nm')
     # stations
@@ -108,7 +118,7 @@ with pyaro.open_timeseries("aeronetsdareader", TEST_URL, filters=[], fill_countr
 import pyaro
 TEST_URL = "/lustre/storeB/project/fou/kl/emep/Auxiliary/NILU/"
 with pyaro.open_timeseries(
-    'ascii2netcdf', EBAS_URL, resolution="daily", filters=[]
+    'ascii2netcdf', TEST_URL, resolution="daily", filters=[]
 ) as ts:
     data = ts.data("sulphur_dioxide_in_air")
     data.units # ug
@@ -214,6 +224,33 @@ def main():
         data = ts.data("PM10")
         print(data.values)
 
+
+if __name__ == "__main__":
+    main()
+```
+
+### ACTRIS-EBAS
+```python
+import pyaro
+import pyaro.timeseries
+
+TEST_URL = "" #unused but needs to be passed at this stage
+
+def main():
+    read_engine = "actrisebas"
+    pyaerocom_vars_to_read = ["vmro3"]
+
+    station_filter = pyaro.timeseries.Filter.StationFilter(
+    ["Schmucke", "Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"], []
+    )
+
+    time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2020-12-31 23:59:59")])
+    for _var in pyaerocom_vars_to_read:
+            variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(include=[_var])
+            filters = [station_filter, variable_filter_pyaerocom, time_filter]
+            engine = pyaro.list_timeseries_engines()[read_engine]
+            with engine.open(TEST_URL, filters=filters) as ts:
+                print(ts.data[_var])
 
 if __name__ == "__main__":
     main()
