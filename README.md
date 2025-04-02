@@ -1,5 +1,3 @@
-from tests.test_ActrisEbasReader import TEST_URL
-
 # pyaro-readers
 implementations of readers for the pyaerocom project using pyaro as interface
 
