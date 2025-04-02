@@ -10,6 +10,7 @@ from pyaro.timeseries import (
     Data,
 )
 import pyaro.timeseries
+from pyaro.timeseries.Filter import FilterFactory
 
 
 class MergingReaderException(Exception):
@@ -94,10 +95,18 @@ class MergingReader(AutoFilterReader):
         for d in datasets:
             readername = d.pop("readername")
             filename = d.pop("filename_or_obj_or_url")
+            if "filters" in d:
+                reader_filters = d.pop("filters")
+                if isinstance(filters, dict):
+                    filtlist = []
+                    for name, kwargs in filters.items():
+                        filtlist.append(FilterFactory().get(name, **kwargs))
+                    reader_filters = filtlist
+                filters = self._get_filters() + reader_filters
+            else:
+                filters = self._get_filters()
             self._datasets.append(
-                pyaro.open_timeseries(
-                    readername, filename, **d, filters=self._get_filters()
-                )
+                pyaro.open_timeseries(readername, filename, **d, filters=filters)
             )
 
     def _unfiltered_data(self, varname: str) -> Data:
