@@ -246,11 +246,7 @@ def main():
 
     time_filter = pyaro.timeseries.Filter.TimeBoundsFilter([("2019-01-01 00:00:00", "2020-12-31 23:59:59")])
     for _var in pyaerocom_vars_to_read:
-            variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
-                {},
-                [_var],
-                []
-            )
+            variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(include=[_var])
             filters = [station_filter, variable_filter_pyaerocom, time_filter]
             engine = pyaro.list_timeseries_engines()[read_engine]
             with engine.open(TEST_URL, filters=filters) as ts:
