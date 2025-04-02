@@ -348,9 +348,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 urls_to_dl = self.open_dap_urls_to_dl[actris_variable]
                 bar = tqdm(desc=tqdm_desc, total=len(urls_to_dl), disable=None)
                 for s_idx, site_name in enumerate(urls_to_dl):
-                    # if site_name == "Schmucke" or site_name == "Schmücke":
-                    if site_name == "Hallahus":
-                        assert site_name
                     self._metadata[site_name] = {}
 
                     for f_idx, thredds_url in enumerate(urls_to_dl[site_name]):
