@@ -63,7 +63,7 @@ This reader talks directly to the API at [https://prod-actris-md2.nilu.no/](http
 Because the variable naming supported at this early stage uses the naming scheme of the 
 [pyaerocom project](https://pyaerocom.readthedocs.io/en/latest/), this reader is depending on pyaerocom being installed
 and supports only a very limited number of variables.
-Additional variables can be added editing the file `definitions.toml`.
+Additional variables can be added editing the file [`definitions.toml`](src/pyaro_readers/actrisebas/definitions.toml).
 The ACTRIS vocabulary is [here](https://vocabulary.actris.nilu.no/skosmos/actris_vocab/en/).
 
 ## Usage
