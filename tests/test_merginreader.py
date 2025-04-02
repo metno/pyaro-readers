@@ -11,8 +11,8 @@ def test_stuff():
     with pyaro.open_timeseries(
         "mergingreader",
         [
-            {"readername": "ascii2netcdf", "filename_or_obj_or_url": EBAS_URL},
-            {"readername": "ascii2netcdf", "filename_or_obj_or_url": EBAS_URL},
+            {"reader_id": "ascii2netcdf", "filename_or_obj_or_url": EBAS_URL},
+            {"reader_id": "ascii2netcdf", "filename_or_obj_or_url": EBAS_URL},
         ],
         mode="concat",
         filters=[],
