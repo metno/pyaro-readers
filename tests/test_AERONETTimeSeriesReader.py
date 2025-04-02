@@ -20,11 +20,11 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         "aeronetsun_testdata.csv",
     )
 
-    def external_resource_available(self, url):
+    def external_resource_available(self, url=TEST_URL):
         try:
-            req = urllib.request.Request(TEST_URL, method="HEAD")
+            req = urllib.request.Request(url, method="HEAD")
             resp = urllib.request.urlopen(req)
-            resp.url
+            assert resp.url
             return True
         except:
             return False
@@ -145,7 +145,6 @@ class TestAERONETTimeSeriesReader(unittest.TestCase):
         with engine.open(
             self.file, filters=[vfilter], tqdm_desc="test_variables_filter"
         ) as ts:
-            ts._read()
             self.assertEqual(ts.data(new_var_name).variable, new_var_name)
 
 

@@ -107,7 +107,7 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.ts_type = ts_type
         self.tqdm_desc = tqdm_desc
 
-    def read(self):
+    def _read(self):
         # check if file is a URL
         _laststatstr = ""
         # check if the data has been read already
@@ -279,19 +279,19 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         bar.close()
 
     def metadata(self):
-        self.read()
+        self._read()
         return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
 
     def _unfiltered_data(self, varname) -> Data:
-        self.read()
+        self._read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
-        self.read()
+        self._read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
-        self.read()
+        self._read()
         return list(self._data.keys())
 
     def close(self):
