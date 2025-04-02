@@ -43,7 +43,9 @@ class MergingReaderConcatData(Data):
         # Split the index for each part
         lengths = [len(d) for d in self._data]
         *indices, _leftover = np.split(index, np.cumsum(lengths))
-        return MergingReaderConcatData([d[ind] for d, ind in zip(self._data, indices)], self._variable)
+        return MergingReaderConcatData(
+            [d[ind] for d, ind in zip(self._data, indices)], self._variable
+        )
 
     @property
     def values(self) -> np.ndarray:
