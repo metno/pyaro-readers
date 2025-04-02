@@ -175,7 +175,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             self.cache_flag = False
 
         # set filters
-        for filter in filters:
+        for filter in self._get_filters():
             # pyaro filters...
             if isinstance(filter, Filter.StationFilter):
                 self.sites_to_read = filter.init_kwargs()["include"]
