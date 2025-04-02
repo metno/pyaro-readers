@@ -55,16 +55,16 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         data_name = "PYARO_actrisebas"
         data_id = "actrisebas"
         station_filter = {
-            # "stations": {
-            #     "include": [
-            #         "Schmucke",
-            #         "Birkenes II",
-            #         "Jungfraujoch",
-            #         "Ispra",
-            #         "Melpitz",
-            #         "Westerland",
-            #     ]
-            # },
+            "stations": {
+                "include": [
+                    "Schmucke",
+                    "Birkenes II",
+                    "Jungfraujoch",
+                    "Ispra",
+                    "Melpitz",
+                    "Westerland",
+                ]
+            },
             "variables": {
                 "include": [
                     self.ACTRISEBASVAR,
