@@ -93,7 +93,7 @@ class MergingReader(AutoFilterReader):
         self._datasets = []
         self._set_filters(filters)
         for d in datasets:
-            readername = d.pop("readername")
+            readerid = d.pop("reader_id")
             filename = d.pop("filename_or_obj_or_url")
             if "filters" in d:
                 reader_filters = d.pop("filters")
@@ -106,7 +106,7 @@ class MergingReader(AutoFilterReader):
             else:
                 filters = self._get_filters()
             self._datasets.append(
-                pyaro.open_timeseries(readername, filename, **d, filters=filters)
+                pyaro.open_timeseries(readerid, filename, **d, filters=filters)
             )
 
     def _unfiltered_data(self, varname: str) -> Data:
