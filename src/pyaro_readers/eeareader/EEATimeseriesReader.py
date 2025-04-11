@@ -741,6 +741,6 @@ def filter_filenames_based_on_metadata(
             polars.col("Sampling Point Id").str.replace(":", "_").eq(filename),
             polars.col("Air Pollutant").eq(varname),
         )
-        if len(matches):
+        if matches.is_empty():
             good_paths.append(path)
     return good_paths
