@@ -499,9 +499,8 @@ class EEATimeseriesReader(AutoFilterReader):
                     continue
 
             for searchpath in searchpaths:
-                spath = searchpath.joinpath(variable_name)
                 for freq in ["hourly", "daily"]:
-                    spath = spath.joinpath(freq)
+                    spath = searchpath.joinpath(freq).joinpath(variable_name)
                     if not spath.exists():
                         continue
                     unknown_ccs = set(i.name for i in spath.iterdir()) - set(countries)
@@ -621,19 +620,19 @@ datadir (this path should be passed to `open`)
   - historical (directory)
   - verified (directory)
   - unverified
-    - PM10
-      - hourly
+    - hourly
+      - PM10
         - AD
           - file1.parquet
           - file2.parquet
           - ...
         - AL
-      - daily
+      - SO2
         - ...
-    - SO2
-      - ...
+    - daily
+        - ...
 
-In each category (historical, verified, unverified) the species notation name, time frequency, and then the EEA country codes are used.
+In each category (historical, verified, unverified), time frequency, the species notation name, and then the EEA country codes are used.
 EEA country codes might differ from pyaro country codes.
 
 Data can be downloaded using the airbase tool (https://github.com/JohnPaton/airbase/)
