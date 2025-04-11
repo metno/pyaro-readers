@@ -444,6 +444,11 @@ class EEATimeseriesReader(AutoFilterReader):
         # https://dd.eionet.europa.eu/vocabulary/aq/pollutant
         if isinstance(variable, int):
             variable_id = variable
+            variable_name = self._metadata_pollutant.filter(
+                polars.col("URI").eq(
+                    f"http://dd.eionet.europa.eu/vocabulary/aq/pollutant/{variable}"
+                )
+            )["Notation"].item()
         else:
             # Might be more than one, but we choose the first one
             pollutant_candidates = self._metadata_pollutant.filter(
@@ -452,13 +457,13 @@ class EEATimeseriesReader(AutoFilterReader):
             if len(pollutant_candidates) == 0:
                 raise EEAReaderException(f"No variable ID found for {variable}")
             variable_id = pollutant_candidates["Id"][0]
+            variable_name = variable
 
         filters = _transform_filters(self._get_filters(), variable_id)
         historical_path = self._data_directory.joinpath("historical")
         verified_path = self._data_directory.joinpath("verified")
         unverified_path = self._data_directory.joinpath("unverified")
 
-        # TODO: Enable depending on data wanted from e.g. time requested
         searchpaths = []
         if self._dataset == "historical":
             searchpaths.extend(historical_path)
@@ -494,8 +499,9 @@ class EEATimeseriesReader(AutoFilterReader):
                     continue
 
             for searchpath in searchpaths:
+                spath = searchpath.joinpath(variable_name)
                 for freq in ["hourly", "daily"]:
-                    spath = searchpath.joinpath(freq)
+                    spath = spath.joinpath(freq)
                     if not spath.exists():
                         continue
                     unknown_ccs = set(i.name for i in spath.iterdir()) - set(countries)
@@ -615,23 +621,25 @@ datadir (this path should be passed to `open`)
   - historical (directory)
   - verified (directory)
   - unverified
-    - hourly
-      - AD
-        - file1.parquet
-        - file2.parquet
+    - PM10
+      - hourly
+        - AD
+          - file1.parquet
+          - file2.parquet
+          - ...
+        - AL
+      - daily
         - ...
-      - AL
-    - daily
+    - SO2
       - ...
-    - ...
 
-In each category (historical, verified, unverified) the time frequency and then the EEA country codes are used.
+In each category (historical, verified, unverified) the species notation name, time frequency, and then the EEA country codes are used.
 EEA country codes might differ from pyaro country codes.
 
 Data can be downloaded using the airbase tool (https://github.com/JohnPaton/airbase/)
 OBS: Must use github version, pypi version does not download parquet files yet
 
-airbase unverified --path datadir/unverified/hourly -p SO2 -p PM10 -p O3 -p NO2 -p CO -p NO -p PM2.5 -F hourly --metadata --overwrite
+airbase unverified --path datadir/unverified/SO2/hourly -p SO2 -F hourly --metadata --overwrite
 """
 
     def url(self) -> str:
