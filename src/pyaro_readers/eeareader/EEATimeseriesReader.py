@@ -507,6 +507,17 @@ class EEATimeseriesReader(AutoFilterReader):
                     if not countrypath.exists():
                         continue
                     countrypaths = countrypath.rglob("*.parquet")
+                    # Filter based on station metadata
+                    if self._dataset == "historical":
+                        # For historical data we don't have any consistency checks and skip
+                        # this check
+                        pass
+                    else:
+                        # For efficiency we check the filename against the metadata
+                        # to filter out any species we are not interested in
+                        countrypaths = filter_filenames_based_on_metadata(
+                            self._metadata, countrypaths, variable
+                        )
                     paths.extend(
                         sorted([(freq, c) for c in countrypaths], key=lambda x: x[1])
                     )
@@ -713,3 +724,23 @@ def _country_code_eea_to_iso(country: str) -> str:
 # Country codes used in "Samplingpoint" provided by each country
 def _country_code_eea(country: str) -> str | None:
     return _country_code_mappings_eea.get(country)
+
+
+def filter_filenames_based_on_metadata(
+    metadata: polars.DataFrame, paths: Iterable[Path], varname: str
+):
+    """Filter out paths that do not correspond to the wanted variable.
+
+    This function is based on an assumption of matching sampling point ID and metadata
+    which is verified when downloading  # TODO: Document where
+    """
+    good_paths = []
+    for path in paths:
+        filename = path.stem
+        matches = metadata.filter(
+            polars.col("Sampling Point Id").str.replace(":", "_").eq(filename),
+            polars.col("Air Pollutant").eq(varname),
+        )
+        if len(matches):
+            good_paths.append(path)
+    return good_paths
