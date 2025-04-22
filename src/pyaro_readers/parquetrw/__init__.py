@@ -14,7 +14,7 @@ import polars.datatypes
 from pyaro_readers.parquet import ParquetData
 
 
-class CachingException(Exception):
+class ParquetRWException(Exception):
     pass
 
 
@@ -25,7 +25,7 @@ def hash_object(obj: Any) -> str:
     return m.hexdigest()
 
 
-class CachingReader(AutoFilterReader):
+class ParquetRWReader(AutoFilterReader):
     def __init__(
         self,
         dataset: dict[str, Any],
@@ -142,7 +142,7 @@ class CachingReader(AutoFilterReader):
         self._reader.close()
 
 
-class CachingEngine(AutoFilterEngine):
+class ParquetRWReaderEngine(AutoFilterEngine):
     def description(self) -> str:
         return """Caching reader
         """
@@ -151,4 +151,4 @@ class CachingEngine(AutoFilterEngine):
         return "https://github.com/metno/pyaro-readers"
 
     def reader_class(self) -> Reader:
-        return CachingReader
+        return ParquetRWReader

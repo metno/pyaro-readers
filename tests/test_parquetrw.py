@@ -2,7 +2,7 @@ import os
 import tempfile
 import shutil
 
-from pyaro_readers.cachingreader import CachingReader
+from pyaro_readers.parquetrw import ParquetRWReader
 
 
 EBAS_URL = file = os.path.join(
@@ -10,10 +10,10 @@ EBAS_URL = file = os.path.join(
 )
 
 
-def test_cachingreader():
+def test_parquet_rw_reader():
     cache_dir = tempfile.mkdtemp()
 
-    reader = CachingReader(
+    reader = ParquetRWReader(
         {
             "reader_id": "ascii2netcdf",
             "filename_or_obj_or_url": EBAS_URL,
@@ -33,7 +33,7 @@ def test_cachingreader():
 
     reader.close()
 
-    reader = CachingReader(
+    reader = ParquetRWReader(
         {
             "reader_id": "ascii2netcdf",
             "filename_or_obj_or_url": EBAS_URL,
