@@ -21,7 +21,12 @@ class TestEEATimeSeriesReader(unittest.TestCase):
     test_vars = ["PM10", "SO2"]
 
     testdata_dir = Path(
-        os.path.join(os.path.dirname(os.path.realpath(__file__)), "testdata", "EEA")
+        os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "testdata",
+            "EEA",
+            "catalog.parquet",
+        )
     )
 
     def test_0engine(self):

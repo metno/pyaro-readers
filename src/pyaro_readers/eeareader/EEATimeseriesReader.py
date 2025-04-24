@@ -514,7 +514,7 @@ airbase unverified --path datadir/unverified/hourly -p SO2 -p PM10 -p O3 -p NO2 
     def url(self) -> str:
         return "https://github.com/metno/pyaro-readers"
 
-    def reader_class(self) -> AutoFilterReader:
+    def reader_class(self) -> Reader:
         return EEATimeseriesReader
 
 
