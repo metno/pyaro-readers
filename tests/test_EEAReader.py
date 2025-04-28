@@ -45,7 +45,7 @@ class TestEEATimeSeriesReader(unittest.TestCase):
         filters = pyaro.timeseries.FilterCollection(
             {
                 "time_bounds": {
-                    "start_include": [("2019-01-01 00:00:00", "2023-12-24 00:00:00")]
+                    "start_include": [("2019-01-01 00:00:00", "2025-12-24 00:00:00")]
                 },
                 "stations": {
                     "exclude": ["NO/SPO_NO0151A_8_4768", "NO/SPO_NO0111A_9_1691"]
@@ -61,10 +61,19 @@ class TestEEATimeSeriesReader(unittest.TestCase):
             filters=filters,
         )
 
-        _ = reader.stations()
+        stations = reader.stations()
+        assert len(stations) == 4
 
+        variables = reader.variables()
+        assert set(variables) == {"PM10", "SO2"}
+
+        expected_counts = {
+            "PM10": 21904,
+            "SO2": 18857,
+        }
         for species in self.test_vars:
             data = reader.data(species)
+            assert len(data) == expected_counts[species]
             _ = data.values
             alts = data.altitudes
             self.assertFalse(np.any(np.isnan(alts)))

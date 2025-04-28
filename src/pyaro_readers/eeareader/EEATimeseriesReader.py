@@ -246,6 +246,8 @@ def _read_hourly_files(
         pbar.set_description(f"Processing hourly {file.name:>54}")
         dataset.vstack(_read(file, filters.pyarrow_filters_hourly), in_place=True)
 
+    dataset.rechunk()
+
     # OBS: Times are given in this timezone for non-daily observations
     # this assumption is also used for pyarrow filtering
     original_timezone_for_hourly_data = "Etc/GMT+1"
@@ -288,6 +290,8 @@ def _read_daily_files(
         pbar.set_description(f"Processing daily {file.name:>54}")
         dataset.vstack(_read(file, filters.pyarrow_filters_daily), in_place=True)
 
+    dataset.rechunk()
+
     # Join with metadata table to get latitude, longitude and altitude
     metadata = metadata.with_columns(
         (polars.col("Country Code") + "/" + polars.col("Sampling Point Id")).alias(
@@ -300,30 +304,19 @@ def _read_daily_files(
         ]
     )
 
-    timezone_mapper = {
-        "UTC-04": "Etc/GMT-4",
-        "UTC-03": "Etc/GMT-3",
-        "UTC": "UTC",
-        "UTC+01": "Etc/GMT+1",
-        "UTC+02": "Etc/GMT+2",
-        "UTC+03": "Etc/GMT+3",
-        "UTC+04": "Etc/GMT+4",
-    }
     # Round-about way to force timezone in there
     # https://github.com/pola-rs/polars/issues/12761
     tz_exprs_start = [
-        polars.when(polars.col("Timezone").str.to_uppercase() == tz).then(
-            polars.col("Start")
-            .dt.replace_time_zone(tz_valid)
-            .dt.convert_time_zone("UTC")
+        polars.when(polars.col("Timezone") == tz).then(
+            polars.col("Start").dt.replace_time_zone(tz).dt.convert_time_zone("UTC")
         )
-        for tz, tz_valid in timezone_mapper.items()
+        for tz in metadata["Timezone"].unique()
     ]
     tz_exprs_end = [
-        polars.when(polars.col("Timezone").str.to_uppercase() == tz).then(
-            polars.col("End").dt.replace_time_zone(tz_valid).dt.convert_time_zone("UTC")
+        polars.when(polars.col("Timezone") == tz).then(
+            polars.col("End").dt.replace_time_zone(tz).dt.convert_time_zone("UTC")
         )
-        for tz, tz_valid in timezone_mapper.items()
+        for tz in metadata["Timezone"].unique()
     ]
 
     joined = (
@@ -336,6 +329,39 @@ def _read_daily_files(
     )
 
     return joined
+
+
+def _metadata_to_stations(metadata: polars.DataFrame) -> dict[str, Station]:
+    stations = metadata.with_columns(
+        # polars.col("Sampling Point Id").alias("station"),
+        polars.col("Latitude").alias("latitude"),
+        polars.col("Longitude").alias("longitude"),
+        polars.col("Altitude").alias("altitude"),
+        polars.col("Country Code")
+        .map_elements(_country_code_eea_to_iso, return_dtype=polars.String)
+        .alias("country"),
+        # polars.col("Source Data URL").alias("url"),
+        polars.lit("").alias("url"),
+        (polars.col("Country Code") + "/" + polars.col("Sampling Point Id")).alias(
+            "long_name"
+        ),
+        polars.col("Air Quality Station Area").alias("station_area"),
+        polars.col("Air Quality Station Type").alias("station_type"),
+    ).select(
+        [
+            "station",
+            "latitude",
+            "longitude",
+            "altitude",
+            "country",
+            "url",
+            "station_area",
+            "station_type",
+            "long_name",
+        ]
+    )
+    station_dicts = {s["station"]: Station(s) for s in stations.to_dicts()}
+    return station_dicts
 
 
 class EEATimeseriesReader(AutoFilterReader):
@@ -364,6 +390,12 @@ class EEATimeseriesReader(AutoFilterReader):
                 polars.col("Air Quality Station Type").is_in(station_type)
             )
 
+        keep_filters = []
+        metadata = metadata.with_columns(
+            (polars.col("Country Code") + "/" + polars.col("Sampling Point Id"))
+            .str.replace("/", "_")
+            .alias("station"),
+        )
         for filter in self._get_filters():
             if isinstance(filter, pyaro.timeseries.Filter.CountryFilter):
                 metadata = metadata.filter(
@@ -371,6 +403,18 @@ class EEATimeseriesReader(AutoFilterReader):
                     .map_elements(_country_code_eea_to_iso, return_dtype=polars.String)
                     .map_elements(filter.has_country, return_dtype=bool)
                 )
+            elif isinstance(
+                filter, pyaro.timeseries.Filter.ValleyFloorRelativeAltitudeFilter
+            ):
+                filtered_stations = filter.filter_stations(
+                    _metadata_to_stations(metadata)
+                )
+                metadata = metadata.filter(
+                    polars.col("station").is_in(filtered_stations.keys())
+                )
+            else:
+                keep_filters.append(filter)
+        self._set_filters(keep_filters)
         self._stations = metadata
 
     def metadata(self) -> dict[str, str]:
@@ -442,39 +486,7 @@ class EEATimeseriesReader(AutoFilterReader):
         return list(self._stations["Air Pollutant"].unique())
 
     def _unfiltered_stations(self) -> dict[str, Station]:
-        stations = self._stations.with_columns(
-            (polars.col("Country Code") + "/" + polars.col("Sampling Point Id"))
-            .str.replace("/", "_")
-            .alias("station"),
-            # polars.col("Sampling Point Id").alias("station"),
-            polars.col("Latitude").alias("latitude"),
-            polars.col("Longitude").alias("longitude"),
-            polars.col("Altitude").alias("altitude"),
-            polars.col("Country Code")
-            .map_elements(_country_code_eea_to_iso, return_dtype=polars.String)
-            .alias("country"),
-            # polars.col("Source Data URL").alias("url"),
-            polars.lit("").alias("url"),
-            (polars.col("Country Code") + "/" + polars.col("Sampling Point Id")).alias(
-                "long_name"
-            ),
-            polars.col("Air Quality Station Area").alias("station_area"),
-            polars.col("Air Quality Station Type").alias("station_type"),
-        ).select(
-            [
-                "station",
-                "latitude",
-                "longitude",
-                "altitude",
-                "country",
-                "url",
-                "station_area",
-                "station_type",
-                "long_name",
-            ]
-        )
-        station_dicts = {s["station"]: Station(s) for s in stations.to_dicts()}
-        return station_dicts
+        return _metadata_to_stations(self._stations)
 
     def close(self) -> None:
         pass
@@ -486,24 +498,11 @@ class EEATimeseriesEngine(AutoFilterEngine):
 
 Read and filter hourly data from EEA stations using the unverified dataset.
 
-Files must be downloaded from https://eeadmz1-downloads-webapp.azurewebsites.net/ using the following directory structure:
-datadir (this path should be passed to `open`)
-  - metadata.csv (from https://discomap.eea.europa.eu/App/AQViewer/index.html?fqn=Airquality_Dissem.b2g.measurements)
-  - historical (directory)
-  - verified (directory)
-  - unverified
-    - hourly
-      - AD
-        - file1.parquet
-        - file2.parquet
-        - ...
-      - AL
-    - daily
-      - ...
-    - ...
+Files must be downloaded from https://eeadmz1-downloads-webapp.azurewebsites.net/. The data
+should be indexed using a catalog file in the parquet format.
 
-In each category (historical, verified, unverified) the time frequency and then the EEA country codes are used.
-EEA country codes might differ from pyaro country codes.
+EEA country codes might differ from pyaro country codes. This reader will map from EEA to ISO2
+and only expectes ISO2 codes e.g. UK instead of GB
 
 Data can be downloaded using the airbase tool (https://github.com/JohnPaton/airbase/)
 OBS: Must use github version, pypi version does not download parquet files yet
