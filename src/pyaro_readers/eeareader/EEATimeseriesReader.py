@@ -433,6 +433,7 @@ class EEATimeseriesReader(AutoFilterReader):
         metadata = dict()
         metadata["what"] = "EEA reader"
         metadata["download_url"] = "https://eeadmz1-downloads-webapp.azurewebsites.net/"
+        metadata["revision"] = self._revision
         return metadata
 
     def _unfiltered_data(self, varname: str) -> Data:
