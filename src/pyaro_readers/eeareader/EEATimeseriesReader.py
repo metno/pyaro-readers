@@ -5,6 +5,7 @@ from collections.abc import Iterable
 import dataclasses
 import pathlib
 from functools import cached_property
+from typing import Literal
 
 from tqdm import tqdm
 import numpy as np
@@ -371,9 +372,20 @@ class EEATimeseriesReader(AutoFilterReader):
         filters=[],
         station_area: str | list[str] = "all",
         station_type: str | list[str] = "all",
+        dataset: Literal["verified", "unverified", "historical"] | None = None,
     ):
         self._set_filters(filters)
+        if dataset is not None:
+            logger.warning(
+                "`dataset` keyword is deprecated, point directly to the catalog file"
+            )
+            filename_or_obj_or_url = (
+                f"{filename_or_obj_or_url}/{dataset}/catalog.parquet"
+            )
         metadata = polars.read_parquet(filename_or_obj_or_url)
+        mod_time = pathlib.Path(filename_or_obj_or_url).stat().st_mtime
+        mod_time = datetime.fromtimestamp(mod_time)
+        self._revision = f"{mod_time:%Y-%m-%dT%H:%M:%S}"
 
         self._data_directory = pathlib.Path(filename_or_obj_or_url).parent
 
