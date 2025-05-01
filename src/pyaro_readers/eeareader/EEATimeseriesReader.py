@@ -415,9 +415,10 @@ class EEATimeseriesReader(AutoFilterReader):
                     .map_elements(_country_code_eea_to_iso, return_dtype=polars.String)
                     .map_elements(filter.has_country, return_dtype=bool)
                 )
-            elif isinstance(
-                filter, pyaro.timeseries.Filter.ValleyFloorRelativeAltitudeFilter
-            ):
+            elif isinstance(filter, pyaro.timeseries.Filter.StationReductionFilter):
+                # intercepting this filter type as station filtering is done
+                # more efficiently on the metadata instead of filtering
+                # after reading all the data
                 filtered_stations = filter.filter_stations(
                     _metadata_to_stations(metadata)
                 )
