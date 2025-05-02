@@ -150,9 +150,26 @@ class MergingReader(AutoFilterReader):
             variables.extend(d.variables())
         return variables
 
-    def close(self):
+    def close(self) -> None:
         for d in self._datasets:
             d.close()
+
+    def metadata(self) -> dict[str, str]:
+        all_metadata = [d.metadata() for d in self._datasets]
+        all_metadata_keys = set()
+        for m in all_metadata:
+            all_metadata_keys |= m.keys()
+
+        metadata = dict()
+        for key in sorted(all_metadata_keys):
+            values = [m.get(key, "none") for m in all_metadata]
+            if all((v == values[0] for v in values)):
+                # All datasets report the same metadata
+                metadata[key] = values[0]
+            else:
+                metadata[key] = "-".join(values)
+
+        return metadata
 
 
 class MergingReaderEngine(AutoFilterEngine):
