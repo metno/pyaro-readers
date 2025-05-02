@@ -119,9 +119,8 @@ class MergingReader(AutoFilterReader):
         raise MergingReaderException("This method should not be called")
 
     def data(self, varname: str) -> Data:
-        """This method is deliberately overridden to prevent
-        double filtering of the data
-        """
+        # This method is deliberately overridden to prevent
+        # double filtering of the data
         return MergingReaderConcatData(
             [d.data(varname) for d in self._datasets], varname
         )
@@ -130,9 +129,8 @@ class MergingReader(AutoFilterReader):
         raise MergingReaderException("This method should not be called")
 
     def stations(self) -> dict[str, Station]:
-        """This method is deliberately overridden to prevent
-        double filtering of the data
-        """
+        # This method is deliberately overridden to prevent
+        # double filtering of the data
         stations = {}
         for d in self._datasets:
             stations |= d.stations()
@@ -142,9 +140,8 @@ class MergingReader(AutoFilterReader):
         raise MergingReaderException("This method should not be called")
 
     def variables(self) -> list[str]:
-        """This method is deliberately overridden to prevent
-        double filtering of the data
-        """
+        # This method is deliberately overridden to prevent
+        # double filtering of the data
         variables = []
         for d in self._datasets:
             variables.extend(d.variables())
