@@ -2,9 +2,14 @@ import datetime
 import json
 import logging
 import os
-import tomllib
 from pathlib import Path
 from urllib.parse import urlparse, quote
+import sys
+
+if sys.version_info >= (3, 11):  # pragma: no cover
+    import tomllib
+else:  # pragma: no cover
+    import tomli as tomllib
 
 import numpy as np
 import numpy.typing as npt
