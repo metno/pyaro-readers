@@ -116,17 +116,35 @@ class MergingReader(AutoFilterReader):
             )
 
     def _unfiltered_data(self, varname: str) -> Data:
+        raise MergingReaderException("This method should not be called")
+
+    def data(self, varname: str) -> Data:
+        """This method is deliberately overridden to prevent
+        double filtering of the data
+        """
         return MergingReaderConcatData(
             [d.data(varname) for d in self._datasets], varname
         )
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        raise MergingReaderException("This method should not be called")
+
+    def stations(self) -> dict[str, Station]:
+        """This method is deliberately overridden to prevent
+        double filtering of the data
+        """
         stations = {}
         for d in self._datasets:
             stations |= d.stations()
         return stations
 
     def _unfiltered_variables(self) -> list[str]:
+        raise MergingReaderException("This method should not be called")
+
+    def variables(self) -> list[str]:
+        """This method is deliberately overridden to prevent
+        double filtering of the data
+        """
         variables = []
         for d in self._datasets:
             variables.extend(d.variables())
