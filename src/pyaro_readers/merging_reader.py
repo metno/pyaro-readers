@@ -116,25 +116,57 @@ class MergingReader(AutoFilterReader):
             )
 
     def _unfiltered_data(self, varname: str) -> Data:
+        raise MergingReaderException("This method should not be called")
+
+    def data(self, varname: str) -> Data:
+        # This method is deliberately overridden to prevent
+        # double filtering of the data
         return MergingReaderConcatData(
             [d.data(varname) for d in self._datasets], varname
         )
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        raise MergingReaderException("This method should not be called")
+
+    def stations(self) -> dict[str, Station]:
+        # This method is deliberately overridden to prevent
+        # double filtering of the data
         stations = {}
         for d in self._datasets:
             stations |= d.stations()
         return stations
 
     def _unfiltered_variables(self) -> list[str]:
+        raise MergingReaderException("This method should not be called")
+
+    def variables(self) -> list[str]:
+        # This method is deliberately overridden to prevent
+        # double filtering of the data
         variables = []
         for d in self._datasets:
             variables.extend(d.variables())
         return variables
 
-    def close(self):
+    def close(self) -> None:
         for d in self._datasets:
             d.close()
+
+    def metadata(self) -> dict[str, str]:
+        all_metadata = [d.metadata() for d in self._datasets]
+        all_metadata_keys = set()
+        for m in all_metadata:
+            all_metadata_keys |= m.keys()
+
+        metadata = dict()
+        for key in sorted(all_metadata_keys):
+            values = [m.get(key, "none") for m in all_metadata]
+            if all((v == values[0] for v in values)):
+                # All datasets report the same metadata
+                metadata[key] = values[0]
+            else:
+                metadata[key] = "-".join(values)
+
+        return metadata
 
 
 class MergingReaderEngine(AutoFilterEngine):

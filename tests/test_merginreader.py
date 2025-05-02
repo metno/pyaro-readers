@@ -20,3 +20,5 @@ def test_stuff():
         ts.variables()
         ts.stations()
         _data = ts.data("sulphur_dioxide_in_air")
+
+        _metadata = ts.metadata()
