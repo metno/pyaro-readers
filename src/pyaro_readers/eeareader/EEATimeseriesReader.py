@@ -47,7 +47,9 @@ class EEAData(Data):
                 (polars.col("Country Code") + "/" + polars.col("Sampling Point Id"))
                 .str.replace("/", "_")
                 .alias("station")
-            ).select("station", "Longitude", "Latitude", "Altitude"),
+            )
+            .select("station", "Longitude", "Latitude", "Altitude")
+            .unique("station"),
             on="station",
         )
         return joined
