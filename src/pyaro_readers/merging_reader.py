@@ -41,9 +41,8 @@ class MergingReaderConcatData(Data):
                     f"The units are not the same in all the datasets {base_unit} {d.units}"
                 )
         if base_unit is None:
-            raise MergingReaderException(
-                "This dataset is empty or does not contain any units"
-            )
+            # Fallback to units from first dataset even if it is empty
+            base_unit = self._data[0].units
         return base_unit
 
     def keys(self):
