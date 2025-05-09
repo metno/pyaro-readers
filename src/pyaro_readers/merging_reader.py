@@ -11,7 +11,7 @@ from pyaro.timeseries import (
     Data,
 )
 import pyaro.timeseries
-from pyaro.timeseries.Filter import FilterFactory
+from pyaro.timeseries.Filter import FilterFactory, FilterCollection
 
 
 class MergingReaderException(Exception):
@@ -27,13 +27,22 @@ class MergingReaderConcatData(Data):
 
     @property
     def units(self) -> str:
-        base_unit = self._data[0].units
-        unit = cf_units.Unit(base_unit)
-        for d in self._data[1:]:
+        base_unit = None
+        for d in self._data:
+            if len(d) == 0:
+                continue
+            if base_unit is None:
+                base_unit = d.units
+                continue
+
+            unit = cf_units.Unit(base_unit)
             if unit.convert(1, d.units) != 1.0:
                 raise MergingReaderException(
                     f"The units are not the same in all the datasets {base_unit} {d.units}"
                 )
+        if base_unit is None:
+            # Fallback to units from first dataset even if it is empty
+            base_unit = self._data[0].units
         return base_unit
 
     def keys(self):
@@ -103,12 +112,13 @@ class MergingReader(AutoFilterReader):
             filename = d.pop("filename_or_obj_or_url")
             if "filters" in d:
                 reader_filters = d.pop("filters")
+                reader_filters = FilterCollection(filterlist=reader_filters)
                 if isinstance(filters, dict):
                     filtlist = []
                     for name, kwargs in filters.items():
                         filtlist.append(FilterFactory().get(name, **kwargs))
                     reader_filters = filtlist
-                filters = self._get_filters() + reader_filters
+                filters = self._get_filters() + list(reader_filters)
             else:
                 filters = self._get_filters()
             self._datasets.append(
