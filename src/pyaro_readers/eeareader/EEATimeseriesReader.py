@@ -76,6 +76,10 @@ class EEAData(Data):
         return EEAData(self._data.filter(index), self._variable, self._metadata)
 
     @property
+    def variable(self) -> str:
+        return self._variable
+
+    @property
     def values(self) -> np.ndarray:
         return self._data["Value"].to_numpy()
 

@@ -45,6 +45,10 @@ class MergingReaderConcatData(Data):
             base_unit = self._data[0].units
         return base_unit
 
+    @property
+    def variable(self) -> str:
+        return self._variable
+
     def keys(self):
         raise NotImplementedError
 
