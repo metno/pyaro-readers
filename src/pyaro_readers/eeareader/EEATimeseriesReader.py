@@ -69,11 +69,15 @@ class EEAData(Data):
 
         return units[0]
 
+    @property
+    def variable(self) -> str:
+        return self._variable
+
     def keys(self):
         raise NotImplementedError
 
     def slice(self, index):
-        return EEAData(self._data.filter(index), self._variable, self._metadata)
+        return EEAData(self._data.filter(index), self.variable, self._metadata)
 
     @property
     def values(self) -> np.ndarray:
