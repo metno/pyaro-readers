@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterReader, AutoFilterEngine
 from pyaro.timeseries import Reader, Data, Station
 import polars as pl
@@ -61,7 +63,7 @@ class LCSData(Data):
 
     @property
     def units(self):
-        return np.array(["ug m-3"]*self._len_dataset)
+        return "ug m-3"#np.array(["ug m-3"]*self._len_dataset)
     
     @property
     def standard_deviations(self):
@@ -74,6 +76,7 @@ class LCSData(Data):
 
 class LCSReader(AutoFilterReader):
 
+
     read_columns = [
         "start",
         "stop",
@@ -85,6 +88,7 @@ class LCSReader(AutoFilterReader):
         "spread",
         # "qc",
         "quality",
+        "network"
         # "units",
     ]
 
@@ -93,11 +97,15 @@ class LCSReader(AutoFilterReader):
         filename: str,
         min_quality: int = 2,
         min_spread: int = 3,
+        network: Literal["PA", "SC", "both"] = "both",
         *,
         filters,
     ):
 
         self._set_filters(filters)
+
+        if network.lower() not in ["pa", "sc", "both"]:
+            raise ValueError(f"Network must be either PA, SC or both")
 
         if min_spread > 3 or min_spread < 1:
             raise ValueError(f"min_spread must be in range [1,3]")
@@ -105,13 +113,19 @@ class LCSReader(AutoFilterReader):
         if min_quality > 2 or min_quality < 0:
             raise ValueError(f"min_spread must be in range [0,2]")
 
-        # dataset = polars.read_parquet(filename, columns=self.read_columns)
+        
         dataset = pl.scan_parquet(filename).select(self.read_columns)
+
+        if network != "both":
+            dataset = dataset.filter(pl.col("network").ge(network))    
 
         dataset = dataset.filter(pl.col("spread").ge(float(min_spread)))
         dataset = dataset.filter(pl.col("quality").ge(float(min_quality)))
 
         self._dataset = dataset.collect()
+
+    def metadata(self) -> dict[str, str]:
+        return {"revision": "0.0.2"}
 
     def _unfiltered_data(self, varname: str) -> LCSData:
         return LCSData(self._dataset, "PM25")
