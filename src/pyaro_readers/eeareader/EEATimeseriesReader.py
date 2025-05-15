@@ -354,6 +354,7 @@ def _metadata_to_stations(metadata: polars.DataFrame) -> dict[str, Station]:
         ),
         polars.col("Air Quality Station Area").alias("station_area"),
         polars.col("Air Quality Station Type").alias("station_type"),
+        polars.col("Air Quality Station EoI Code").alias("display_name"),
     ).select(
         [
             "station",
@@ -365,6 +366,7 @@ def _metadata_to_stations(metadata: polars.DataFrame) -> dict[str, Station]:
             "station_area",
             "station_type",
             "long_name",
+            "display_name",
         ]
     )
     station_dicts = {s["station"]: Station(s) for s in stations.to_dicts()}
