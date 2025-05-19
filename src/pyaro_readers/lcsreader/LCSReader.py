@@ -9,6 +9,7 @@ from geocoder_reverse_natural_earth import (
     Geocoder_Reverse_NE,
 )
 
+
 class LCSData(Data):
     def __init__(self, dataset: pl.DataFrame, variable: str):
         self._variable = variable
@@ -37,7 +38,7 @@ class LCSData(Data):
     @property
     def quality(self):
         return self._dataset["quality"].to_numpy()
-    
+
     @property
     def qc(self):
         return self._dataset["qc"].to_numpy()
@@ -63,12 +64,12 @@ class LCSData(Data):
 
     @property
     def units(self):
-        return "ug m-3"#np.array(["ug m-3"]*self._len_dataset)
-    
+        return "ug m-3"
+
     @property
     def standard_deviations(self):
-        return np.zeros(self._len_dataset)#self._dataset["standard_deviation"].to_numpy()
-    
+        return np.zeros(self._len_dataset)
+
     @property
     def flags(self):
         return self._dataset["quality"].to_numpy()
@@ -76,20 +77,17 @@ class LCSData(Data):
 
 class LCSReader(AutoFilterReader):
 
-
     read_columns = [
         "start",
         "stop",
         "station_name",
         "lon",
         "lat",
-        # "alt",
         "PM25",
         "spread",
-        # "qc",
+        # "qc",    # Might want to read this at a later point, to give users better control over quality
         "quality",
-        "network"
-        # "units",
+        "network",
     ]
 
     def __init__(
@@ -109,15 +107,14 @@ class LCSReader(AutoFilterReader):
 
         if min_spread > 3 or min_spread < 1:
             raise ValueError(f"min_spread must be in range [1,3]")
-        
+
         if min_quality > 2 or min_quality < 0:
             raise ValueError(f"min_spread must be in range [0,2]")
 
-        
         dataset = pl.scan_parquet(filename).select(self.read_columns)
 
         if network != "both":
-            dataset = dataset.filter(pl.col("network").ge(network))    
+            dataset = dataset.filter(pl.col("network").eq(network))
 
         dataset = dataset.filter(pl.col("spread").ge(float(min_spread)))
         dataset = dataset.filter(pl.col("quality").ge(float(min_quality)))
@@ -129,16 +126,16 @@ class LCSReader(AutoFilterReader):
 
     def _unfiltered_data(self, varname: str) -> LCSData:
         return LCSData(self._dataset, "PM25")
-    
+
     def _unfiltered_stations(self) -> dict[str, Station]:
         from tqdm import tqdm
+
         ds = self._dataset.group_by("station_name").first()
 
         gcd = Geocoder_Reverse_NE()
 
         stations = dict()
         for row in tqdm(ds.rows(named=True)):
-            #print(row["lat"], row["lon"])
 
             stations[row["station_name"]] = Station(
                 {
@@ -159,7 +156,7 @@ class LCSReader(AutoFilterReader):
     def close(self):
         pass
 
-        
+
 class LCSTimeseriesEngine(AutoFilterEngine):
     def description(self) -> str:
         return """LCS reader
@@ -170,8 +167,3 @@ class LCSTimeseriesEngine(AutoFilterEngine):
 
     def reader_class(self) -> Reader:
         return LCSReader
-        
-
-
-
-
