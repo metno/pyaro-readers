@@ -73,12 +73,10 @@ class LCSData(Data):
     @property
     def flags(self):
         return self._dataset["quality"].to_numpy()
-    
-        
+
     @property
     def variable(self) -> str:
         return self._variable
-
 
 
 class LCSReader(AutoFilterReader):
