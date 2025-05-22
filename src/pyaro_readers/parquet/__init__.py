@@ -20,6 +20,10 @@ class ParquetData(Data):
         return ParquetData(self._dataset[index], self._variable)
 
     @property
+    def variable(self) -> str:
+        return self._variable
+
+    @property
     def altitudes(self):
         return self._dataset["altitude"].to_numpy()
 

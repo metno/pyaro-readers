@@ -76,6 +76,10 @@ class EEAData(Data):
         return EEAData(self._data.filter(index), self._variable, self._metadata)
 
     @property
+    def variable(self) -> str:
+        return self._variable
+
+    @property
     def values(self) -> np.ndarray:
         return self._data["Value"].to_numpy()
 
@@ -334,7 +338,38 @@ def _read_daily_files(
     return joined
 
 
-def _metadata_to_stations(metadata: polars.DataFrame) -> dict[str, Station]:
+class EEAStation(Station):
+    def __init__(self, fields: dict | None = None) -> None:
+        self._fields = {
+            "station": "",
+            "latitude": float("nan"),
+            "longitude": float("nan"),
+            "altitude": float("nan"),
+            "long_name": "",
+            "country": "",
+            "url": "",
+            "station_area": "",
+            "station_type": "",
+            "display_name": "",
+        }
+        self._metadata = {}
+        if fields:
+            self.set_fields(fields)
+
+    @property
+    def station_area(self) -> str:
+        self._fields["station_area"]
+
+    @property
+    def station_type(self) -> str:
+        self._fields["station_type"]
+
+    @property
+    def display_name(self) -> str:
+        self._fields["display_name"]
+
+
+def _metadata_to_stations(metadata: polars.DataFrame) -> dict[str, EEAStation]:
     stations = metadata.with_columns(
         # polars.col("Sampling Point Id").alias("station"),
         polars.col("Latitude").alias("latitude"),
@@ -350,6 +385,7 @@ def _metadata_to_stations(metadata: polars.DataFrame) -> dict[str, Station]:
         ),
         polars.col("Air Quality Station Area").alias("station_area"),
         polars.col("Air Quality Station Type").alias("station_type"),
+        polars.col("Air Quality Station EoI Code").alias("display_name"),
     ).select(
         [
             "station",
@@ -361,9 +397,10 @@ def _metadata_to_stations(metadata: polars.DataFrame) -> dict[str, Station]:
             "station_area",
             "station_type",
             "long_name",
+            "display_name",
         ]
     )
-    station_dicts = {s["station"]: Station(s) for s in stations.to_dicts()}
+    station_dicts = {s["station"]: EEAStation(s) for s in stations.to_dicts()}
     return station_dicts
 
 
