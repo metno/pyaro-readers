@@ -5,6 +5,7 @@ from io import BytesIO
 from urllib.parse import urlparse
 from urllib.request import urlopen
 from zipfile import BadZipFile, ZipFile
+
 import datetime
 
 import numpy as np
@@ -101,10 +102,17 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._data = {}  # var -> {data-array}
         self._set_filters(filters)
         self._header = []
-        _laststatstr = ""
         self._revision = datetime.datetime.min
+        self.fill_country_flag = fill_country_flag
+        self.ts_type = ts_type
+        self.tqdm_desc = tqdm_desc
 
+    def _read(self):
         # check if file is a URL
+        _laststatstr = ""
+        # check if the data has been read already
+        if len(self._data) != 0:
+            return
         if self.is_valid_url(self._filename):
             # try to open as zipfile
             try:
@@ -175,7 +183,7 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         gcd = Geocoder_Reverse_NE()
         crd = csv.DictReader(lines, fieldnames=self._fields, delimiter=DELIMITER)
-        bar = tqdm(desc=tqdm_desc, total=len(lines), disable=None)
+        bar = tqdm(desc=self.tqdm_desc, total=len(lines), disable=None)
         for _ridx, row in enumerate(crd):
             bar.update(1)
             if row[SITE_NAME] != _laststatstr:
@@ -185,7 +193,7 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 lon = float(row[LON_NAME])
                 lat = float(row[LAT_NAME])
                 alt = float(row["Site_Elevation(m)"])
-                if fill_country_flag:
+                if self.fill_country_flag:
                     try:
                         country = gcd.lookup(lat, lon)["ISO_A2_EH"]
                     except Geocoder_Reverse_Exception:
@@ -230,8 +238,8 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 ]
             )
             time_dummy = np.datetime64(datestring)
-            start = time_dummy - TS_TYPE_DIFFS[ts_type]
-            end = time_dummy + TS_TYPE_DIFFS[ts_type]
+            start = time_dummy - TS_TYPE_DIFFS[self.ts_type]
+            end = time_dummy + TS_TYPE_DIFFS[self.ts_type]
 
             ts_dummy_data = {}
             for variable in DATA_VARS:
@@ -271,15 +279,19 @@ class AeronetSdaTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         bar.close()
 
     def metadata(self):
+        self._read()
         return dict(revision=datetime.datetime.strftime(self._revision, "%y%m%d%H%M%S"))
 
     def _unfiltered_data(self, varname) -> Data:
+        self._read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self._read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
+        self._read()
         return list(self._data.keys())
 
     def close(self):

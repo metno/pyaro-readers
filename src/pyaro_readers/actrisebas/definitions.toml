@@ -1,0 +1,205 @@
+# connection between pyaerocom and ACTRIS-EBAS variables
+[variables]
+#prototype
+# the order in the list below is preserved and determines the order the data is read
+#[variables.<pyaerocom var name>]
+#actris_variable = [<list of actris variables>] (according to the ACTRIS vocabulary)
+#actris_matrix = [<list of actris matrixes>] (unused atm)
+#ebas_component = [<list of ebas component names>] (unused atm)
+#ebas_matrix = [<list of ebas matrix names>] (unused atm)
+
+[variables.conco3]
+actris_variable = ["ozone mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ozone"]
+ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_ozone_in_air"]
+
+[variables.vmro3]
+#actris_variable = ["ozone amount fraction"]
+actris_variable = ["ozone mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ozone"]
+ebas_matrix = ["air"]
+standard_names = ["mole_fraction_of_ozone_in_air"]
+
+
+[variables.concso4t]
+actris_variable = ["aerosol particle sulphate mass concentration"]
+actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
+ebas_component = ["sulphate_total"]
+ebas_matrix = ["aerosol", "pm10", "pm25"]
+standard_names = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_dry_aerosol_particles_in_air",
+    "mass_concentration_of_sulphate_total_in_pm10_in_air",
+    "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
+#standard_names = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_dry_aerosol_particles_in_air",
+#    "mass_concentration_of_sulphate_total_in_pm10_in_air",
+#    "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
+
+[variables.concso4c]
+actris_variable = ["aerosol particle sulphate mass concentration"]
+actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
+ebas_component = ["sulphate_corrected"]
+ebas_matrix = ["aerosol", "pm10", "pm25"]
+standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_in_dry_aerosol_particles_in_air",
+    "mass_concentration_of_sulphate_corrected_for_seaspray_in_pm10_in_air",
+    "mass_concentration_of_sulphate_corrected_for_seaspray_in_pm2p5_in_air", ]
+#standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_dry_aerosol_particles_in_air",
+#    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm10_in_air",
+#    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm2p5_in_air", ]
+
+[variables.concCecpm25]
+actris_variable = ["aerosol particle elemental carbon mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["elemental_carbon"]
+ebas_matrix = ["pm25", "pm1"]
+standard_names = ["mass_concentration_of_elemental_carbon_in_pm2p5_in_air",
+    "mass_concentration_of_elemental_carbon_in_pm1_in_air", ]
+
+[variables.concCocpm25]
+actris_variable = ["aerosol particle organic carbon mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["organic_carbon"]
+ebas_matrix = ["pm25", "pm1"]
+standard_names = ["mass_concentration_of_organic_carbon_in_pm2p5_in_air",
+    "mass_concentration_of_organic_carbon_in_pm1_in_air", ]
+
+[variables.concca]
+actris_variable = ["aerosol particle calcium mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["calcium"]
+ebas_matrix = ["aerosol", "pm25", "pm10", "pm1"]
+standard_names = ["mass_concentration_of_calcium_in_dry_aerosol_particles_in_air",
+    "mass_concentration_of_calcium_in_pm2p5_in_air", "mass_concentration_of_calcium_in_pm10_in_air",
+    "mass_concentration_of_calcium_in_pm1_in_air"]
+
+[variables.concso2]
+actris_variable = ["sulfur dioxide mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["sulphur_dioxide"]
+ebas_matrix = ["air",]
+standard_names = ["mass_concentration_of_sulphur_dioxide_expressed_as_sulphur_in_air", ]
+
+[variables.concSso2]
+actris_variable = ["sulfur dioxide mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["sulphur_dioxide"]
+ebas_matrix = ["air",]
+standard_names = ["mass_concentration_of_sulphur_dioxide_expressed_as_sulphur_in_air", ]
+
+[variables.vmrso2]
+actris_variable = ["sulfur dioxide mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["sulphur_dioxide"]
+ebas_matrix = ["air",]
+standard_names = ["mole_fraction_of_sulfur_dioxide_in_air", ]
+
+[variables.concpm10]
+actris_variable = ["aerosol particle mass concentration"]
+#actris_variable = ["aerosol particle number concentration"]
+actris_matrix = ["particle phase"]
+ebas_component = ["pm10_mass"]
+ebas_matrix = ["pm10",]
+standard_names = ["mass_concentration_of_pm10_ambient_aerosol_particles_in_air", ]
+
+[variables.concpm1]
+actris_variable = ["aerosol particle mass concentration"]
+#actris_variable = ["aerosol particle number concentration"]
+actris_matrix = ["particle phase"]
+ebas_component = ["pm1_mass"]
+ebas_matrix = ["pm1",]
+standard_names = ["mass_concentration_of_pm1_ambient_aerosol_particles_in_air", ]
+
+[variables.concpm25]
+actris_variable = ["aerosol particle mass concentration"]
+#actris_variable = ["aerosol particle number concentration"]
+actris_matrix = ["particle phase"]
+ebas_component = ["pm25_mass"]
+ebas_matrix = ["pm25",]
+standard_names = ["mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air", ]
+
+
+[variables.concprcpso4]
+actris_variable = ["precipitation sulphate mass concentration"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["sulphate_corrected"]
+ebas_matrix = ["precip",]
+# unit = "mg S/l"
+#standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_precipitation", ]
+# units = "mg/l"
+standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation", ]
+
+# Att! needs 2 variables to be calculated, but both need to be in the same file
+[variables.wetso4]
+actris_variable = ["precipitation sulphate mass concentration"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["sulphate_corrected"]
+ebas_matrix = ["precip", ]
+standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation", ]
+# This field indicates, that another variable needs to read and that the variable above needs to be calculated
+standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
+# only used for calculated variables
+units = "mg S m-2 d-1"
+
+[variables.wetoxs]
+# Att! needs 2 variables to be calculated, but both need to be in the same file
+# This is the same wetso4 for the moment
+actris_variable = ["precipitation sulphate mass concentration"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["sulphate_corrected"]
+ebas_matrix = ["precip", ]
+standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation", ]
+# This field indicates, that another variable needs to read and that the variable above needs to be calculated
+standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
+# only used for calculated variables
+units = "mg S m-2 d-1"
+
+[variables.prmm]
+# needs an additional unit conversion from "mm" to "mm d-1"
+actris_variable = ["precipitation depth"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["precipitation_amount_off", "precipitation_amount"]
+ebas_matrix = ["precip"]
+standard_names = ["lwe_thickness_of_precipitation_amount", ]
+
+[variables.sc550aer]
+# The following is WIP since there's several wavelengths in the file
+# (as additional data dimension)
+actris_variable = ["aerosol particle light scattering coefficient"]
+actris_matrix = ["aerosol", "pm10"]
+ebas_component = ["aerosol_light_scattering_coefficient"]
+ebas_matrix = ["aerosol", "pm25", "pm25", "pm1"]
+standard_names = ["volume_scattering_coefficient_in_air_due_to_dried_aerosol_particles", ]
+treatment_flag = "wavelength"
+wavelength = 550
+
+#PROTOTYPE
+#[variables.]
+#actris_variable = [""]
+#actris_matrix = [""]
+#ebas_component = [""]
+#ebas_matrix = ["aerosol", "pm25", "pm25", "pm1"]
+#standard_names = ["",
+#    "", ]
+
+[actris_standard_names]
+# match between ACTRIS vocabulary and CF standard name
+# needed to match the variables in multicolumn files since there's no 1:1 relationship
+# between the ACTRIS vocabulary and the variable to be returned in the data file
+# THE GIVEN STANDARD NAME ALSO DEFINES THE VARIABLE THE DATA IS RETURNED
+# the standard_names are not necessarily unique for a given ACTRIS species, therefore a list
+"ozone mass concentration" = ["mass_concentration_of_ozone_in_air"]
+"ozone amount fraction" = ["mole_fraction_of_ozone_in_air"]
+"aerosol particle sulphate mass concentration" = ["mass_concentration_of_total_sulphate_in_dry_aerosol_particles_in_air",
+    "mass_concentration_of_sulphate_total_in_pm10_in_air",
+    "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
+"sulfur dioxide mass concentration" = ["mass_concentration_of_sulphur_dioxide_expressed_as_sulphur_in_air", ]
+"aerosol particle calcium mass concentration" = ["mass_concentration_of_calcium_in_dry_aerosol_particles_in_air",
+    "mass_concentration_of_calcium_in_pm2p5_in_air", "mass_concentration_of_calcium_in_pm10_in_air",
+    "mass_concentration_of_calcium_in_pm1_in_air"]
+"aerosol particle elemental carbon mass concentration" = ["mass_concentration_of_elemental_carbon_in_pm2p5_in_air",
+    "mass_concentration_of_elemental_carbon_in_pm1_in_air", ]
+"aerosol particle organic carbon mass concentration" = ["mass_concentration_of_organic_carbon_in_pm2p5_in_air",
+    "mass_concentration_of_organic_carbon_in_pm1_in_air", ]
+"precipitation depth" = ["lwe_thickness_of_precipitation_amount"]
+"precipitation sulphate mass concentration" = ["mass_concentration_of_sulphate_corrected_in_precipitation"]
