@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHON: 3.9
+      GIT_LFS_SKIP_SMUDGE: 1
     steps:
     - uses: actions/checkout@v3
       with:
@@ -39,6 +40,8 @@ jobs:
         python-version: [ '3.11' ]
         experimental: [ false ]
         os: [ ubuntu-22.04 ]
+    env:
+      GIT_LFS_SKIP_SMUDGE: 1
     steps:
       - name: Install system packages
         run: |
