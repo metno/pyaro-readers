@@ -10,6 +10,9 @@ from geocoder_reverse_natural_earth import (
     Geocoder_Reverse_NE,
 )
 
+class LCSReaderException(Exception):
+    pass
+
 
 class LCSData(Data):
     def __init__(self, dataset: pl.DataFrame, variable: str):
@@ -112,13 +115,13 @@ class LCSReader(AutoFilterReader):
         self._set_filters(filters)
 
         if network.lower() not in ["pa", "sc", "both"]:
-            raise ValueError(f"Network must be either PA, SC or both")
+            raise LCSReaderException(f"Network must be either PA, SC or both")
 
         if min_spread > 3 or min_spread < 1:
-            raise ValueError(f"min_spread must be in range [1,3]")
+            raise LCSReaderException(f"min_spread must be in range [1,3]")
 
         if min_quality > 2 or min_quality < 0:
-            raise ValueError(f"min_spread must be in range [0,2]")
+            raise LCSReaderException(f"min_spread must be in range [0,2]")
 
         dataset = pl.scan_parquet(filename).select(self.read_columns)
 
