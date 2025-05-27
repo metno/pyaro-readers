@@ -10,6 +10,7 @@ from geocoder_reverse_natural_earth import (
     Geocoder_Reverse_NE,
 )
 
+
 class LCSReaderException(Exception):
     pass
 
