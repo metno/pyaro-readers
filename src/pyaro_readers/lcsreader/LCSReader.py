@@ -1,4 +1,5 @@
 from typing import Literal
+from tqdm import tqdm
 
 from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterReader, AutoFilterEngine
 from pyaro.timeseries import Reader, Data, Station
@@ -40,8 +41,12 @@ class LCSData(Data):
         return self._dataset["quality"].to_numpy()
 
     @property
-    def qc(self):
-        return self._dataset["qc"].to_numpy()
+    def network(self):
+        return self._dataset["network"].to_numpy()
+
+    # @property
+    # def qc(self):
+    #     return self._dataset["qc"].to_numpy()
 
     def keys(self):
         return set(self._dataset.columns) - set(["units"])
@@ -132,15 +137,15 @@ class LCSReader(AutoFilterReader):
         return LCSData(self._dataset, "PM25")
 
     def _unfiltered_stations(self) -> dict[str, Station]:
-        from tqdm import tqdm
 
         ds = self._dataset.group_by("station_name").first()
 
         gcd = Geocoder_Reverse_NE()
 
         stations = dict()
-        for row in tqdm(ds.rows(named=True)):
-
+        pbar = tqdm(ds.rows(named=True), disable=None)
+        for row in pbar:
+            pbar.set_description(f"Processing station {row["station_name"]:>54}")
             stations[row["station_name"]] = Station(
                 {
                     "station": row["station_name"],
