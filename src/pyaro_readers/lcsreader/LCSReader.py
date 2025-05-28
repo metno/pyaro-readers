@@ -26,7 +26,7 @@ class LCSData(Data):
         return self._len_dataset
 
     def slice(self, index):
-        return LCSData(self._dataset[index], self._variable)
+        return LCSData(self._dataset.filter(index), self._variable)
 
     @property
     def altitudes(self):
