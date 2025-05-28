@@ -1,5 +1,7 @@
 from typing import Literal
 from tqdm import tqdm
+from pathlib import Path
+from datetime import datetime
 
 from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterReader, AutoFilterEngine
 from pyaro.timeseries import Reader, Data, Station
@@ -115,6 +117,11 @@ class LCSReader(AutoFilterReader):
 
         self._set_filters(filters)
 
+        mod_time = Path(filename).stat().st_mtime
+        mod_time = datetime.fromtimestamp(mod_time)
+        self._revision = f"{mod_time:%Y-%m-%dT%H:%M:%S}"
+
+        
         if network.lower() not in ["pa", "sc", "both"]:
             raise LCSReaderException(f"Network must be either PA, SC or both")
 
@@ -135,7 +142,7 @@ class LCSReader(AutoFilterReader):
         self._dataset = dataset.collect()
 
     def metadata(self) -> dict[str, str]:
-        return {"revision": "0.0.2"}
+        return {"revision": self._revision}
 
     def _unfiltered_data(self, varname: str) -> LCSData:
         return LCSData(self._dataset, "PM25")
