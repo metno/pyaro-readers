@@ -28,7 +28,7 @@ class LCSData(Data):
         return self._len_dataset
 
     def slice(self, index):
-        return LCSData(self._dataset[index], self._variable)
+        return LCSData(self._dataset.filter(index), self._variable)
 
     @property
     def altitudes(self):
@@ -156,7 +156,7 @@ class LCSReader(AutoFilterReader):
         stations = dict()
         pbar = tqdm(ds.rows(named=True), disable=None)
         for row in pbar:
-            pbar.set_description(f"Processing station {row["station_name"]:>54}")
+            pbar.set_description(f"Processing station {row['station_name']:>54}")
             stations[row["station_name"]] = Station(
                 {
                     "station": row["station_name"],
