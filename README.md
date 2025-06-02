@@ -2,7 +2,7 @@
 implementations of readers for the pyaerocom project using pyaro as interface
 
 ## Installation
-`python -m pip install 'pyaro-readers@git+https://github.com/metno/pyaro-readers.git'`
+`python -m pip install pyaro-readers`
 
 This will install pyaro and pyaro-readers and all their dependencies.
 
