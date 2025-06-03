@@ -293,3 +293,27 @@ def main():
 if __name__ == "__main__":
     main()
 ```
+
+### lcsreader
+```python
+import pyaro
+
+TEST_URL = "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/LCS/parquet/2022"
+
+
+def main():
+    with pyaro.open_timeseries(
+        "lcsreader",
+        TEST_URL,
+        filters={},
+        min_quality = 2,
+        min_spread = 3,
+    ) as ts:
+        # help(ts)
+        data = ts.data("PM25")
+        print(data.values)
+
+
+if __name__ == "__main__":
+    main()
+```
