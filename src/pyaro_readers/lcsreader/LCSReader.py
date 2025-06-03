@@ -121,7 +121,6 @@ class LCSReader(AutoFilterReader):
         mod_time = datetime.fromtimestamp(mod_time)
         self._revision = f"{mod_time:%Y-%m-%dT%H:%M:%S}"
 
-        
         if network.lower() not in ["pa", "sc", "both"]:
             raise LCSReaderException(f"Network must be either PA, SC or both")
 
