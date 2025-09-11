@@ -66,6 +66,30 @@ and supports only a very limited number of variables.
 Additional variables can be added editing the file [`definitions.toml`](src/pyaro_readers/actrisebas/definitions.toml).
 The ACTRIS vocabulary is [here](https://vocabulary.actris.nilu.no/skosmos/actris_vocab/en/).
 
+### Low Cost Sensors (LCS)
+Reader for LCS data compiled and processed by [Hassani et al 2025](https://www.sciencedirect.com/science/article/pii/S030147972501076X?via%3Dihub#sec9) from [sensor.community] (http://archive.sensor.community) and [PurpleAir](https://api.purpleair.com/).
+
+Data cannot be read directly from above source, but must be converted into Parquet file with the columns
+
+```python
+columns = [
+        "start",
+        "stop",
+        "station_name",
+        "lon",
+        "lat",
+        "PM25",
+        "spread",
+        "qc",   
+        "quality",
+        "network",
+    ]
+```
+
+ Processed data can be found on PPI (internal for MET).
+
+
+
 ## Usage
 ### aeronetsunreader
 ```python
