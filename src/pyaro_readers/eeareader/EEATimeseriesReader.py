@@ -480,7 +480,9 @@ class EEATimeseriesReader(AutoFilterReader):
     def _unfiltered_data(self, varname: str) -> Data:
         dataframe, metadata = self._read(varname)
         dataframe = dataframe.with_columns(
-            polars.col("Samplingpoint").str.replace_many({"GI/":"GB_","/":"_"}).alias("station")
+            polars.col("Samplingpoint")
+            .str.replace_many({"GI/": "GB_", "/": "_"})
+            .alias("station")
         )
         return EEAData(dataframe, varname, metadata)
 
