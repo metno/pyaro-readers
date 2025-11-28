@@ -49,6 +49,7 @@ class Ascii2NetcdfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         :param filters: list of filters, defaults to []
         """
         self._set_filters(filters)
+        self._revision = datetime.datetime.now()
         if os.path.isdir(filename):
             self._directory = filename
         else:
@@ -70,6 +71,9 @@ class Ascii2NetcdfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             if self._is_year_in_filters(year):
                 self._years.add(year)
 
+        self._metadata = self.metadata()
+
+        # def read(self):
         self._variables = self._read_file_variables()
         station_file = "StationList.csv"
         station_filepath = os.path.join(self._directory, station_file)
@@ -79,7 +83,7 @@ class Ascii2NetcdfTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
             dirname = os.path.basename(self._directory)
             station_file = dirname + station_file  # e.g. AirbaseStationList.csv
             station_filepath = os.path.join(self._directory, station_file)
-            if os.exists(station_filepath):
+            if os.path.exists(station_filepath):
                 self._stations = self._read_station_list(station_filepath)
             else:
                 raise Ascii2NetcdfTimeseriesReaderException(

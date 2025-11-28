@@ -11,13 +11,13 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     }
     AERONETVAR = "od440aer"
     # ACTRISEBASVAR = "concso4t"
-    ACTRISEBASVAR = "concso4c"
+    # ACTRISEBASVAR = "concso4c"
     # ACTRISEBASVAR = "concprcpso4"
-    # ACTRISEBASVAR = "wetso4"
+    ACTRISEBASVAR = "wetso4"
     # ACTRISEBASVAR = "prmm"
     # ACTRISEBASVAR = "vmro3"
     # ACTRISEBASVAR = "sc550aer"
-    ACTRISEBASVARLIST = ["vmro3", "concso4c"]
+    ACTRISEBASVARLIST = ["concso4t", "concso4c"]
 
     def test_pyaerocom_aeronet(self):
         # test reading via pyaerocom
@@ -88,46 +88,46 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         self.assertIn("Schmucke", data.unique_station_names)
         self.assertIn(url, data.contains_vars)
 
-    # doesn't work atm
-    # def test_pyaerocom_actrisebas_many_var(self):
-    #     # test multi var reading via pyaerocom
-    #     try:
-    #         from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
-    #         from pyaerocom.io import ReadUngridded
-    #     except ImportError:
-    #         assert "pyaerocom not installed"
-    #         return
-    #
-    #     data_name = "PYARO_actrisebas"
-    #     data_id = "actrisebas"
-    #     station_filter = {
-    #         "stations": {
-    #             "include": [
-    #                 "Birkenes II",
-    #                 "Jungfraujoch",
-    #                 "Ispra",
-    #                 "Melpitz",
-    #                 "Westerland",
-    #             ]
-    #         },
-    #         "variables": {"include": self.ACTRISEBASVARLIST},
-    #     }
-    #     # needs to be the variable name for actrisebas, but PyaroConfig wants this to a string and not a list
-    #     # (the pydantic setup is too pedantic)
-    #     url = self.ACTRISEBASVARLIST
-    #     obsconfig = PyaroConfig(
-    #         name=data_name,
-    #         reader_id=data_id,
-    #         filename_or_obj_or_url=url,
-    #         filters=station_filter,
-    #     )
-    #     reader = ReadUngridded(f"{data_name}")
-    #     data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
-    #     self.assertGreaterEqual(len(data.unique_station_names), 4)
-    #     self.assertIn("Ispra", data.unique_station_names)
-    #     self.assertIn(url[0], data.contains_vars)
-    #     # This does unfortunately not return the two variables asked for, but only the first:
-    #     self.assertIn(url[1], data.contains_vars)
+    def test_pyaerocom_actrisebas_many_var(self):
+        # test multi var reading via pyaerocom
+        # not working properly atm as it's reading only one variable atm
+        try:
+            from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
+            from pyaerocom.io import ReadUngridded
+        except ImportError:
+            assert "pyaerocom not installed"
+            return
+
+        data_name = "PYARO_actrisebas"
+        data_id = "actrisebas"
+        station_filter = {
+            "stations": {
+                "include": [
+                    "Birkenes II",
+                    "Jungfraujoch",
+                    "Ispra",
+                    "Melpitz",
+                    "Westerland",
+                ]
+            },
+            "variables": {"include": ["concso4t", "concso4c"]},
+        }
+        # needs to be the variable name for actrisebas, but PyaroConfig wants this to a string and not a list
+        # (the pydantic setup is too pedantic)
+        url = self.ACTRISEBASVARLIST
+        obsconfig = PyaroConfig(
+            name=data_name,
+            reader_id=data_id,
+            filename_or_obj_or_url=url,
+            filters=station_filter,
+        )
+        reader = ReadUngridded(f"{data_name}")
+        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        self.assertGreaterEqual(len(data.unique_station_names), 4)
+        self.assertIn("Ispra", data.unique_station_names)
+        self.assertIn(url[0], data.contains_vars)
+        # This does unfortunately not return the two variables asked for, but only the first:
+        self.assertIn(url[1], data.contains_vars)
 
 
 if __name__ == "__main__":

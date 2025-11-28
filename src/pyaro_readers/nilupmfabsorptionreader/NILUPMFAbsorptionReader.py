@@ -73,25 +73,35 @@ class NILUPMFAbsorptionReader(AutoFilterReaderEngine.AutoFilterReader):
         self._set_filters(filters)
         self._header = []
         self._revision = datetime.datetime.min
+        self._filename = filename
+        self._fill_country_flag = fill_country_flag
+        self._file_mask = file_mask
+        self._tqdm_desc = tqdm_desc
 
-        if Path(filename).is_file():
-            self._filename = filename
-            self._process_file(self._filename, fill_country_flag)
+    def read(self):
+        """read method"""
+        # check if the data has been read already
+        if len(self._data) != 0:
+            return
+        if Path(self._filename).is_file():
+            self._process_file(self._filename, self._fill_country_flag)
 
-        elif Path(filename).is_dir():
-            files_pathlib = Path(filename).glob(file_mask)
+        elif Path(self._filename).is_dir():
+            files_pathlib = Path(self._filename).glob(self._file_mask)
             files = [x for x in files_pathlib if x.is_file()]
 
             if len(files) == 0:
                 raise ValueError(
                     f"Could not find any nas files in given folder {self._filename}"
                 )
-            bar = tqdm(desc=tqdm_desc, total=len(files), disable=None)
+            bar = tqdm(desc=self._tqdm_desc, total=len(files), disable=None)
             for file in files:
                 bar.update(1)
-                self._process_file(file, fill_country_flag)
+                self._process_file(file, self._fill_country_flag)
         else:
-            raise ValueError(f"Given filename {filename} is neither a folder or a file")
+            raise ValueError(
+                f"Given filename {self._filename} is neither a folder or a file"
+            )
 
     def _process_file(self, file: Path, fill_country_flag: bool = FILL_COUNTRY_FLAG):
         with open(file, newline="") as f:
@@ -194,12 +204,15 @@ class NILUPMFAbsorptionReader(AutoFilterReaderEngine.AutoFilterReader):
         # return metadata
 
     def _unfiltered_data(self, varname) -> Data:
+        self.read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        self.read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
+        self.read()
         return list(self._data.keys())
 
     def close(self):

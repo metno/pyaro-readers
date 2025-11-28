@@ -15,7 +15,7 @@ class TestHARPReader(unittest.TestCase):
     )
 
     testdata_dir = (
-        "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/CNEMC/aggregated/"
+        "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/SINCA/aggregated/"
     )
     test_vars = ["PM10_density", "CO_volume_mixing_ratio", "PM2p5_density"]
     test_units = ["ug m-3", "ppm", "ug m-3"]
