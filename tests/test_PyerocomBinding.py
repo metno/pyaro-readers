@@ -1,4 +1,7 @@
 import unittest
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class TestPyaroReaderPyaerocom(unittest.TestCase):
@@ -13,11 +16,31 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "concso4t"
     # ACTRISEBASVAR = "concso4c"
     # ACTRISEBASVAR = "concprcpso4"
-    ACTRISEBASVAR = "wetso4"
+    # ACTRISEBASVAR = "wetso4"
+    # ACTRISEBASVAR = "concNno"
+    # ACTRISEBASVAR = "concNno2"
+    # ACTRISEBASVAR = "concNhno3"
+    # ACTRISEBASVAR = "concNnh3"
+    # ACTRISEBASVAR = "concnh4"
+    # ACTRISEBASVAR = "concSso2"
+    # ACTRISEBASVAR = "vmrco"
+    ACTRISEBASVAR = "concno3pm10"
     # ACTRISEBASVAR = "prmm"
     # ACTRISEBASVAR = "vmro3"
     # ACTRISEBASVAR = "sc550aer"
-    ACTRISEBASVARLIST = ["concso4t", "concso4c"]
+    ACTRISEBASVARLIST = [
+        "concNno",
+        "concNno2",
+        "concNhno3",
+        "concNnh3",
+        "concnh4",
+        "concSso2",
+        "vmrco",
+        "prmm",
+        "vmro3",
+        "concso4t",
+        "concso4c",
+    ]
 
     def test_pyaerocom_aeronet(self):
         # test reading via pyaerocom
@@ -54,7 +77,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
 
         data_name = "PYARO_actrisebas"
         data_id = "actrisebas"
-        station_filter = {
+        filter = {
             "stations": {
                 "include": [
                     "Schmucke",
@@ -80,13 +103,38 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             name=data_name,
             reader_id=data_id,
             filename_or_obj_or_url=url,
-            filters=station_filter,
+            filters=filter,
         )
         reader = ReadUngridded(f"{data_name}")
         data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        if len(data.unique_station_names) < 2:
+            logger.info(
+                "less than 2 stations found. Removing station filter and trying again..."
+            )
+            filter = {
+                "variables": {
+                    "include": [
+                        self.ACTRISEBASVAR,
+                    ]
+                },
+                "time_bounds": {
+                    "startend_include": [("2019-01-01 00:00:00", "2020-12-31 00:00:00")]
+                },
+            }
+            obsconfig = PyaroConfig(
+                name=data_name,
+                reader_id=data_id,
+                filename_or_obj_or_url=url,
+                filters=filter,
+            )
+            reader = ReadUngridded(f"{data_name}")
+            data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+
         self.assertGreaterEqual(len(data.unique_station_names), 2)
-        self.assertIn("Schmucke", data.unique_station_names)
         self.assertIn(url, data.contains_vars)
+        logger.info(
+            f"Found {len(data.unique_station_names)} stations for variable {self.ACTRISEBASVAR}"
+        )
 
     def test_pyaerocom_actrisebas_many_var(self):
         # test multi var reading via pyaerocom

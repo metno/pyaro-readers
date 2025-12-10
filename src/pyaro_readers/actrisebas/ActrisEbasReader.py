@@ -784,7 +784,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def get_ebas_data_ancillary_variables(self, tmp_data, var_name):
         """
         small helper method to get the ebas ancillary variables from the data file
-        These contain the data flags (hopefully always ending with "_qc" and additional metedata
+        These contain the data flags (hopefully always ending with "_qc" and additional metadata
         (hopefully always ending with "_ebasmetadata" for each time step
         """
         ret_data = tmp_data[var_name].attrs["ancillary_variables"].split()

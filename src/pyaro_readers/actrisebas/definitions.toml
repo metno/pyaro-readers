@@ -5,8 +5,59 @@
 #[variables.<pyaerocom var name>]
 #actris_variable = [<list of actris variables>] (according to the ACTRIS vocabulary)
 #actris_matrix = [<list of actris matrixes>] (unused atm)
-#ebas_component = [<list of ebas component names>] (unused atm)
-#ebas_matrix = [<list of ebas matrix names>] (unused atm)
+#ebas_component = [<list of ebas component names>]
+#ebas_matrix = [<list of ebas matrix names>]
+
+[variables.concNno]
+actris_variable = ["nitric oxide mass concentration"]
+actris_matrix = ["inorganics"]
+ebas_component = ["nitrogen_monoxide"]
+ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_nitrogen_monoxide_expressed_as_nitrogen_in_air"]
+
+[variables.concNno2]
+actris_variable = ["nitrogen dioxide mass concentration"]
+actris_matrix = ["inorganics"]
+ebas_component = ["nitrogen_dioxide"]
+ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_nitrogen_dioxide_expressed_as_nitrogen_in_air"]
+
+[variables.concNhno3]
+actris_variable = ["nitric acid mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["nitric_acid"]
+ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_nitric_acid_expressed_as_nitrogen_in_air"]
+
+[variables.concNnh3]
+actris_variable = ["ammonia mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ammonia"]
+ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_ammonia_expressed_as_nitrogen_in_air"]
+
+[variables.concnh4]
+actris_variable = ["ammonia mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ammonium"]
+ebas_matrix = ["pm10","aerosol","pm25"]
+standard_names = ["mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
+
+[variables.vmrco]
+actris_variable = ["carbon monoxide amount fraction"]
+actris_matrix = ["gas phase"]
+ebas_component = ["carbon_monoxide"]
+ebas_matrix = ["air"]
+standard_names = ["mass_fraction_of_carbon_monoxide_in_air"]
+
+[variables.concno3pm10]
+actris_variable = ["nitric acid mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["nitrate"]
+ebas_matrix = ["pm10","aerosol"]
+# The 2nd part might not be what we really want
+standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
+
 
 [variables.conco3]
 actris_variable = ["ozone mass concentration"]
