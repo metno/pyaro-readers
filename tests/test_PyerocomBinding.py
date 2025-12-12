@@ -13,10 +13,6 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         },
     }
     AERONETVAR = "od440aer"
-    # ACTRISEBASVAR = "concso4t"
-    # ACTRISEBASVAR = "concso4c"
-    # ACTRISEBASVAR = "concprcpso4"
-    # ACTRISEBASVAR = "wetso4"
     # ACTRISEBASVAR = "concNno"
     # ACTRISEBASVAR = "concNno2"
     # ACTRISEBASVAR = "concNhno3"
@@ -49,16 +45,45 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     ACTRISEBASVARLIST = [
         "concNno",
         "concNno2",
+        # "concNtno3",
         "concNhno3",
+        # "concNtnh",
         "concNnh3",
         "concnh4",
         "concSso2",
-        "vmrco",
-        "prmm",
-        "vmro3",
         "concso4t",
         "concso4c",
+        "vmro3",
+        # "vmro3max",
+        # "vmro3mda8",
+        # "vmrox",
+        "vmrco",
+        "concpm10",
+        "concpm25",
+        "concno3pm10",
+        "concno3pm25",
+        "concno3pm1",
+        "concnh4pm25",
+        "concnh4pm1",
+        "concso4pm25",
+        "concso4pm1",
+        "concCecpm10",
+        "concCecpm25",
+        "concCocpm10",
+        "concCocpm25",
+        "concom1",
+        "concsspm10",
+        "concsspm25",
+        "wetrdn",
+        "wetoxs",
+        "wetoxn",
+        "prmm",
     ]
+
+    ACTRISEBASMANYVARLIST = (
+        "concso4t",
+        "concso4c",
+    )
 
     def test_pyaerocom_aeronet(self):
         # test reading via pyaerocom
@@ -84,7 +109,15 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Alta_Floresta", data.unique_station_names)
 
-    def test_pyaerocom_actrisebas_single_var(self):
+    def test_pyaerocom_actrisebas_all_vars(self):
+        # test all vars one after another for reading via pyaerocom using a station filter
+        # and a year filter to keep the data volume low
+        for var in self.ACTRISEBASVARLIST:
+            logger.info(f"Started testing reading of {var}")
+            self.test_pyaerocom_actrisebas_single_var(var)
+            logger.info(f"Finished testing reading of {var}")
+
+    def test_pyaerocom_actrisebas_single_var(self, var_name=ACTRISEBASVAR):
         # test reading via pyaerocom
         try:
             from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
@@ -108,7 +141,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             },
             "variables": {
                 "include": [
-                    self.ACTRISEBASVAR,
+                    var_name,
                 ]
             },
             "time_bounds": {
@@ -116,7 +149,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             },
         }
         # needs to be the variable name for actrisebas
-        url = self.ACTRISEBASVAR
+        url = var_name
         obsconfig = PyaroConfig(
             name=data_name,
             reader_id=data_id,
@@ -124,7 +157,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             filters=filter,
         )
         reader = ReadUngridded(f"{data_name}")
-        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        data = reader.read(vars_to_retrieve=var_name, configs=obsconfig)
         if len(data.unique_station_names) < 2:
             logger.info(
                 "less than 2 stations found. Removing station filter and trying again..."
@@ -132,7 +165,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             filter = {
                 "variables": {
                     "include": [
-                        self.ACTRISEBASVAR,
+                        var_name,
                     ]
                 },
                 "time_bounds": {
@@ -146,12 +179,12 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
                 filters=filter,
             )
             reader = ReadUngridded(f"{data_name}")
-            data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+            data = reader.read(vars_to_retrieve=var_name, configs=obsconfig)
 
         self.assertGreaterEqual(len(data.unique_station_names), 2)
         self.assertIn(url, data.contains_vars)
         logger.info(
-            f"Found {len(data.unique_station_names)} stations for variable {self.ACTRISEBASVAR}"
+            f"Found {len(data.unique_station_names)} stations for variable {var_name}"
         )
 
     def test_pyaerocom_actrisebas_single_var_all_stations(self):
@@ -192,7 +225,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             f"Found {len(data.unique_station_names)} stations for variable {self.ACTRISEBASVAR}"
         )
 
-    def test_pyaerocom_actrisebas_many_var(self):
+    def test_pyaerocom_actrisebas_many_var(self, var_list=ACTRISEBASMANYVARLIST):
         # test multi var reading via pyaerocom
         # not working properly atm as it's reading only one variable atm
         try:
@@ -214,11 +247,11 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
                     "Westerland",
                 ]
             },
-            "variables": {"include": ["concso4t", "concso4c"]},
+            "variables": {"include": var_list},
         }
         # needs to be the variable name for actrisebas, but PyaroConfig wants this to a string and not a list
         # (the pydantic setup is too pedantic)
-        url = self.ACTRISEBASVARLIST
+        url = ",".join(var_list)
         obsconfig = PyaroConfig(
             name=data_name,
             reader_id=data_id,
@@ -226,12 +259,11 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             filters=station_filter,
         )
         reader = ReadUngridded(f"{data_name}")
-        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+        data = reader.read(vars_to_retrieve=var_list, configs=obsconfig)
         self.assertGreaterEqual(len(data.unique_station_names), 4)
         self.assertIn("Ispra", data.unique_station_names)
-        self.assertIn(url[0], data.contains_vars)
-        # This does unfortunately not return the two variables asked for, but only the first:
-        self.assertIn(url[1], data.contains_vars)
+        for _var in var_list:
+            self.assertIn(_var, data.contains_vars)
 
 
 if __name__ == "__main__":
