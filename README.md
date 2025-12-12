@@ -59,6 +59,7 @@ where `metadata.csv` is csv file containing station metadata (https://discomap.e
 ### ACTRIS-EBAS (alpha version)
 Reader for the EBAS data of the ACTRIS data portal (https://data.actris.eu/).
 This reader talks directly to the API at [https://prod-actris-md2.nilu.no/](https://prod-actris-md2.nilu.no/). 
+Detailed information can be found in the reader's [README.md](src/pyaro_readers/actrisebas/README.md).
 
 Because the variable naming supported at this early stage uses the naming scheme of the 
 [pyaerocom project](https://pyaerocom.readthedocs.io/en/latest/), this reader is depending on pyaerocom being installed
