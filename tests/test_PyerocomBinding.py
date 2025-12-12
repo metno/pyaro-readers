@@ -40,7 +40,9 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "concom1"
     # ACTRISEBASVAR = "concsspm10"
     # ACTRISEBASVAR = "concsspm25"
-    ACTRISEBASVAR = "wetoxs"
+    # ACTRISEBASVAR = "wetrdn"
+    # ACTRISEBASVAR = "wetoxs"
+    ACTRISEBASVAR = "wetoxn"
     # ACTRISEBASVAR = "prmm"
     # ACTRISEBASVAR = "vmro3"
     # ACTRISEBASVAR = "sc550aer"
@@ -145,6 +147,44 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             )
             reader = ReadUngridded(f"{data_name}")
             data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
+
+        self.assertGreaterEqual(len(data.unique_station_names), 2)
+        self.assertIn(url, data.contains_vars)
+        logger.info(
+            f"Found {len(data.unique_station_names)} stations for variable {self.ACTRISEBASVAR}"
+        )
+
+    def test_pyaerocom_actrisebas_single_var_all_stations(self):
+        # test reading via pyaerocom
+        try:
+            from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
+            from pyaerocom.io import ReadUngridded
+        except ImportError:
+            assert "pyaerocom not installed"
+            return
+
+        data_name = "PYARO_actrisebas"
+        data_id = "actrisebas"
+        filter = {
+            "variables": {
+                "include": [
+                    self.ACTRISEBASVAR,
+                ]
+            },
+            "time_bounds": {
+                "startend_include": [("2023-01-01 00:00:00", "2023-12-31 00:00:00")]
+            },
+        }
+        # needs to be the variable name for actrisebas
+        url = self.ACTRISEBASVAR
+        obsconfig = PyaroConfig(
+            name=data_name,
+            reader_id=data_id,
+            filename_or_obj_or_url=url,
+            filters=filter,
+        )
+        reader = ReadUngridded(f"{data_name}")
+        data = reader.read(vars_to_retrieve=self.ACTRISEBASVAR, configs=obsconfig)
 
         self.assertGreaterEqual(len(data.unique_station_names), 2)
         self.assertIn(url, data.contains_vars)
