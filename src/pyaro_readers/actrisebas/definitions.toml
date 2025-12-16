@@ -23,12 +23,12 @@ ebas_matrix = ["air"]
 standard_names = ["mass_concentration_of_nitrogen_dioxide_expressed_as_nitrogen_in_air"]
 
 # No idea what to search for
-#[variables.concNtno3]
-#actris_variable = [""]
-#actris_matrix = ["inorganics"]
-#ebas_component = [""]
-#ebas_matrix = [""]
-#standard_names = [""]
+[variables.concNtno3]
+actris_variable = ["gas and particle nitric acid and nitrate mass concentration"]
+actris_matrix = ["inorganics"]
+ebas_component = ["sum_nitric_acid_and_nitrate"]
+ebas_matrix = ["air+aerosol"]
+standard_names = ["mass_concentration_of_sum_nitric_acid_and_nitrate_expressed_as_nitrogen_in_aerosol"]
 
 [variables.concNhno3]
 actris_variable = ["nitric acid mass concentration"]
@@ -37,13 +37,12 @@ ebas_component = ["nitric_acid"]
 ebas_matrix = ["air"]
 standard_names = ["mass_concentration_of_nitric_acid_expressed_as_nitrogen_in_air"]
 
-# No idea what to search for
-#[variables.concNtnh]
-#actris_variable = [""]
-#actris_matrix = ["inorganics"]
-#ebas_component = [""]
-#ebas_matrix = [""]
-#standard_names = [""]
+[variables.concNtnh]
+actris_variable = ["gas and particle ammonia and ammonium mass concentration"]
+actris_matrix = ["inorganics"]
+ebas_component = ["sum_ammonia_and_ammonium"]
+ebas_matrix = ["air+aerosol"]
+standard_names = ["mass_concentration_of_sum_ammonia_and_ammonium_in_aerosol"]
 
 [variables.concNnh3]
 actris_variable = ["ammonia mass concentration"]
@@ -128,8 +127,9 @@ ebas_component = ["pm25_mass"]
 ebas_matrix = ["pm25",]
 standard_names = ["mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air", ]
 
+#Not in current EBAS data set
 [variables.concno3pm10]
-actris_variable = ["nitric acid mass concentration"]
+actris_variable = ["aerosol particle nitrate mass concentration"]
 actris_matrix = ["gas phase"]
 ebas_component = ["nitrate"]
 ebas_matrix = ["pm10","aerosol"]
@@ -137,7 +137,7 @@ ebas_matrix = ["pm10","aerosol"]
 standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
 
 [variables.concno3pm25]
-actris_variable = ["nitric acid mass concentration"]
+actris_variable = ["aerosol particle nitrate mass concentration"]
 actris_matrix = ["gas phase"]
 ebas_component = ["nitrate"]
 ebas_matrix = ["pm25","pm1"]
@@ -147,7 +147,7 @@ standard_names = ["mass_concentration_of_nitrate_in_pm2p5_in_air",
     "mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
 
 [variables.concno3pm1]
-actris_variable = ["nitric acid mass concentration"]
+actris_variable = ["aerosol particle nitrate mass concentration"]
 actris_matrix = ["gas phase"]
 ebas_component = ["nitrate"]
 ebas_matrix = ["pm1_non_refractory"]
@@ -155,22 +155,21 @@ ebas_matrix = ["pm1_non_refractory"]
 standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
 
 [variables.concnh4pm25]
-actris_variable = ["ammonia mass concentration"]
+actris_variable = ["aerosol particle ammonium mass concentration"]
 actris_matrix = ["gas phase"]
 ebas_component = ["ammonium"]
 ebas_matrix = ["pm25","pm1"]
 # The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
-standard_names = ["mass_concentration_of_ammonium_in_pm2p5_in_air",
-    "mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
+standard_names = ["mass_concentration_of_ammonium_in_pm2p5_in_air"]
 
 [variables.concnh4pm1]
-actris_variable = ["ammonia mass concentration"]
+actris_variable = ["aerosol particle ammonium mass concentration"]
 actris_matrix = ["gas phase"]
 ebas_component = ["ammonium"]
 ebas_matrix = ["pm1_non_refractory"]
 # The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
-standard_names = ["mass_concentration_of_ammonium_in_non_refractory_pm1_in_air",
-    "mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
+standard_names = ["mass_concentration_of_ammonium_in_non_refractory_pm1_in_air"]
+#    "mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
 
 # Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
 [variables.concso4pm25]
