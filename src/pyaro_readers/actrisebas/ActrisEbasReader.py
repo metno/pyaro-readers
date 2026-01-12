@@ -106,6 +106,8 @@ CF_UNITS["mm"] = "mm d-1"
 CF_UNITS["mg/l"] = "mg S m-2 d-1"
 # CF_UNITS[""] = ""
 
+USE_THREDDS2_FLAG = True
+
 
 class ActrisEbasStdNameNotFoundException(Exception):
     pass
@@ -915,7 +917,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                         continue
                     else:
-                        url = distribution_data[DISTRIBUTION_URL_KEY]
+                        if USE_THREDDS2_FLAG:
+                            url = distribution_data[DISTRIBUTION_URL_KEY].replace(
+                                "thredds.", "thredds2."
+                            )
+                        else:
+                            url = distribution_data[DISTRIBUTION_URL_KEY]
                         opendap_urls_to_dl[site_name].append(url)
                         logger.info(
                             f"site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
