@@ -1,0 +1,5 @@
+2026-01-13 13:47:30:pyaerocom:272/272M:WARNING:Use of pyaerocom.const is deprecated. Please use Config.get_instance() or pyaerocom.config instead.
+2026-01-13 13:47:30:pyaerocom.config_reader:272/272M:INFO:using default config file: /home/danielh/Documents/pyaerocom/projects/ghost/env/pyaerocom/pyaerocom/data/paths.ini
+2026-01-13 13:47:30:pyaerocom.config_reader:272/272M:INFO:Checking access to: /lustre/storeB/project
+2026-01-13 13:47:30:pyaerocom.config_reader:272/272M:INFO:Checking access to: /lustre/storeB/project/aerocom/aerocom1
+2026-01-13 13:47:30:pyaerocom.config_reader:272/272M:INFO:Checking access to: /lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/AeronetSunV3Lev1.5.daily/renamed
