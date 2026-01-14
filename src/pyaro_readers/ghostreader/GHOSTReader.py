@@ -131,8 +131,8 @@ class GHOSTReader(AutoFilterReader):
 
         self._date_filters, self._variable_filters = self._get_pre_processing_filters()
 
-    def get_file_list(self):
-        self.files = []
+    def get_file_list(self) -> dict[str, list[Path]]:
+        self.files = {}
         for network in self._networks:
             path = self._data_dir / network / self._frequency
             var_list = set([f.name for f in path.glob("*") if f.is_dir()])
@@ -159,16 +159,18 @@ class GHOSTReader(AutoFilterReader):
                     ]
 
                 for var in var_list:
+                    self.files[var] = []
                     for date in possible_dates:
                         file_path = path / var / f"{var}_{date}"
                         if file_path.exists():
-                            self.files.append(str(file_path))
+                            self.files[var].append(str(file_path))
             else:
                 for var in var_list:
+                    self.files[var] = []
                     for file_path in (path / var).glob(f"{var}_*.nc"):
-                        self.files.append(str(file_path))
+                        self.files[var].append(str(file_path))
 
-        self.files = sorted(self.files)
+        self.files = {k: sorted(v) for k, v in self.files.items()}
         return self.files
 
     def _get_pre_processing_filters(self):
@@ -319,7 +321,7 @@ class GHOSTReader(AutoFilterReader):
         self,
         filename,
         frequency,
-        # var_to_read=None,
+        var_to_read=None,
         # invalidate_flags=None,
     ):
         """Read GHOST NetCDF data file
@@ -339,8 +341,8 @@ class GHOSTReader(AutoFilterReader):
         """
         invalidate_flags = self.DEFAULT_FLAGS_INVALID
 
-        var_to_read = self.get_meta_filename(filename)["var_name"]
-        # if var_to_read is None:
+        if var_to_read is None:
+            var_to_read = self.get_meta_filename(filename)["var_name"]
         # elif var_to_read in self.VARNAMES_DATA:
         #     if var_to_write is None:
         #         var_to_read, var_to_write = self.VARNAMES_DATA[var_to_read], var_to_read
@@ -438,13 +440,16 @@ class GHOSTReader(AutoFilterReader):
     def read(
         self,
     ):
-        for i in tqdm(
-            self.get_file_list(), desc="Reading GHOST data files", unit="file"
-        ):
-            self.read_file(
-                filename=i,
-                frequency=self._frequency,
-            )
+        file_dict = self.get_file_list()
+        for var in file_dict:
+            for file in tqdm(
+                file_dict[var], desc=f"Reading GHOST data files for {var}", unit="file"
+            ):
+                self.read_file(
+                    filename=file,
+                    frequency=self._frequency,
+                    var_to_read=var,
+                )
 
     def metadata(self) -> dict[str, str]:
         return {"revision": self._revision}
@@ -457,8 +462,8 @@ class GHOSTReader(AutoFilterReader):
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
-        self.get_file_list()
-        return list(self._variables)
+        # self.get_file_list()
+        return list(self.get_file_list().keys())
 
     def close(self):
         pass
@@ -474,25 +479,3 @@ class GHOSTTimeseriesEngine(AutoFilterEngine):
 
     def reader_class(self) -> Reader:
         return GHOSTReader
-
-
-if __name__ == "__main__":
-    d = "/home/danielh/Documents/pyaerocom/projects/ghost/data/data/EBAS-EMEP/daily/pm10/pm10_201905.nc"
-
-    reader = GHOSTReader(
-        filename_or_obj_or_url="/home/danielh/Documents/pyaerocom/projects/ghost/data/data/",
-        networks=["EBAS-EMEP"],
-        frequency="daily",
-        filters={
-            "time_bounds": {
-                "startend_include": [
-                    ("2019-01-01 00:00:00", "2019-01-02 00:00:00")
-                ],  # Include data between these time bounds
-            },
-            "variables": {"include": ["pm10", "pm2p5"], "exclude": ["pm10"]},
-        },
-    )
-
-    reader.read()
-
-    breakpoint()
