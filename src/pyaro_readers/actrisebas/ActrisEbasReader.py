@@ -106,7 +106,7 @@ CF_UNITS["mm"] = "mm d-1"
 CF_UNITS["mg/l"] = "mg S m-2 d-1"
 # CF_UNITS[""] = ""
 
-USE_THREDDS2_FLAG = True
+USE_THREDDS2_FLAG = False
 
 
 class ActrisEbasStdNameNotFoundException(Exception):
