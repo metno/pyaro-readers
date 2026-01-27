@@ -17,6 +17,7 @@ from pyaro.timeseries import Reader, Data, Station, NpStructuredData
 
 from pyaro_readers.ghostreader.additional_variables import vmr_to_ghost_stations
 from pyaro_readers.ghostreader.meta_keys import ghost_meta_keys
+from pyaro_readers.ghostreader.ghost_options import AREA_CLASS, STATION_CLASS
 
 
 import logging
@@ -106,6 +107,10 @@ class GHOSTReader(AutoFilterReader):
         frequency: Literal[
             "hourly", "hourly_instantaneous", "daily", "monthly"
         ] = "daily",
+        joly_peuch_min_max: tuple[int, int] | None = None,
+        use_prefiltered=True,
+        area_classifications=[],
+        station_classifications=[],
         filters=[],
     ):
         mod_time = Path(filename_or_obj_or_url).stat().st_mtime
@@ -121,6 +126,44 @@ class GHOSTReader(AutoFilterReader):
 
         self._variables = []
 
+        self._use_prefiltered = use_prefiltered
+
+        if joly_peuch_min_max is not None:
+            if area_classifications != [] or station_classifications != []:
+                raise ValueError(
+                    "Joly-Peuch min/max values can only be set if no area or station classifications are provided."
+                )
+
+            if not isinstance(joly_peuch_min_max, tuple):
+                raise ValueError("Joly-Peuch min/max values must be a tuple.")
+
+            if joly_peuch_min_max[0] < 1 or joly_peuch_min_max[1] > 10:
+                raise ValueError("Joly-Peuch min/max values must be between 1 and 10.")
+
+            if len(joly_peuch_min_max) != 2:
+                raise ValueError(
+                    "Joly-Peuch min/max values must be a tuple of (min, max)."
+                )
+            if joly_peuch_min_max[0] >= joly_peuch_min_max[1]:
+                raise ValueError("Joly-Peuch min must be smaller than max.")
+
+        self._joly_peuch_min_max = joly_peuch_min_max
+
+        if area_classifications != []:
+            for ac in area_classifications:
+                if ac not in AREA_CLASS:
+                    raise ValueError(
+                        f"Invalid area classifications: {area_classifications}. Use one of the following: {AREA_CLASS}"
+                    )
+        if station_classifications != []:
+            for sc in station_classifications:
+                if sc not in STATION_CLASS:
+                    raise ValueError(
+                        f"Invalid station classifications: {station_classifications}. Use one of the following: {STATION_CLASS}"
+                    )
+        self._area_classifications = area_classifications
+        self._station_classifications = station_classifications
+
         if self._data_dir.is_file():
             raise ValueError("GHOSTReader requires a directory, not a file.")
         if not self._data_dir.exists():
@@ -133,6 +176,7 @@ class GHOSTReader(AutoFilterReader):
 
     def get_file_list(self) -> dict[str, list[Path]]:
         self.files = {}
+
         for network in self._networks:
             path = self._data_dir / network / self._frequency
             var_list = set([f.name for f in path.glob("*") if f.is_dir()])
@@ -159,14 +203,17 @@ class GHOSTReader(AutoFilterReader):
                     ]
 
                 for var in var_list:
-                    self.files[var] = []
+                    if var not in self.files:
+                        self.files[var] = []
                     for date in possible_dates:
                         file_path = path / var / f"{var}_{date}"
                         if file_path.exists():
                             self.files[var].append(str(file_path))
             else:
                 for var in var_list:
-                    self.files[var] = []
+                    if var not in self.files:
+                        self.files[var] = []
+
                     for file_path in (path / var).glob(f"{var}_*.nc"):
                         self.files[var].append(str(file_path))
 
@@ -343,14 +390,6 @@ class GHOSTReader(AutoFilterReader):
 
         if var_to_read is None:
             var_to_read = self.get_meta_filename(filename)["var_name"]
-        # elif var_to_read in self.VARNAMES_DATA:
-        #     if var_to_write is None:
-        #         var_to_read, var_to_write = self.VARNAMES_DATA[var_to_read], var_to_read
-        #     else:
-        #         var_to_read = self.VARNAMES_DATA[var_to_read]
-
-        # if var_to_write is None:
-        #     var_to_write = self.var_names_data_inv[var_to_read]
 
         with xr.open_dataset(filename, decode_timedelta=True) as ds:
             if not {"station", "time"}.issubset(ds.dims):  # pragma: no cover
@@ -370,16 +409,41 @@ class GHOSTReader(AutoFilterReader):
                         f"No such metadata key in GHOST data file: {Path(filename).name}"
                     )
 
-            # for meta_key, to_unit in self.CONVERT_UNITS_META.items():
-            #     from_unit = ds[meta_key].attrs["units"]
+            nb_stations = len(ds["station"].values)
 
-            #     meta_glob[meta_key] = convert_unit(
-            #         meta_glob[meta_key], from_unit=from_unit, to_unit=to_unit
-            #     )
+            if self._joly_peuch_min_max:
+                joly_peuch_min, joly_peuch_max = self._joly_peuch_min_max
+                joly_peuch_mask = (
+                    (ds["Joly-Peuch_classification_code"] >= joly_peuch_min)
+                    & (ds["Joly-Peuch_classification_code"] <= joly_peuch_max)
+                    & (ds["Joly-Peuch_classification_code"].notnull())
+                )
+            else:
+                joly_peuch_mask = np.ones(nb_stations, dtype=bool)
+
+            if self._area_classifications:
+                area_mask = ds["area_classification"].isin(self._area_classifications)
+            else:
+                area_mask = np.ones(nb_stations, dtype=bool)
+
+            if self._station_classifications:
+                station_mask = ds["station_classification"].isin(
+                    self._station_classifications
+                )
+            else:
+                station_mask = np.ones(nb_stations, dtype=bool)
+
+            total_mask = joly_peuch_mask & area_mask & station_mask
+
+            var_key = (
+                f"{var_to_read}_prefiltered_defaultqa"
+                if self._use_prefiltered
+                else var_to_read
+            )
 
             tvals = ds["time"].values
 
-            vardata = ds[var_to_read]  # DataArray
+            vardata = ds[var_key]  # DataArray
             varinfo = vardata.attrs
 
             units = varinfo["units"]
@@ -388,59 +452,118 @@ class GHOSTReader(AutoFilterReader):
             # indexing below and not xarray.isel or similar, due to performance
             # issues. This may need to be updated in case of profile data.
             assert vardata.dims == ("station", "time")
-            data_np = vardata.values
+            data_np = vardata.values[total_mask]
 
-            # evaluate flags
-            invalid = self._eval_flags(vardata, invalidate_flags, ds)
+            if not self._use_prefiltered:
+                # evaluate flags
+                invalid = self._eval_flags(vardata, invalidate_flags, ds)[
+                    area_mask & station_mask
+                ]
+            else:
+                invalid = np.zeros_like(data_np).astype(bool)
 
-            for idx in ds.station.values:
-                name = str(ds.station_name.values[idx])
+            if var_to_read in self._data:
+                da = self._data[var_to_read]
+                if da.units != units:
+                    raise Exception(f"unit change from '{da.units}' to 'units'")
+            else:
+                da = NpStructuredData(var_to_read, units)
+                self._data[var_to_read] = da
 
-                lat = meta_glob["latitude"][idx]
-                lon = meta_glob["longitude"][idx]
-                alt = meta_glob["altitude"][idx]
+            names = ds.station_reference.values.astype(str)[total_mask]
+            lat = ds["latitude"].values[total_mask]
+            lon = ds["longitude"].values[total_mask]
+            alt = ds["altitude"].values[total_mask]
+            country = ds["country"].values[total_mask]
+
+            for name in set(names) - set(self._stations.keys()):
+                idx = np.where(names == name)[0][0]
+
                 if name not in self._stations:
                     self._stations[name] = Station(
                         {
                             "station": name,
-                            "longitude": lon,
-                            "latitude": lat,
-                            "altitude": alt,
-                            "country": meta_glob["country"][idx],
+                            "longitude": lon[idx],
+                            "latitude": lat[idx],
+                            "altitude": alt[idx],
+                            "country": country[idx],
                             "url": "",
                             "long_name": name,
                         }
                     )
 
-                if var_to_read in self._data:
-                    da = self._data[var_to_read]
-                    if da.units != units:
-                        raise Exception(f"unit change from '{da.units}' to 'units'")
-                else:
-                    da = NpStructuredData(var_to_read, units)
-                    self._data[var_to_read] = da
+            start = tvals
 
-                start = tvals
+            flattened_data = data_np.flatten()
+            flattened_invalid = invalid.flatten()
 
-                end = start
+            end = start + self.FREQ_TO_OFFSET[frequency]
 
-                end = start + self.FREQ_TO_OFFSET[frequency]
-                self._data[var_to_read].append(
-                    data_np[idx, :],
-                    np.full(data_np.shape[1], fill_value=name),
-                    np.ones(data_np.shape[1]) * lat,
-                    np.ones(data_np.shape[1]) * lon,
-                    np.ones(data_np.shape[1]) * alt,
-                    start,
-                    end,
-                    ~invalid[idx, :],
-                    np.ones(data_np.shape[1]) * np.nan,
-                )
+            self._data[var_to_read].append(
+                flattened_data,
+                np.repeat(names, data_np.shape[1]),
+                np.repeat(lat, data_np.shape[1]),
+                np.repeat(lon, data_np.shape[1]),
+                np.repeat(alt, data_np.shape[1]),
+                np.repeat(start, data_np.shape[0]),
+                np.repeat(end, data_np.shape[0]),
+                ~flattened_invalid,
+                np.ones_like(flattened_data) * np.nan,
+            )
+
+            # if var_to_read in self._data:
+            #     da = self._data[var_to_read]
+            #     if da.units != units:
+            #         raise Exception(f"unit change from '{da.units}' to 'units'")
+            # else:
+            #     da = NpStructuredData(var_to_read, units)
+            #     self._data[var_to_read] = da
+
+            # names = ds.station_name.values
+            # lats = ds["latitude"].values
+            # lons = ds["longitude"].values
+            # alts = ds["altitude"].values
+            # countries = ds["country"].values
+            # start = tvals
+
+            # end = start + self.FREQ_TO_OFFSET[frequency]
+
+            # for idx in tqdm(ds.station.values, desc="Processing stations"):
+            #     name = str(ds.station_name.values[idx])
+
+            #     lat = lats[idx]
+            #     lon = lons[idx]
+            #     alt = alts[idx]
+            #     if name not in names:
+            #         self._stations[name] = Station(
+            #             {
+            #                 "station": name,
+            #                 "longitude": lon,
+            #                 "latitude": lat,
+            #                 "altitude": alt,
+            #                 "country": countries[idx],
+            #                 "url": "",
+            #                 "long_name": name,
+            #             }
+            #         )
+
+            #     self._data[var_to_read].append(
+            #         data_np[idx, :],
+            #         np.full(data_np.shape[1], fill_value=name),
+            #         np.ones(data_np.shape[1]) * lat,
+            #         np.ones(data_np.shape[1]) * lon,
+            #         np.ones(data_np.shape[1]) * alt,
+            #         start,
+            #         end,
+            #         ~invalid[idx, :],
+            #         np.ones(data_np.shape[1]) * np.nan,
+            #     )
 
     def read(
         self,
     ):
         file_dict = self.get_file_list()
+
         for var in file_dict:
             for file in tqdm(
                 file_dict[var], desc=f"Reading GHOST data files for {var}", unit="file"
