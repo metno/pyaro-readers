@@ -1,3 +1,4 @@
+import tarfile
 from typing import Literal
 from tqdm import tqdm
 from pathlib import Path
@@ -17,7 +18,11 @@ from pyaro.timeseries import Reader, Data, Station, NpStructuredData
 
 from pyaro_readers.ghostreader.additional_variables import vmr_to_ghost_stations
 from pyaro_readers.ghostreader.meta_keys import ghost_meta_keys
-from pyaro_readers.ghostreader.ghost_options import AREA_CLASS, STATION_CLASS
+from pyaro_readers.ghostreader.ghost_options import (
+    AREA_CLASS,
+    STATION_CLASS,
+    MEASUREMENT_METHODS,
+)
 
 
 import logging
@@ -30,6 +35,7 @@ class Network(Enum):
     EMEP = "EBAS-EMEP"
     GHOST = "GHOST"
     EEA = "EEA_AQ_eReporting"
+    ACTRIS = "EBAS-ACTRIS"
 
 
 class GHOSTReader(AutoFilterReader):
@@ -101,14 +107,16 @@ class GHOSTReader(AutoFilterReader):
     def __init__(
         self,
         filename_or_obj_or_url,
-        networks: list[Literal["EBAS-EMEP", "GHOST", "EEA_AQ_eReporting"]] = [
-            "EBAS-EMEP"
-        ],
+        networks: list[
+            Literal["EBAS-EMEP", "GHOST", "EEA_AQ_eReporting", "EBAS-ACTRIS"]
+        ] = ["EBAS-EMEP"],
         frequency: Literal[
             "hourly", "hourly_instantaneous", "daily", "monthly"
         ] = "daily",
         joly_peuch_min_max: tuple[int, int] | None = None,
+        measurement_methods: list[str] = [],
         use_prefiltered=True,
+        compressed: bool = False,
         area_classifications=[],
         station_classifications=[],
         filters=[],
@@ -125,6 +133,10 @@ class GHOSTReader(AutoFilterReader):
         self._data = {}
 
         self._variables = []
+
+        if compressed:
+            logger.info("GHOSTReader initialized in compressed mode.")
+        self._compressed = compressed
 
         self._use_prefiltered = use_prefiltered
 
@@ -149,6 +161,12 @@ class GHOSTReader(AutoFilterReader):
 
         self._joly_peuch_min_max = joly_peuch_min_max
 
+        if measurement_methods != []:
+            for mm in measurement_methods:
+                if mm not in MEASUREMENT_METHODS:
+                    raise ValueError(
+                        f"Invalid measurement methods: {measurement_methods}. Use one of the following: {MEASUREMENT_METHODS}"
+                    )
         if area_classifications != []:
             for ac in area_classifications:
                 if ac not in AREA_CLASS:
@@ -161,6 +179,8 @@ class GHOSTReader(AutoFilterReader):
                     raise ValueError(
                         f"Invalid station classifications: {station_classifications}. Use one of the following: {STATION_CLASS}"
                     )
+
+        self._measurement_methods = measurement_methods
         self._area_classifications = area_classifications
         self._station_classifications = station_classifications
 
@@ -173,6 +193,57 @@ class GHOSTReader(AutoFilterReader):
         self._frequency = frequency
 
         self._date_filters, self._variable_filters = self._get_pre_processing_filters()
+
+    def get_zipped_file_list(self) -> dict[str, dict[Path, list[tarfile.TarInfo]]]:
+        self.files = {}
+
+        for network in self._networks:
+            path = self._data_dir / network / self._frequency
+            var_list = set(
+                [f.with_suffix("").stem for f in path.glob("*.tar.xz") if f.is_file()]
+            )
+            if self._variable_filters is not None:
+                var_list = (var_list - self._variable_filters["exclude"]) & set(
+                    self._variable_filters["include"]
+                )
+
+            self._variables = list(var_list)
+
+            possible_dates = []
+            if self._date_filters != []:
+                for date_tuple in self._date_filters:
+                    date_range = pd.date_range(
+                        start=date_tuple[0],
+                        end=date_tuple[1],
+                        freq="MS",
+                        inclusive="both",
+                    )
+
+                    possible_dates += [
+                        f"{d.strftime('%Y%m')}.nc" for d in date_range.to_list()
+                    ]
+
+            for var in var_list:
+                if var not in self.files:
+                    self.files[var] = {}
+                for file in path.glob(f"{var}.tar.xz"):
+                    self.files[var][file] = []
+                    with tarfile.open(file, "r:xz") as tar_ref:
+                        for member in tar_ref.getmembers():
+                            if member.isdir():
+                                continue
+                            date = member.name.split("/")[-1].split(f"{var}_")[-1]
+                            if possible_dates:
+                                if date in possible_dates:
+                                    self.files[var][file].append(member)
+                            else:
+                                self.files[var][file].append(member)
+
+        self.files = {
+            k: {fk: sorted(fv, key=lambda x: x.name) for fk, fv in v.items()}
+            for k, v in self.files.items()
+        }
+        return self.files
 
     def get_file_list(self) -> dict[str, list[Path]]:
         self.files = {}
@@ -366,9 +437,9 @@ class GHOSTReader(AutoFilterReader):
 
     def read_file(
         self,
-        filename,
+        filename_or_obj,
         frequency,
-        var_to_read=None,
+        var_to_read,
         # invalidate_flags=None,
     ):
         """Read GHOST NetCDF data file
@@ -388,10 +459,7 @@ class GHOSTReader(AutoFilterReader):
         """
         invalidate_flags = self.DEFAULT_FLAGS_INVALID
 
-        if var_to_read is None:
-            var_to_read = self.get_meta_filename(filename)["var_name"]
-
-        with xr.open_dataset(filename, decode_timedelta=True) as ds:
+        with xr.open_dataset(filename_or_obj, decode_timedelta=True) as ds:
             if not {"station", "time"}.issubset(ds.dims):  # pragma: no cover
                 raise AttributeError("Missing dimensions")
             if "station_name" not in ds:  # pragma: no cover
@@ -405,11 +473,17 @@ class GHOSTReader(AutoFilterReader):
                 try:
                     meta_glob[meta_key] = ds[meta_key].values
                 except KeyError:  # pragma: no cover
-                    logger.warning(
-                        f"No such metadata key in GHOST data file: {Path(filename).name}"
-                    )
+                    logger.warning("No such metadata key in GHOST data file")
 
             nb_stations = len(ds["station"].values)
+
+            # vals, counts = np.unique(
+            #     ds["measurement_methodology"].values, return_counts=True
+            # )
+
+            # total = {str(val): int(count) for val, count in zip(vals, counts)}
+
+            # breakpoint()
 
             if self._joly_peuch_min_max:
                 joly_peuch_min, joly_peuch_max = self._joly_peuch_min_max
@@ -420,6 +494,11 @@ class GHOSTReader(AutoFilterReader):
                 )
             else:
                 joly_peuch_mask = np.ones(nb_stations, dtype=bool)
+
+            if self._measurement_methods:
+                mm_mask = ds["measurement_methodology"].isin(self._measurement_methods)
+            else:
+                mm_mask = np.ones(nb_stations, dtype=bool)
 
             if self._area_classifications:
                 area_mask = ds["area_classification"].isin(self._area_classifications)
@@ -433,7 +512,7 @@ class GHOSTReader(AutoFilterReader):
             else:
                 station_mask = np.ones(nb_stations, dtype=bool)
 
-            total_mask = joly_peuch_mask & area_mask & station_mask
+            total_mask = joly_peuch_mask & area_mask & station_mask & mm_mask
 
             var_key = (
                 f"{var_to_read}_prefiltered_defaultqa"
@@ -562,17 +641,37 @@ class GHOSTReader(AutoFilterReader):
     def read(
         self,
     ):
-        file_dict = self.get_file_list()
+        if self._compressed:
+            file_dict = self.get_zipped_file_list()
 
-        for var in file_dict:
-            for file in tqdm(
-                file_dict[var], desc=f"Reading GHOST data files for {var}", unit="file"
-            ):
-                self.read_file(
-                    filename=file,
-                    frequency=self._frequency,
-                    var_to_read=var,
-                )
+            for var in file_dict:
+                for file in file_dict[var]:
+                    with tarfile.open(file, "r:xz") as tar_ref:
+                        for member in tqdm(
+                            file_dict[var][file],
+                            desc=f"Reading compressed GHOST data files for {var}",
+                            unit="file",
+                        ):
+                            f = tar_ref.extractfile(member)
+                            self.read_file(
+                                filename_or_obj=f.read(),
+                                frequency=self._frequency,
+                                var_to_read=var,
+                            )
+        else:
+            file_dict = self.get_file_list()
+
+            for var in file_dict:
+                for file in tqdm(
+                    file_dict[var],
+                    desc=f"Reading GHOST data files for {var}",
+                    unit="file",
+                ):
+                    self.read_file(
+                        filename_or_obj=file,
+                        frequency=self._frequency,
+                        var_to_read=var,
+                    )
 
     def metadata(self) -> dict[str, str]:
         return {"revision": self._revision}
@@ -586,6 +685,8 @@ class GHOSTReader(AutoFilterReader):
 
     def _unfiltered_variables(self) -> list[str]:
         # self.get_file_list()
+        if self._compressed:
+            return list(self.get_zipped_file_list().keys())
         return list(self.get_file_list().keys())
 
     def close(self):

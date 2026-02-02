@@ -28,3 +28,5 @@ EMISSION_SOURCE = [
     "solvents",
     "waste_treatment_and_disposal",
 ]
+
+MEASUREMENT_METHODS = ["chemiluminescence (internal molybdenum converter)"]
