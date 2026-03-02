@@ -25,7 +25,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "concno3pm25"
     # ACTRISEBASVAR = "concno3pm1"
     # ACTRISEBASVAR = "concnh4pm25"
-    ACTRISEBASVAR = "concnh4pm1"
+    # ACTRISEBASVAR = "concnh4pm1"
     # ACTRISEBASVAR = "concso4c"
     # ACTRISEBASVAR = "concso4t"
     # ACTRISEBASVAR = "concso4pm25"
@@ -41,7 +41,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "wetoxs"
     # ACTRISEBASVAR = "wetoxn"
     # ACTRISEBASVAR = "prmm"
-    # ACTRISEBASVAR = "vmro3"
+    ACTRISEBASVAR = "vmro3"
     # ACTRISEBASVAR = "sc550aer"
     ACTRISEBASVARLIST = [
         "concNno",
