@@ -13,6 +13,8 @@ _META_KEYS = "meta_keys.toml"
 
 
 def ghost_meta_keys() -> list[str]:
-    assert resources.is_resource(__package__, _META_KEYS), f"{_META_KEYS} missing in {__package__}"
+    assert resources.is_resource(__package__, _META_KEYS), (
+        f"{_META_KEYS} missing in {__package__}"
+    )
     variables = tomllib.loads(resources.read_text(__package__, _META_KEYS))
     return variables["ghost_meta_keys"]
