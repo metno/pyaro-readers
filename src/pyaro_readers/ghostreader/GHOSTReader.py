@@ -48,21 +48,21 @@ class GHOSTReader(AutoFilterReader):
     #:
     FLAG_DIMNAMES = {"qa": "N_qa_codes", "flag": "N_flag_codes"}
 
-    AUX_REQUIRES = {
-        "concco": ["vmrco"],
-        "concno": ["vmrno"],
-        "concno2": ["vmrno2"],
-        "conco3": ["vmro3"],
-        "concso2": ["vmrso2"],
-    }
+    # AUX_REQUIRES = {
+    #     "concco": ["vmrco"],
+    #     "concno": ["vmrno"],
+    #     "concno2": ["vmrno2"],
+    #     "conco3": ["vmro3"],
+    #     "concso2": ["vmrso2"],
+    # }
 
-    AUX_FUNS = {
-        "concco": vmr_to_ghost_stations,
-        "concno": vmr_to_ghost_stations,
-        "concno2": vmr_to_ghost_stations,
-        "conco3": vmr_to_ghost_stations,
-        "concso2": vmr_to_ghost_stations,
-    }
+    # AUX_FUNS = {
+    #     "concco": vmr_to_ghost_stations,
+    #     "concno": vmr_to_ghost_stations,
+    #     "concno2": vmr_to_ghost_stations,
+    #     "conco3": vmr_to_ghost_stations,
+    #     "concso2": vmr_to_ghost_stations,
+    # }
 
     DEFAULT_FLAGS_INVALID = {
         "qa": np.asarray(
@@ -321,25 +321,6 @@ class GHOSTReader(AutoFilterReader):
 
         return date_filters, variable_filters
 
-    def get_meta_filename(self, filename):
-        """Extract metadata from data filename
-
-        Parameters
-        ----------
-        filename : str
-            data file path or name.
-
-        Returns
-        -------
-        dict
-            dictionary containing var_name, start and stop, and eventually
-            also frequency (ts_type)
-        """
-        var, time = os.path.basename(filename).split(".nc")[0].split("_")
-
-        per = pd.Period(freq="M", year=int(time[:4]), month=int(time[-2:]))
-        return dict(var_name=var, start=per.start_time, stop=per.end_time)
-
     @staticmethod
     def _eval_flags_slice(slc, invalid_flags):
         """
@@ -371,69 +352,39 @@ class GHOSTReader(AutoFilterReader):
         invalid = ~valid
         return invalid
 
-    def _add_flags_var_to_compute(self, statlist_from_file, var_to_compute):
-        for stat in statlist_from_file:
-            for i, req in enumerate(self.AUX_REQUIRES[var_to_compute]):
-                flags = stat["data_flagged"][req]
-                if i == 0:
-                    # pointer (safes computation time in case only one variable
-                    # is required, i.e. the same flags can be used)
-                    stat["data_flagged"][var_to_compute] = flags
-                else:
-                    logger.warning(
-                        "THIS HAS NOT BEEN TESTED AND IS "
-                        "SHOULD CURRENTLY NOT BE ABLE "
-                        "TO BE REACHED."
-                    )
-                    current = stat["data_flagged"][var_to_compute].copy()
-                    updated = np.logical_or(current, flags)
-                    stat["data_flagged"][var_to_compute] = updated
-        return statlist_from_file
+    def _get_filter_mask(self, ds: xr.Dataset) -> np.ndarray:
+        nb_stations = len(ds["station"].values)
 
-    def compute_additional_vars(self, statlist_from_file, vars_to_compute):
-        """
-        Compute additional variables for all sites
+        if self._joly_peuch_min_max:
+            joly_peuch_min, joly_peuch_max = self._joly_peuch_min_max
+            joly_peuch_mask = (
+                (ds["Joly-Peuch_classification_code"] >= joly_peuch_min)
+                & (ds["Joly-Peuch_classification_code"] <= joly_peuch_max)
+                & (ds["Joly-Peuch_classification_code"].notnull())
+            )
+        else:
+            joly_peuch_mask = np.ones(nb_stations, dtype=bool)
 
-        Parameters
-        ----------
-        statlist_from_file : list
-            list of :class:`StationData` objects containing variable data that
-            can be read from the data files.
-        vars_to_compute : list
-            list of variables to be computed from the variables contained in
-            `statlist_from_file`.
+        if self._measurement_methods:
+            mm_mask = ds["measurement_methodology"].isin(self._measurement_methods)
+        else:
+            mm_mask = np.ones(nb_stations, dtype=bool)
 
-        Returns
-        -------
-        statlist_from_file : list
-            list of modified :class:`StationData` objects, containing computed
-            variables in addition to the data that was contained in them
-            initially
-        vars_added : list
-            list of variables that could be successfully added
+        if self._area_classifications:
+            area_mask = ds["area_classification"].isin(self._area_classifications)
+        else:
+            area_mask = np.ones(nb_stations, dtype=bool)
 
-        """
-        vars_added = []
-        for var in vars_to_compute:
-            first_stat = statlist_from_file[0]
-            can_compute = True
-            requires = self.AUX_REQUIRES[var]
-            for req in requires:
-                if req not in first_stat:
-                    can_compute = False
-            if can_compute:
-                # this will add the variable data to each station data in
-                # statlist_from_file
-                statlist_from_file = self.AUX_FUNS[var](
-                    statlist_from_file, var, *requires
-                )
-                statlist_from_file = self._add_flags_var_to_compute(
-                    statlist_from_file, var
-                )
+        if self._station_classifications:
+            station_mask = ds["station_classification"].isin(
+                self._station_classifications
+            )
+        else:
+            station_mask = np.ones(nb_stations, dtype=bool)
 
-                if var not in vars_added:
-                    vars_added.append(var)
-        return (statlist_from_file, vars_added)
+        total_mask = joly_peuch_mask & area_mask & station_mask & mm_mask
+
+        return total_mask
 
     def read_file(
         self,
@@ -459,7 +410,11 @@ class GHOSTReader(AutoFilterReader):
         """
         invalidate_flags = self.DEFAULT_FLAGS_INVALID
 
-        with xr.open_dataset(filename_or_obj, decode_timedelta=True) as ds:
+        decode_times = False if self._frequency == "monthly" else True
+
+        with xr.open_dataset(
+            filename_or_obj, decode_timedelta=True, decode_times=decode_times
+        ) as ds:
             if not {"station", "time"}.issubset(ds.dims):  # pragma: no cover
                 raise AttributeError("Missing dimensions")
             if "station_name" not in ds:  # pragma: no cover
@@ -475,45 +430,7 @@ class GHOSTReader(AutoFilterReader):
                 except KeyError:  # pragma: no cover
                     logger.warning("No such metadata key in GHOST data file")
 
-            nb_stations = len(ds["station"].values)
-
-            # vals, counts = np.unique(
-            #     ds["measurement_methodology"].values, return_counts=True
-            # )
-
-            # total = {str(val): int(count) for val, count in zip(vals, counts)}
-
-            # breakpoint()
-
-            if self._joly_peuch_min_max:
-                joly_peuch_min, joly_peuch_max = self._joly_peuch_min_max
-                joly_peuch_mask = (
-                    (ds["Joly-Peuch_classification_code"] >= joly_peuch_min)
-                    & (ds["Joly-Peuch_classification_code"] <= joly_peuch_max)
-                    & (ds["Joly-Peuch_classification_code"].notnull())
-                )
-            else:
-                joly_peuch_mask = np.ones(nb_stations, dtype=bool)
-
-            if self._measurement_methods:
-                mm_mask = ds["measurement_methodology"].isin(self._measurement_methods)
-            else:
-                mm_mask = np.ones(nb_stations, dtype=bool)
-
-            if self._area_classifications:
-                area_mask = ds["area_classification"].isin(self._area_classifications)
-            else:
-                area_mask = np.ones(nb_stations, dtype=bool)
-
-            if self._station_classifications:
-                station_mask = ds["station_classification"].isin(
-                    self._station_classifications
-                )
-            else:
-                station_mask = np.ones(nb_stations, dtype=bool)
-
-            total_mask = joly_peuch_mask & area_mask & station_mask & mm_mask
-
+            total_mask = self._get_filter_mask(ds)
             var_key = (
                 f"{var_to_read}_prefiltered_defaultqa"
                 if self._use_prefiltered
@@ -535,9 +452,7 @@ class GHOSTReader(AutoFilterReader):
 
             if not self._use_prefiltered:
                 # evaluate flags
-                invalid = self._eval_flags(vardata, invalidate_flags, ds)[
-                    area_mask & station_mask
-                ]
+                invalid = self._eval_flags(vardata, invalidate_flags, ds)[total_mask]
             else:
                 invalid = np.zeros_like(data_np).astype(bool)
 
@@ -590,54 +505,6 @@ class GHOSTReader(AutoFilterReader):
                 np.ones_like(flattened_data) * np.nan,
             )
 
-            # if var_to_read in self._data:
-            #     da = self._data[var_to_read]
-            #     if da.units != units:
-            #         raise Exception(f"unit change from '{da.units}' to 'units'")
-            # else:
-            #     da = NpStructuredData(var_to_read, units)
-            #     self._data[var_to_read] = da
-
-            # names = ds.station_name.values
-            # lats = ds["latitude"].values
-            # lons = ds["longitude"].values
-            # alts = ds["altitude"].values
-            # countries = ds["country"].values
-            # start = tvals
-
-            # end = start + self.FREQ_TO_OFFSET[frequency]
-
-            # for idx in tqdm(ds.station.values, desc="Processing stations"):
-            #     name = str(ds.station_name.values[idx])
-
-            #     lat = lats[idx]
-            #     lon = lons[idx]
-            #     alt = alts[idx]
-            #     if name not in names:
-            #         self._stations[name] = Station(
-            #             {
-            #                 "station": name,
-            #                 "longitude": lon,
-            #                 "latitude": lat,
-            #                 "altitude": alt,
-            #                 "country": countries[idx],
-            #                 "url": "",
-            #                 "long_name": name,
-            #             }
-            #         )
-
-            #     self._data[var_to_read].append(
-            #         data_np[idx, :],
-            #         np.full(data_np.shape[1], fill_value=name),
-            #         np.ones(data_np.shape[1]) * lat,
-            #         np.ones(data_np.shape[1]) * lon,
-            #         np.ones(data_np.shape[1]) * alt,
-            #         start,
-            #         end,
-            #         ~invalid[idx, :],
-            #         np.ones(data_np.shape[1]) * np.nan,
-            #     )
-
     def read(
         self,
     ):
@@ -677,10 +544,13 @@ class GHOSTReader(AutoFilterReader):
         return {"revision": self._revision}
 
     def _unfiltered_data(self, varname: str):
-        self.read()
+        if self._data == {}:
+            self.read()
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
+        if self._data == {} and self._stations == {}:
+            self.read()
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
