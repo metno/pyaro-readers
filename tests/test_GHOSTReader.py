@@ -105,6 +105,20 @@ class TestGHOSTReader(unittest.TestCase):
 
         assert len(reader_no_filter.stations()) > len(reader_filter.stations())
 
+    def test_meta_keys(self):
+        reader = GHOSTReader(
+            self.testdata_dir,
+            networks=["EBAS-EMEP"],
+            filters={},
+            compressed=True,
+            frequency="monthly",
+        )
+
+        meta_keys = reader.META_KEYS
+
+        assert isinstance(meta_keys, list)
+        assert len(meta_keys) > 0
+
 
 if __name__ == "__main__":
     unittest.main()
