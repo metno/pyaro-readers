@@ -16,7 +16,6 @@ from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterReader, AutoFilter
 from pyaro.timeseries import Reader, Data, Station, NpStructuredData
 
 
-from pyaro_readers.ghostreader.additional_variables import vmr_to_ghost_stations
 from pyaro_readers.ghostreader.meta_keys import ghost_meta_keys
 from pyaro_readers.ghostreader.ghost_options import (
     AREA_CLASS,
