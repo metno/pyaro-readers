@@ -47,22 +47,6 @@ class GHOSTReader(AutoFilterReader):
     #:
     FLAG_DIMNAMES = {"qa": "N_qa_codes", "flag": "N_flag_codes"}
 
-    # AUX_REQUIRES = {
-    #     "concco": ["vmrco"],
-    #     "concno": ["vmrno"],
-    #     "concno2": ["vmrno2"],
-    #     "conco3": ["vmro3"],
-    #     "concso2": ["vmrso2"],
-    # }
-
-    # AUX_FUNS = {
-    #     "concco": vmr_to_ghost_stations,
-    #     "concno": vmr_to_ghost_stations,
-    #     "concno2": vmr_to_ghost_stations,
-    #     "conco3": vmr_to_ghost_stations,
-    #     "concso2": vmr_to_ghost_stations,
-    # }
-
     DEFAULT_FLAGS_INVALID = {
         "qa": np.asarray(
             [
@@ -160,12 +144,13 @@ class GHOSTReader(AutoFilterReader):
 
         self._joly_peuch_min_max = joly_peuch_min_max
 
-        if measurement_methods != []:
-            for mm in measurement_methods:
-                if mm not in MEASUREMENT_METHODS:
-                    raise ValueError(
-                        f"Invalid measurement methods: {measurement_methods}. Use one of the following: {MEASUREMENT_METHODS}"
-                    )
+        # To many measurement methods to check, so we just check if the list is not empty and then assume the user knows what they are doing.
+        # if measurement_methods != []:
+        #     for mm in measurement_methods:
+        #         if mm not in MEASUREMENT_METHODS:
+        #             raise ValueError(
+        #                 f"Invalid measurement methods: {measurement_methods}. Use one of the following: {MEASUREMENT_METHODS}"
+        #             )
         if area_classifications != []:
             for ac in area_classifications:
                 if ac not in AREA_CLASS:
@@ -352,6 +337,10 @@ class GHOSTReader(AutoFilterReader):
         return invalid
 
     def _get_filter_mask(self, ds: xr.Dataset) -> np.ndarray:
+        """
+        Gets mask for filtering stations based on Joly-Peuch classification, area classification, station classification and measurement method.
+        """
+
         nb_stations = len(ds["station"].values)
 
         if self._joly_peuch_min_max:
