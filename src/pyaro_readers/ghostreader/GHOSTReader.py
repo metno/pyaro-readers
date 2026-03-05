@@ -3,8 +3,7 @@ from typing import Literal
 from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
-from enum import Enum
-import os
+
 
 import numpy as np
 import pandas as pd
@@ -20,7 +19,8 @@ from pyaro_readers.ghostreader.meta_keys import ghost_meta_keys
 from pyaro_readers.ghostreader.ghost_options import (
     AREA_CLASS,
     STATION_CLASS,
-    MEASUREMENT_METHODS,
+    # MEASUREMENT_METHODS,
+    NETWORKS,
 )
 
 
@@ -28,13 +28,6 @@ import logging
 
 
 logger = logging.getLogger(__name__)
-
-
-class Network(Enum):
-    EMEP = "EBAS-EMEP"
-    GHOST = "GHOST"
-    EEA = "EEA_AQ_eReporting"
-    ACTRIS = "EBAS-ACTRIS"
 
 
 class GHOSTReader(AutoFilterReader):
@@ -90,9 +83,7 @@ class GHOSTReader(AutoFilterReader):
     def __init__(
         self,
         filename_or_obj_or_url,
-        networks: list[
-            Literal["EBAS-EMEP", "GHOST", "EEA_AQ_eReporting", "EBAS-ACTRIS"]
-        ] = ["EBAS-EMEP"],
+        networks: list[str] = ["EBAS-EMEP"],
         frequency: Literal[
             "hourly", "hourly_instantaneous", "daily", "monthly"
         ] = "daily",
@@ -104,6 +95,15 @@ class GHOSTReader(AutoFilterReader):
         station_classifications=[],
         filters=[],
     ):
+
+        if isinstance(networks, str):
+            networks = [networks]
+
+        if not set(networks).issubset(set(NETWORKS)):
+            raise ValueError(
+                f"Invalid networks: {networks}. Use one of the following: {NETWORKS}"
+            )
+
         mod_time = Path(filename_or_obj_or_url).stat().st_mtime
         mod_time = datetime.fromtimestamp(mod_time)
         self._revision = f"{mod_time:%Y-%m-%dT%H:%M:%S}"

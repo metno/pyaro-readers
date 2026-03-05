@@ -30,3 +30,5 @@ EMISSION_SOURCE = [
 ]
 
 MEASUREMENT_METHODS = ["chemiluminescence (internal molybdenum converter)"]
+
+NETWORKS = ["EBAS-EMEP", "GHOST", "EEA_AQ_eReporting", "EBAS-ACTRIS", "US_EPA_AQS"]
