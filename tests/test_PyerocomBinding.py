@@ -421,9 +421,9 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             f"Found {len(data.unique_station_names)} stations for variable {var_name}"
         )
         if len(data.unique_station_names) > 10:
-            logger.info(f"1st 10 stations: {",".join(data.unique_station_names[:10])}")
+            logger.info(f"1st 10 stations: {','.join(data.unique_station_names[:10])}")
         else:
-            logger.info(f"Stations: {",".join(data.unique_station_names)}")
+            logger.info(f"Stations: {','.join(data.unique_station_names)}")
 
     def test_pyaerocom_twmoe_single_var(self, var_name=EEA_VAR):
         # test reading via pyaerocom
@@ -482,9 +482,9 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             f"Found {len(data.unique_station_names)} stations for variable {var_name}"
         )
         if len(data.unique_station_names) > 10:
-            logger.info(f"1st 10 stations: {",".join(data.unique_station_names[:10])}")
+            logger.info(f"1st 10 stations: {','.join(data.unique_station_names[:10])}")
         else:
-            logger.info(f"Stations: {",".join(data.unique_station_names)}")
+            logger.info(f"Stations: {','.join(data.unique_station_names)}")
 
 
 if __name__ == "__main__":
