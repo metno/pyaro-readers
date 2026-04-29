@@ -9,7 +9,8 @@ import pyaro.timeseries
 
 logger = logging.getLogger(__name__)
 
-TEST_URL = "https://prod-actris-md2.nilu.no/"
+# TEST_URL = "https://prod-actris-md2.nilu.no/"
+TEST_URL = None
 
 
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
@@ -22,7 +23,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
 
     engine = "actrisebas"
     # actris_vars_to_read = ["aerosol particle elemental carbon mass concentration"]
-    # pyaerocom_vars_to_read = ["conco3"]
+    pyaerocom_vars_to_read = ["conco3"]
     # pyaerocom_vars_to_read = ["vmro3"]
     # pyaerocom_vars_to_read = ["wetso4"]
     # pyaerocom_vars_to_read = ["concca"]
@@ -30,7 +31,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # pyaerocom_vars_to_read = ["vmrso2"]
 
     # pyaerocom_vars_to_read = ["concso4t"]
-    pyaerocom_vars_to_read = ["concso4c"]
+    # pyaerocom_vars_to_read = ["concso4c"]
     # pyaerocom_vars_to_read = ["concpm10"]
     # pyaerocom_vars_to_read = ["concpm25"]
     # pyaerocom_vars_to_read = ["concpm1"]
@@ -92,7 +93,8 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
                 {}, [_var], []
             )
-            filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
+            # filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
+            filters = [variable_filter_pyaerocom]
             engine = pyaro.list_timeseries_engines()[self.engine]
             with engine.open(TEST_URL, filters=filters) as ts:
                 self.assertGreaterEqual(len(ts.variables()), 1)

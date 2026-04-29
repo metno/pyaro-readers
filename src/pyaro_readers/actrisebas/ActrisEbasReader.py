@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import os
+import requests
 from pathlib import Path
 from urllib.parse import urlparse, quote
 import sys
@@ -33,9 +34,11 @@ logger = logging.getLogger(__name__)
 
 # default API URL base
 # BASE_API_URL = "https://dev-actris-md2.nilu.no/"
-BASE_API_URL = "https://prod-actris-md2.nilu.no/"
+# BASE_API_URL = "https://prod-actris-md2.nilu.no/"
+BASE_API_URL = "https://dev-actris-md.nilu.no/"
 # base URL to query for data for a certain variable
-VAR_QUERY_URL = f"{BASE_API_URL}metadata/content/"
+# VAR_QUERY_URL = f"{BASE_API_URL}metadata/content/"
+VAR_QUERY_URL = f"{BASE_API_URL}/api/metadata/search"
 # basename of definitions.toml which connects the pyaerocom variable names with the ACTRIS variable names
 DEFINITION_FILE_BASENAME = "definitions.toml"
 # online ressource of ebas flags
@@ -66,14 +69,16 @@ MAX_RETRIES = 2
 EBAS_FLAG_NAN_NUMBER = 0
 
 # name of the root key containing the download information
-DISTRIBUTION_ROOT_KEY = "md_distribution_information"
+# DISTRIBUTION_ROOT_KEY = "md_distribution_information"
+DISTRIBUTION_ROOT_KEY = "_source"
+DISTRIBUTION_INFO_KEY = "distribution_information"
 DISTRIBUTION_PROTOCOL_KEY = "protocol"
 DISTRIBUTION_PROTOCOL_NAME_OPENDAP = "OPeNDAP".lower()
 DISTRIBUTION_PROTOCOL_NAME_HTTP = "http".lower()
 DISTRIBUTION_URL_KEY = "dataset_url"
 
 # some info to get to station name and location
-LOCATION_ROOT_KEY = "md_data_identification"
+LOCATION_ROOT_KEY = "_source"
 LOCATION_FACILITY_KEY = "facility"
 LOCATION_NAME_KEY = "name"
 LOCATION_LAT_KEY = "lat"
@@ -81,9 +86,19 @@ LOCATION_LON_KEY = "lon"
 LOCATION_ALT_KEY = "alt"
 
 # Keys to get to the time coverage of an URL
-TIME_COVERAGE_ROOT_KEY = "ex_temporal_extent"
+TIME_COVERAGE_ROOT_KEY = "_source"
+TIME_COVERAGE_TIME_KEY = "temporal_extent"
 TIME_COVERAGE_START_KEY = "time_period_begin"
 TIME_COVERAGE_END_KEY = "time_period_end"
+
+# keys o get the betcdf variable name information from the API reponse
+VAR_COVERAGE_ROOT_KEY = "_source"
+VAR_COVERAGE_VARIABLE_KEY = "variables"
+VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY = "variable_name"
+VAR_COVERAGE_EXTRA_METADATA_KEY = "extra_metadata"
+VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY = "insitu"
+VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY = "nc_varname"
+
 
 # name of netcdf time variable in the netcdf files
 # should be "time" as of CF convention, but other names can be added here
@@ -92,7 +107,7 @@ TIME_VAR_NAME = ["time"]
 CACHE_ENVIRONMENT_VAR_NAME = "PYARO_CACHE_DIR_EBAS_ACTRIS"
 
 # to read only observations
-PRODUCT_TYPE_ROOT_KEY = "md_actris_specific"
+PRODUCT_TYPE_ROOT_KEY = "_source"
 PRODUCT_TYPE_KEY = "product_type"
 PRODUCT_TYPES_TO_COPY = [
     "observation",
@@ -107,6 +122,13 @@ CF_UNITS["mg/l"] = "mg S m-2 d-1"
 # CF_UNITS[""] = ""
 
 USE_THREDDS2_FLAG = False
+
+# default page size for the API
+PAGE_SIZE = 20
+
+# Flag to enable testing file access at thetime we are analysing the API response.
+# Mainly used for testing since the data hasn't populated to Nilu's thredds server yet
+TEST_ACCESS_ON_API_RESPONSE_FLAG = True
 
 
 class ActrisEbasStdNameNotFoundException(Exception):
@@ -212,6 +234,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # Because the user might have given a pyaerocom name, build self.actris_vars_to_read with a list
         # of ACTRIS variables to read. values are a list
         self.actris_vars_to_read = {}
+        self.opendap_netcdf_info = {}
         for var in self.vars_to_read:
             self._tmp_metadata[var] = {}
             # handle pyaerocom variables here:
@@ -254,37 +277,54 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     with open(test_file, "r") as f:
                         json_resp = json.load(f)
                 else:
-                    page_no = 0
-                    json_resp_tmp = "bla"
-                    json_resp = []
-                    while len(json_resp_tmp) != 0:
-                        # search for variable metadata
-                        query_url = f"{VAR_QUERY_URL}{quote(self.actris_vars_to_read[_pyaro_var][0])}/page/{page_no}"
-                        logger.info(query_url)
-                        retries = Retry(connect=5, read=2, redirect=5)
-                        http = PoolManager(retries=retries)
-                        response = http.request("GET", query_url)
-                        if len(response.data) > 0:
-                            try:
-                                json_resp_tmp = json.loads(
-                                    response.data.decode("utf-8")
-                                )
-                            except json.decoder.JSONDecodeError:
-                                json_resp_tmp = json.loads(response.data)
+                    query = {
+                        "bool": {
+                            "must": [
+                                {
+                                    "term": {
+                                        "dataset_metadata.repository.repository_id.keyword": "In-Situ"
+                                    }
+                                },
+                                {
+                                    "term": {
+                                        "variables.variable_name.keyword": _actris_var
+                                    }
+                                },
+                            ]
+                        }
+                    }
+                    hits, start, total = [], 0, 1
+                    iter = 0
+                    while start < total:
+                        payload = {
+                            "search": {"query": query, "from": start, "size": PAGE_SIZE}
+                        }
+                        try:
+                            r = requests.post(VAR_QUERY_URL, json=payload, timeout=30)
+                            r.raise_for_status()
+                            h = r.json().get("response", {}).get("hits", {})
+                            if iter == 0:
+                                total = h.get("total", {}).get("value", 0)
+                                iter += 1
+                            batch = h.get("hits", [])
+                            if not batch:
+                                break
+                            hits.extend(batch)
+                            start += len(batch)
 
-                            json_resp.extend(json_resp_tmp)
-                            page_no += 1
-                        else:
-                            json_resp_tmp = ""
-                            continue
+                        except requests.RequestException as e:
+                            hits = {"error": str(e)}
 
-                self._tmp_metadata[_pyaro_var][_actris_var] = json_resp
+                self._tmp_metadata[_pyaro_var][_actris_var] = hits
                 # extract opendap urls
-                self.open_dap_urls_to_dl[_actris_var] = self.extract_opendap_info(
-                    json_resp,
-                    sites_to_read=self.sites_to_read,
-                    sites_to_exclude=self.sites_to_exclude,
+                self.open_dap_urls_to_dl[_actris_var], netcdf_info_dummy = (
+                    self.extract_opendap_info(
+                        hits,
+                        sites_to_read=self.sites_to_read,
+                        sites_to_exclude=self.sites_to_exclude,
+                    )
                 )
+                self.opendap_netcdf_info = self.opendap_netcdf_info | netcdf_info_dummy
                 if extract_http_urls:
                     # extract download urls (to be read using http) urls
                     # these are unused atm, but might serve as a sanity check later on
@@ -885,6 +925,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         small helper method to extract opendap URLs to download from json reponse from the EBAS API
         """
         opendap_urls_to_dl = {}
+        # That's a dict containing the netcdf variable names per ACTRIS vocabulary term
+        # extracted from the API response
+        netcdf_vars_to_look_at = {}
         # highest hierachy is a list
         for site_idx, site_data in enumerate(json_resp):
             site_name = site_data[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
@@ -903,10 +946,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 if site_name not in opendap_urls_to_dl:
                     opendap_urls_to_dl[site_name] = []
 
-                # site_data[DISTRIBUTION_ROOT_KEY] is also a list
-                # search for protocol DISTRIBUTION_PROTOCOL_NAME
+                # protocol is site_data[DISTRIBUTION_ROOT_KEY][DISTRIBUTION_INFO_KEY][idx][DISTRIBUTION_PROTOCOL_KEY]
+                # The available data formats of the data file are a list in
                 for url_idx, distribution_data in enumerate(
-                    site_data[DISTRIBUTION_ROOT_KEY]
+                    site_data[DISTRIBUTION_ROOT_KEY][DISTRIBUTION_INFO_KEY]
                 ):
                     if (
                         distribution_data[DISTRIBUTION_PROTOCOL_KEY].lower()
@@ -923,70 +966,60 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             )
                         else:
                             url = distribution_data[DISTRIBUTION_URL_KEY]
-                        opendap_urls_to_dl[site_name].append(url)
-                        logger.info(
-                            f"site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
-                        )
+
+                        if (
+                            TEST_ACCESS_ON_API_RESPONSE_FLAG
+                            and url not in opendap_urls_to_dl[site_name]
+                        ):
+                            try:
+                                # logger.info(f"trying to read URL {url} for testing purposes")
+                                tmp_data = xr.open_dataset(url)
+                                logger.info(f"Successfully read URL {url}")
+                                tmp_data.close()
+                            except Exception as e:
+                                # logger.error(f"failed to read {url} with error {e}")
+                                continue
+
+                        if url not in opendap_urls_to_dl[site_name]:
+                            opendap_urls_to_dl[site_name].append(url)
+                            netcdf_vars_to_look_at[url] = {}
+                            # opendap_urls_to_dl[site_name].append(url)
+                            logger.info(
+                                f"site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
+                            )
+                            # extract the netcdf variable names per opendap URL for the needed ACTRIS variables
+                            for _var in site_data[VAR_COVERAGE_ROOT_KEY][
+                                VAR_COVERAGE_VARIABLE_KEY
+                            ]:
+                                pass
+                                netcdf_vars_to_look_at[url][
+                                    _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
+                                ] = _var[VAR_COVERAGE_EXTRA_METADATA_KEY][
+                                    VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY
+                                ][
+                                    VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
+                                ]
+
                         if url not in self.time_coverages:
+                            # this is in seconds from the epoch
                             time_dummy = (
                                 site_data[TIME_COVERAGE_ROOT_KEY][
-                                    TIME_COVERAGE_START_KEY
-                                ],
+                                    TIME_COVERAGE_TIME_KEY
+                                ][TIME_COVERAGE_START_KEY],
                                 site_data[TIME_COVERAGE_ROOT_KEY][
-                                    TIME_COVERAGE_END_KEY
-                                ],
+                                    TIME_COVERAGE_TIME_KEY
+                                ][TIME_COVERAGE_END_KEY],
                             )
-                            # check for time zone info in the time coverage string (times should be in UTC)
-                            if (
-                                len(
-                                    site_data[TIME_COVERAGE_ROOT_KEY][
-                                        TIME_COVERAGE_START_KEY
-                                    ]
-                                )
-                                > 19
-                                or len(
-                                    site_data[TIME_COVERAGE_ROOT_KEY][
-                                        TIME_COVERAGE_END_KEY
-                                    ]
-                                )
-                                > 19
-                            ):
-                                logger.info(
-                                    f"Non UTC time coverage string {time_dummy} in API response for URL {url}. Please check for errors. Removing TZ info for speed"
-                                )
-                                time_dummy = (
-                                    site_data[TIME_COVERAGE_ROOT_KEY][
-                                        TIME_COVERAGE_START_KEY
-                                    ][0:19],
-                                    np.datetime64(
-                                        site_data[TIME_COVERAGE_ROOT_KEY][
-                                            TIME_COVERAGE_END_KEY
-                                        ][0:19]
-                                    ),
-                                )
-                                self.time_coverages[url] = (
-                                    np.datetime64(time_dummy[0]),
-                                    np.datetime64(time_dummy[1]),
-                                )
-                            else:
-                                self.time_coverages[url] = (
-                                    np.datetime64(
-                                        site_data[TIME_COVERAGE_ROOT_KEY][
-                                            TIME_COVERAGE_START_KEY
-                                        ]
-                                    ),
-                                    np.datetime64(
-                                        site_data[TIME_COVERAGE_ROOT_KEY][
-                                            TIME_COVERAGE_END_KEY
-                                        ]
-                                    ),
-                                )
+                            self.time_coverages[url] = (
+                                np.datetime64(int(time_dummy[0]), "s"),
+                                np.datetime64(int(time_dummy[1]), "s"),
+                            )
                         else:
                             logger.info(
                                 f"Error: URL {url} already included in site used for a 2nd station!"
                             )
                         break
-        return opendap_urls_to_dl
+        return opendap_urls_to_dl, netcdf_vars_to_look_at
 
     def extract_dl_url_info(
         self,
