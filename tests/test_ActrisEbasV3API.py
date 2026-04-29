@@ -22,22 +22,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     logger.info("Started")
     variable_name = "ozone mass concentration"
 
-    def initial_query(self):
-        q = {
-            "search": {
-                "query": {
-                    "bool": {
-                        "must": [
-                            {
-                                "match": {
-                                    "variables.variable_name": "ozone mass concentration"
-                                }
-                            }
-                        ]
-                    }
-                }
-            }
-        }
+    def query(self):
         query = {
             "bool": {
                 "must": [
@@ -52,8 +37,8 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         }
         hits, start, total = [], 0, 1
         page_size = 20
-        # payload = {"search": {"query": query, "from": start, "size": page_size}}
 
+        iter = 0
         while start < total:
             payload = {"search": {"query": query, "from": start, "size": page_size}}
             try:
@@ -62,20 +47,21 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
                 )
                 r.raise_for_status()
                 h = r.json().get("response", {}).get("hits", {})
-                total = h.get("total", {}).get("value", 0)
+                if iter == 0:
+                    total = h.get("total", {}).get("value", 0)
+                    iter += 1
                 batch = h.get("hits", [])
                 if not batch:
                     break
                 hits.extend(batch)
                 start += len(batch)
 
-                result = r.json()
             except requests.RequestException as e:
-                result = {"error": str(e)}
-        return result
+                hits = {"error": str(e)}
+        return hits, total
 
     def test_query(self):
-        r = self.initial_query()
-        assert (
-            r["response"]["hits"]["total"]["value"] > 0
-        ), "No hits found for the query"
+        list_of_hits, total_hits = self.query()
+        assert total_hits > 0, "No hits found for the query"
+        if total_hits > 0:
+            assert type(list_of_hits) == list
