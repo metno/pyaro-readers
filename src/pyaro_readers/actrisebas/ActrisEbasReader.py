@@ -1,11 +1,12 @@
+from pathlib import Path
+
 import datetime
 import json
 import logging
 import os
 import requests
-from pathlib import Path
-from urllib.parse import urlparse, quote
 import sys
+from urllib.parse import urlparse
 
 if sys.version_info >= (3, 11):  # pragma: no cover
     import tomllib
@@ -17,8 +18,6 @@ import numpy.typing as npt
 import polars
 import xarray as xr
 from tqdm import tqdm
-from urllib3.poolmanager import PoolManager
-from urllib3.util.retry import Retry
 
 from pyaro.timeseries import (
     AutoFilterReaderEngine,
@@ -80,10 +79,13 @@ DISTRIBUTION_URL_KEY = "dataset_url"
 # some info to get to station name and location
 LOCATION_ROOT_KEY = "_source"
 LOCATION_FACILITY_KEY = "facility"
+LOCATION_FACILITY_LOCATION_KEY = "location"
+LOCATION_FACILITY_LOCATION_VALUE_KEY = "coordinates"
 LOCATION_NAME_KEY = "name"
-LOCATION_LAT_KEY = "lat"
-LOCATION_LON_KEY = "lon"
-LOCATION_ALT_KEY = "alt"
+# These are list indexes, since the info is in a list
+LOCATION_LAT_KEY = 1
+LOCATION_LON_KEY = 0
+LOCATION_ALT_KEY = 2
 
 # Keys to get to the time coverage of an URL
 TIME_COVERAGE_ROOT_KEY = "_source"
@@ -98,7 +100,6 @@ VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY = "variable_name"
 VAR_COVERAGE_EXTRA_METADATA_KEY = "extra_metadata"
 VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY = "insitu"
 VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY = "nc_varname"
-
 
 # name of netcdf time variable in the netcdf files
 # should be "time" as of CF convention, but other names can be added here
@@ -388,9 +389,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             get_coverage_from_url_flag = True
 
                         if self.cache_flag:
-                            _local_file = self.cache_dir / "_".join(
-                                Path(thredds_url).parts[-4:]
-                            )
+                            _local_file = self.local_file_from_url(thredds_url)
                             if _local_file.exists():
                                 url = _local_file
                                 _local_file_flag = True
@@ -446,6 +445,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 continue
 
                         # read needed data
+                        # netcdf_var_to_read =
                         for d_idx, _data_var in enumerate(
                             self._get_ebas_data_vars(
                                 tmp_data,
@@ -634,6 +634,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         to the next higher resolution time step size
         """
         pass
+
+    def local_file_from_url(self, url):
+        """
+        helper method to get the local file path from a url for caching purposes
+        :param url:
+        :return:
+        """
+        _local_file = self.cache_dir / "_".join(Path(url).parts[-4:])
+        return _local_file
 
     def get_valid_ts_indizes(
         self,
@@ -999,6 +1008,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 ][
                                     VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
                                 ]
+                                # this is the entry for the cache file name
+                                netcdf_vars_to_look_at[
+                                    self.local_file_from_url(url)
+                                ] = netcdf_vars_to_look_at[url]
 
                         if url not in self.time_coverages:
                             # this is in seconds from the epoch
@@ -1098,12 +1111,47 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         return self._data[varname]
 
     def _unfiltered_stations(self) -> dict[str, Station]:
-        self._read()
+        # self._read()
+        # we really have to fill the data from the API response here to make pyaerocom caching work
+        # and possibly edit that in the actual reading
+        tmp_var = self.vars_to_read[0]
+        tmp_actris_var = self.actris_vars_to_read[tmp_var][0]
+        for _station in self._tmp_metadata[tmp_var][tmp_actris_var]:
+            _stat_name = _station[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
+                LOCATION_NAME_KEY
+            ]
+            if _stat_name is None:
+                continue
+            if _stat_name not in self._stations:
+                facility_dummy = _station[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY]
+
+                self._stations[_stat_name] = Station(
+                    {
+                        "station": _stat_name,
+                        "longitude": facility_dummy[LOCATION_FACILITY_LOCATION_KEY][
+                            LOCATION_FACILITY_LOCATION_VALUE_KEY
+                        ][LOCATION_LON_KEY],
+                        "latitude": facility_dummy[LOCATION_FACILITY_LOCATION_KEY][
+                            LOCATION_FACILITY_LOCATION_VALUE_KEY
+                        ][LOCATION_LAT_KEY],
+                        "altitude": facility_dummy[LOCATION_FACILITY_LOCATION_KEY][
+                            LOCATION_FACILITY_LOCATION_VALUE_KEY
+                        ][LOCATION_ALT_KEY],
+                        "country": facility_dummy["country_code"],
+                        "url": facility_dummy["uri"],
+                        # This is used by pyaerocom
+                        "long_name": _stat_name,
+                    }
+                )
+
+        # self._stations = list(self.open_dap_urls_to_dl[self.actris_vars_to_read[self.vars_to_read[0]][0]])
+
         return self._stations
 
     def _unfiltered_variables(self) -> list[str]:
-        self._read()
-        return list(self._data.keys())
+        # self._read()
+        # return list(self._data.keys())
+        return self.vars_to_read
 
     def close(self):
         pass

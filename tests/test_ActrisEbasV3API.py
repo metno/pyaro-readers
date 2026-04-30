@@ -15,7 +15,7 @@ BASE_API_URL = "https://dev-actris-md.nilu.no/"
 
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     log_file = os.getenv("PYAEROCOM_LOG_FILE")
-    if log_file is not None:
+    if log_file is None:
         log_file = f"actrisebas.log"
         # log_file = f"/home/jang/tmp/logging/pyaerocom.log"
     logging.basicConfig(filename=log_file, level=logging.DEBUG)
