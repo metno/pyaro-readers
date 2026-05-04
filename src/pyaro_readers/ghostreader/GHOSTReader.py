@@ -90,7 +90,7 @@ class GHOSTReader(AutoFilterReader):
         joly_peuch_min_max: tuple[int, int] | None = None,
         measurement_methods: list[str] = [],
         use_prefiltered=True,
-        compressed: bool = False,
+        compressed: bool = True,
         area_classifications=[],
         station_classifications=[],
         filters=[],
@@ -144,13 +144,6 @@ class GHOSTReader(AutoFilterReader):
 
         self._joly_peuch_min_max = joly_peuch_min_max
 
-        # To many measurement methods to check, so we just check if the list is not empty and then assume the user knows what they are doing.
-        # if measurement_methods != []:
-        #     for mm in measurement_methods:
-        #         if mm not in MEASUREMENT_METHODS:
-        #             raise ValueError(
-        #                 f"Invalid measurement methods: {measurement_methods}. Use one of the following: {MEASUREMENT_METHODS}"
-        #             )
         if area_classifications != []:
             for ac in area_classifications:
                 if ac not in AREA_CLASS:
@@ -426,6 +419,17 @@ class GHOSTReader(AutoFilterReader):
             )
 
             tvals = ds["time"].values
+            if self._frequency == "monthly":
+                # for monthly data, we set the time to the first day of the month, since the time variable is just a string with the month and year
+
+                st = pd.to_datetime(ds.time.units.split(" ")[2], format="%Y-%m-%d")
+                tvals = np.array(
+                    [
+                        (st + pd.DateOffset(months=int(t))).to_datetime64()
+                        for t in tvals
+                    ],
+                    dtype="datetime64[M]",
+                )
 
             vardata = ds[var_key]  # DataArray
             varinfo = vardata.attrs
@@ -549,6 +553,17 @@ class GHOSTReader(AutoFilterReader):
 
     def close(self):
         pass
+
+    @staticmethod
+    def get_classification_options():
+        return {
+            "area_classifications": AREA_CLASS,
+            "station_classifications": STATION_CLASS,
+        }
+
+    @staticmethod
+    def get_network_options():
+        return NETWORKS
 
 
 class GHOSTTimeseriesEngine(AutoFilterEngine):

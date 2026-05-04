@@ -88,7 +88,23 @@ columns = [
 
  Processed data can be found on PPI (internal for MET).
 
+### GHOST
 
+Reader GHOST data (https://essd.copernicus.org/articles/16/4417/2024/). Can read any combination of the networks found in the GHOST dataset, as well as the aggregated GHOST network (not working as of 04.05.2026 due to corrupted file on Zenodo). Data can be filtered on 
+
+- `frequency`, the frequency of the read data. Coarser data includes the finer data
+- `area_classification`, e.g. rural, urban
+- `station_classification`, e.g. background.
+- `measurement_methods`
+- `joly_peuch_min_max`
+    - Tuple with `(min,max)` Joly&Peuch classification
+    - **Does not work when area and station classification are set**
+
+If the `use_prefiltered` is True (default), then only the data deemed to have high quality by the authors are read. If False, an old list of quality flags are used to determine the quality of the data. Keeping the default True is recommended.
+
+Names of variables and measurements can be found in the article. Classifications and networks can be found by calling static methods from the reader (see below)
+
+It is strongly advised that you define filters for the time period and included variables, as the full dataset if very large. The example below shows how this is done.
 
 ## Usage
 ### aeronetsunreader
@@ -336,6 +352,53 @@ def main():
         # help(ts)
         data = ts.data("PM25")
         print(data.values)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+
+### ghostreader
+```python
+import pyaro
+
+
+TEST_URL = "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/GHOST_v2/download"
+
+
+def main():
+    with pyaro.open_timeseries(
+        "ghostreader",
+        TEST_URL,
+        frequency="monthly",
+        filters={
+            "time_bounds": {
+                "startend_include": [
+                    ("2019-01-01 00:00:00", "2020-01-01 00:00:00")
+                ],  # Include data between these time bounds
+            },
+            "variables": {"include": ["pm2p5"]},
+        },
+        networks=[
+            "EEA",
+            "US_EPA_AQS",
+        ],
+        area_classifications=[
+            "rural",
+            "rural-near_city",
+            "rural-regional",
+            "rural-remote",
+        ],
+        station_classifications=["background"],
+    ) as ts:
+        # help(ts)
+
+        data = ts.data("pm2p5")
+        print(data.values)
+
+        print(ts.get_classification_options())
+        print(ts.get_network_options())
 
 
 if __name__ == "__main__":
