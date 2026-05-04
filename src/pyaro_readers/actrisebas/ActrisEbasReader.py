@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import requests
 import sys
 from urllib.parse import urlparse
@@ -122,7 +123,11 @@ CF_UNITS["mm"] = "mm d-1"
 CF_UNITS["mg/l"] = "mg S m-2 d-1"
 # CF_UNITS[""] = ""
 
-USE_THREDDS2_FLAG = False
+# Used to adjust the APIs thredds URL for testing
+REWRITE_THREDDS_URL = True
+
+# used to adjust the APIs thredds variable naming to something that works
+REWRITE_NETCDF_VAR_NAME = True
 
 # default page size for the API
 PAGE_SIZE = 20
@@ -167,6 +172,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # self._header = []
         self._metadata = {}
         self._tmp_metadata = {}
+        # save the entire API reponse for later reference
+        # list due to the repsonse being paginated
+        self._api_response = []
         # used for variable matching in the EBAS data files
         # gives a mapping between the EBAS or pyaerocom variable name
         # and the CF standard name found in the EBAS data files
@@ -303,7 +311,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         try:
                             r = requests.post(VAR_QUERY_URL, json=payload, timeout=30)
                             r.raise_for_status()
-                            h = r.json().get("response", {}).get("hits", {})
+                            self._api_response.append(r.json())
+                            # h = r.json().get("response", {}).get("hits", {})
+                            h = (
+                                self._api_response[-1]
+                                .get("response", {})
+                                .get("hits", {})
+                            )
                             if iter == 0:
                                 total = h.get("total", {}).get("value", 0)
                                 iter += 1
@@ -364,6 +378,18 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     self._metadata[site_name] = {}
 
                     for f_idx, thredds_url in enumerate(urls_to_dl[site_name]):
+                        try:
+                            _data_var = self.opendap_netcdf_info[thredds_url][
+                                actris_variable
+                            ]
+                            logger.info(
+                                f"netcdf variable found for url {thredds_url} and variable {actris_variable}: {_data_var}"
+                            )
+                        except KeyError:
+                            logger.error(
+                                f"no netcdf variable information found in API response for url {thredds_url} and variable {actris_variable}. Skipping that URL..."
+                            )
+                            continue
                         _local_file_flag = False
                         # time coverage per URL is in the API response
                         # but build a fall back in case that's not working
@@ -446,172 +472,168 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
                         # read needed data
                         # netcdf_var_to_read =
-                        for d_idx, _data_var in enumerate(
-                            self._get_ebas_data_vars(
-                                tmp_data,
-                            )
-                        ):
-                            stat_code = None
-                            # look for a standard_name match and return only that variable
-                            std_name = self.get_ebas_data_standard_name(
-                                tmp_data, _data_var
-                            )
-                            if std_name not in self.standard_names[actris_variable]:
-                                # logger.info(
-                                #     f"station {site_name}, file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
-                                # )
-                                continue
-                            else:
-                                log_str = f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
-                                logger.info(log_str)
+                        # for d_idx, _data_var in enumerate(
+                        #         self._get_ebas_data_vars(
+                        #             tmp_data,
+                        #         )
+                        # ):
+                        stat_code = None
+                        logger.info(
+                            f"station {site_name}, file #{f_idx}: trying to use {_data_var} as data variable for reading"
+                        )
+                        # look for a standard_name match and return only that variable
+                        # std_name = self.get_ebas_data_standard_name(
+                        #     tmp_data, _data_var
+                        # )
+                        # if std_name not in self.standard_names[actris_variable]:
+                        #     # logger.info(
+                        #     #     f"station {site_name}, file #{f_idx}: skipping variable {_data_var} due to wrong standard name"
+                        #     # )
+                        #     continue
+                        # else:
+                        #     log_str = f"station {site_name}, file #{f_idx}: found matching standard_name {std_name}"
+                        #     logger.info(log_str)
 
-                            # check for time steps not fitting pyaerocom
-                            start_time = np.asarray(tmp_data["time_bnds"][:, 0])
-                            stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
-                            ts_no_all = len(start_time)
-                            # if we need to remove non pyaerocom time step sizes
-                            if self.remove_non_pyaerocom_time_steps:
+                        # check for time steps not fitting pyaerocom
+                        start_time = np.asarray(tmp_data["time_bnds"][:, 0])
+                        stop_time = np.asarray(tmp_data["time_bnds"][:, 1])
+                        ts_no_all = len(start_time)
+                        # if we need to remove non pyaerocom time step sizes
+                        if self.remove_non_pyaerocom_time_steps:
 
-                                valid_idxs = self.get_valid_ts_indizes(
+                            valid_idxs = self.get_valid_ts_indizes(
+                                start_time, stop_time
+                            )
+                            ts_no = len(valid_idxs)
+                            if ts_no == 0:
+                                ts_type = self.get_pyaerocom_ts_sizes(
                                     start_time, stop_time
                                 )
-                                ts_no = len(valid_idxs)
-                                if ts_no == 0:
-                                    ts_type = self.get_pyaerocom_ts_sizes(
-                                        start_time, stop_time
-                                    )
-                                    logger.info(
-                                        f"all timesteps of URL {url} were non standard lengths (e.g. {ts_type[0]}). Skipping this URL..."
-                                    )
-                                    continue
-                            else:
-                                ts_no = ts_no_all
-
-                            # Not all files contain height information unfortunately
-                            # skip those that don't
-                            try:
-                                altitude = np.full(
-                                    ts_no, tmp_data.attrs["geospatial_vertical_min"]
-                                )
-                            except KeyError as e:
-                                logger.error(
-                                    f"URL: {url} contains no height information. Skipping this URL."
+                                logger.info(
+                                    f"all timesteps of URL {url} were non standard lengths (e.g. {ts_type[0]}). Skipping this URL..."
                                 )
                                 continue
+                        else:
+                            ts_no = ts_no_all
 
-                            # units...
-                            # logs if netcdf-CF units and EBAS units are not equal
-                            self.units = self.get_ebas_data_units(
-                                tmp_data, _data_var, url
+                        # Not all files contain height information unfortunately
+                        # skip those that don't
+                        try:
+                            altitude = np.full(
+                                ts_no, tmp_data.attrs["geospatial_vertical_min"]
+                            )
+                        except KeyError as e:
+                            logger.error(
+                                f"URL: {url} contains no height information. Skipping this URL."
+                            )
+                            continue
+
+                        # units...
+                        # logs if netcdf-CF units and EBAS units are not equal
+                        self.units = self.get_ebas_data_units(tmp_data, _data_var, url)
+
+                        long_name = tmp_data.attrs["ebas_station_name"]
+                        # the station name from the API might not match the one from the data file
+                        # always use the one from the API, but keep the line above for documentation
+                        # we might decide later on to use the name from the data file instead
+                        if long_name != site_name:
+                            long_name = site_name
+                        stat_code = tmp_data.attrs["ebas_station_code"]
+                        # create variables valid for all measured variables...
+                        lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
+                        lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
+                        # station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
+                        station = np.full(ts_no, long_name)
+                        # Unused at this point
+                        standard_deviation = np.full(ts_no, np.nan)
+
+                        # check if the read variable is a composition variable like deposition
+                        if "standard_names_2nd_var" in self.def_data["variables"][_var]:
+                            try:
+                                vals, ebas_flags, self.units = self.calc_var(
+                                    tmp_data, _data_var, _var
+                                )
+                            except ActrisEbasStdNameNotFoundException:
+                                logger.info(
+                                    f"URL: {url} no precipitation found for deposition calculation."
+                                )
+                                continue
+                        else:
+                            vals = tmp_data[_data_var].values
+                            ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
+
+                        # apply flags
+                        # quick test if we need to apply flags at all
+                        if (
+                            np.nansum(ebas_flags)
+                            == ebas_flags.size * EBAS_FLAG_NAN_NUMBER
+                        ):
+                            flags = np.full(ts_no_all, Flag.VALID, dtype="i2")
+                        else:
+                            vals, flags = self.get_var_data_flags_applied_from_vars(
+                                vals, ebas_flags
                             )
 
-                            long_name = tmp_data.attrs["ebas_station_name"]
-                            # the station name from the API might not match the one from the data file
-                            # always use the one from the API, but keep the line above for documentation
-                            # we might decide later on to use the name from the data file instead
-                            if long_name != site_name:
-                                long_name = site_name
-                            stat_code = tmp_data.attrs["ebas_station_code"]
-                            # create variables valid for all measured variables...
-                            lat = np.full(ts_no, tmp_data.attrs["geospatial_lat_min"])
-                            lon = np.full(ts_no, tmp_data.attrs["geospatial_lon_min"])
-                            # station = np.full(ts_no, tmp_data.attrs["ebas_station_code"])
-                            station = np.full(ts_no, long_name)
-                            # Unused at this point
-                            standard_deviation = np.full(ts_no, np.nan)
-
-                            # check if the read variable is a composition variable like deposition
-                            if (
-                                "standard_names_2nd_var"
-                                in self.def_data["variables"][_var]
-                            ):
-                                try:
-                                    vals, ebas_flags, self.units = self.calc_var(
-                                        tmp_data, _data_var, _var
-                                    )
-                                except ActrisEbasStdNameNotFoundException:
-                                    logger.info(
-                                        f"URL: {url} no precipitation found for deposition calculation."
-                                    )
-                                    continue
-                            else:
-                                vals = tmp_data[_data_var].values
-                                ebas_flags = self.get_ebas_var_flags(
-                                    tmp_data, _data_var
+                        # remove non-standard time step sizes if needed
+                        if ts_no_all > ts_no:
+                            try:
+                                flags = flags[valid_idxs]
+                            except Exception as e:
+                                logger.error(
+                                    f"failed to set flags right for {site_name} with error {e}"
                                 )
+                            start_time = start_time[valid_idxs]
+                            stop_time = stop_time[valid_idxs]
+                            vals = vals[valid_idxs]
 
-                            # apply flags
-                            # quick test if we need to apply flags at all
-                            if (
-                                np.nansum(ebas_flags)
-                                == ebas_flags.size * EBAS_FLAG_NAN_NUMBER
-                            ):
-                                flags = np.full(ts_no_all, Flag.VALID, dtype="i2")
-                            else:
-                                vals, flags = self.get_var_data_flags_applied_from_vars(
-                                    vals, ebas_flags
-                                )
-
-                            # remove non-standard time step sizes if needed
-                            if ts_no_all > ts_no:
-                                try:
-                                    flags = flags[valid_idxs]
-                                except Exception as e:
-                                    logger.error(
-                                        f"failed to set flags right for {site_name} with error {e}"
-                                    )
-                                start_time = start_time[valid_idxs]
-                                stop_time = stop_time[valid_idxs]
-                                vals = vals[valid_idxs]
-
-                            if _var not in self._data:
-                                self._data[_var] = NpStructuredData(
-                                    _var,
-                                    self.units,
-                                )
-
-                            self._data[_var].append(
-                                value=vals,
-                                station=station,
-                                latitude=lat,
-                                longitude=lon,
-                                altitude=altitude,
-                                start_time=start_time,
-                                end_time=stop_time,
-                                flag=flags,
-                                standard_deviation=standard_deviation,
+                        if _var not in self._data:
+                            self._data[_var] = NpStructuredData(
+                                _var,
+                                self.units,
                             )
-                            # stop after the 1st matching variable
-                            logger.info(
-                                f"matching std_name found. Not searching for possible additional std_name matches at this point..."
-                            )
-                            break
-                        if stat_code is not None:
-                            # if site_name == "Carnsore Point":
-                            if site_name == "Hallahus":
-                                assert site_name
-                            if not site_name in self._stations:
-                                # exception in case all time step sizes were not pyaerocom compatible
-                                try:
-                                    self._stations[site_name] = Station(
-                                        {
-                                            "station": stat_code,
-                                            "longitude": lon[0],
-                                            "latitude": lat[0],
-                                            "altitude": altitude[0],
-                                            "country": self.get_ebas_data_country_code(
-                                                tmp_data
-                                            ),
-                                            "url": "",
-                                            # This is used by pyaerocom
-                                            "long_name": site_name,
-                                        }
-                                    )
-                                except UnboundLocalError:
-                                    logger.info(
-                                        f"site_name: {site_name} all time steps for variable {_var} were non pyaerocom standard."
-                                    )
-                                    continue
+
+                        self._data[_var].append(
+                            value=vals,
+                            station=station,
+                            latitude=lat,
+                            longitude=lon,
+                            altitude=altitude,
+                            start_time=start_time,
+                            end_time=stop_time,
+                            flag=flags,
+                            standard_deviation=standard_deviation,
+                        )
+                        # stop after the 1st matching variable
+                        logger.info(
+                            f"API variable name {_data_var} found in netcdf file..."
+                        )
+                        break
+                    if stat_code is not None:
+                        # if site_name == "Carnsore Point":
+                        if site_name == "Hallahus":
+                            assert site_name
+                        if not site_name in self._stations:
+                            # exception in case all time step sizes were not pyaerocom compatible
+                            try:
+                                self._stations[site_name] = Station(
+                                    {
+                                        "station": stat_code,
+                                        "longitude": lon[0],
+                                        "latitude": lat[0],
+                                        "altitude": altitude[0],
+                                        "country": self.get_ebas_data_country_code(
+                                            tmp_data
+                                        ),
+                                        "url": "",
+                                        # This is used by pyaerocom
+                                        "long_name": site_name,
+                                    }
+                                )
+                            except UnboundLocalError:
+                                logger.info(
+                                    f"site_name: {site_name} all time steps for variable {_var} were non pyaerocom standard."
+                                )
+                                continue
                     try:
                         tmp_data.close()
                     except Exception as e:
@@ -969,9 +991,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                         continue
                     else:
-                        if USE_THREDDS2_FLAG:
+                        if REWRITE_THREDDS_URL:
                             url = distribution_data[DISTRIBUTION_URL_KEY].replace(
-                                "thredds.", "thredds2."
+                                "thredds.", "dev-thredds."
                             )
                         else:
                             url = distribution_data[DISTRIBUTION_URL_KEY]
@@ -1008,9 +1030,20 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 ][
                                     VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
                                 ]
+                                if REWRITE_NETCDF_VAR_NAME:
+                                    netcdf_vars_to_look_at[url][
+                                        _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
+                                    ] = re.sub(
+                                        r"^v_",
+                                        "",
+                                        netcdf_vars_to_look_at[url][
+                                            _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
+                                        ],
+                                    )
+
                                 # this is the entry for the cache file name
                                 netcdf_vars_to_look_at[
-                                    self.local_file_from_url(url)
+                                    str(self.local_file_from_url(url))
                                 ] = netcdf_vars_to_look_at[url]
 
                         if url not in self.time_coverages:
