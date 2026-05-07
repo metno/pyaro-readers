@@ -23,8 +23,8 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
 
     engine = "actrisebas"
     # actris_vars_to_read = ["aerosol particle elemental carbon mass concentration"]
-    # pyaerocom_vars_to_read = ["conco3"]
-    pyaerocom_vars_to_read = ["vmro3"]
+    pyaerocom_vars_to_read = ["conco3"]
+    # pyaerocom_vars_to_read = ["vmro3"]
     # pyaerocom_vars_to_read = ["wetso4"]
     # pyaerocom_vars_to_read = ["concca"]
     # pyaerocom_vars_to_read = ["concso2"]
@@ -37,10 +37,16 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # pyaerocom_vars_to_read = ["concpm1"]
 
     station_filter = pyaro.timeseries.Filter.StationFilter(
+        # ["Sniezka",],
         [
             "Sniezka",
+            "Schmucke",
+            "Birkenes II",
+            "Jungfraujoch",
+            "Ispra",
+            "Melpitz",
+            "Westerland",
         ],
-        # ["Schmucke", "Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"],
         [],
     )
 
@@ -96,13 +102,14 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
                 {}, [_var], []
             )
-            # filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
-            filters = [self.station_filter, variable_filter_pyaerocom]
+            filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
+            # filters = [self.station_filter, variable_filter_pyaerocom]
+            # filters = [variable_filter_pyaerocom]
             engine = pyaro.list_timeseries_engines()[self.engine]
             with engine.open(TEST_URL, filters=filters) as ts:
                 self.assertGreaterEqual(len(ts.variables()), 1)
                 self.assertGreaterEqual(len(ts.stations()), 1)
-                self.assertIn("Sniezka", ts.stations())
+                self.assertIn("Ispra", ts.stations())
                 self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
                 self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
                 self.assertIn("revision", ts.metadata())

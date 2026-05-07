@@ -124,10 +124,10 @@ CF_UNITS["mg/l"] = "mg S m-2 d-1"
 # CF_UNITS[""] = ""
 
 # Used to adjust the APIs thredds URL for testing
-REWRITE_THREDDS_URL = True
+REWRITE_THREDDS_URL = False
 
 # used to adjust the APIs thredds variable naming to something that works
-REWRITE_NETCDF_VAR_NAME = True
+REWRITE_NETCDF_VAR_NAME = False
 
 # default page size for the API
 PAGE_SIZE = 20
@@ -883,7 +883,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         # try just adding "_qc" to the variable name
         if ret_data is None:
-            if var_name + "_qc" in tmp_data.variables:
+            _var = re.sub("^v_", "qc_", var_name)
+            if _var in tmp_data.variables:
+                return _var
+            elif var_name + "_qc" in tmp_data.variables:
                 return var_name + "_qc"
             else:
                 raise ActrisEbasQcVariableNotFoundException(
