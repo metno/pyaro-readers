@@ -100,7 +100,10 @@ VAR_COVERAGE_VARIABLE_KEY = "variables"
 VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY = "variable_name"
 VAR_COVERAGE_EXTRA_METADATA_KEY = "extra_metadata"
 VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY = "insitu"
-VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY = "nc_varname"
+VAR_COVERAGE_NETCDF_VARIABLE_NAME_KEY = "nc_varname"
+VAR_COVERAGE_EBAS_MATRIX_NAME_KEY = "ebas_matrix"
+VAR_COVERAGE_EBAS_COMPONENT_NAME_KEY = "ebas_component_name"
+VAR_COVERAGE_EBAS_UNIT_NAME_KEY = "ebas_unit"
 
 # name of netcdf time variable in the netcdf files
 # should be "time" as of CF convention, but other names can be added here
@@ -1033,19 +1036,26 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 ):
                                     netcdf_vars_to_look_at[url][
                                         _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
-                                    ] = [
-                                        _var[VAR_COVERAGE_EXTRA_METADATA_KEY][
-                                            VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
-                                        ]
-                                    ]
-                                else:
-                                    netcdf_vars_to_look_at[url][
-                                        _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
-                                    ].append(
-                                        _var[VAR_COVERAGE_EXTRA_METADATA_KEY][
-                                            VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
-                                        ]
-                                    )
+                                    ] = {}
+                                _insitu = _var[VAR_COVERAGE_EXTRA_METADATA_KEY][
+                                    VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY
+                                ]
+                                _ebas_component_key = _insitu[
+                                    VAR_COVERAGE_EBAS_COMPONENT_NAME_KEY
+                                ]
+                                _ebas_unit_key = _insitu[
+                                    VAR_COVERAGE_EBAS_UNIT_NAME_KEY
+                                ]
+                                _ebas_matrix_key = _insitu[
+                                    VAR_COVERAGE_EBAS_MATRIX_NAME_KEY
+                                ]
+                                _ebas_key = f"{_ebas_component_key}%{_ebas_matrix_key}%{_ebas_unit_key}"
+
+                                netcdf_vars_to_look_at[url][
+                                    _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
+                                ][_ebas_key] = _insitu[
+                                    VAR_COVERAGE_NETCDF_VARIABLE_NAME_KEY
+                                ]
                                 # netcdf_vars_to_look_at[url][_var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]] = \
                                 #         _var[VAR_COVERAGE_EXTRA_METADATA_KEY][VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY][
                                 #             VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
@@ -1214,6 +1224,18 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # The EBAS part will hopefully not be necessary in the next EBAS version anymore
         with open(file, "rb") as fh:
             tmp = tomllib.load(fh)
+        # add the ebas metadata key here as well
+        for _aerocom_var in tmp["variables"]:
+            tmp["variables"][_aerocom_var]["netcdf_keys"] = []
+            for _component in tmp["variables"][_aerocom_var]["ebas_component"]:
+                for _matrix in tmp["variables"][_aerocom_var]["ebas_matrix"]:
+                    # f"{_ebas_component_key}%{_ebas_matrix_key}%{_ebas_unit_key}"
+                    # _tmp = f"{}%{}%{}"
+                    _tmp = f"{_component}%{_matrix}"
+                    if "units" in tmp["variables"][_aerocom_var]:
+                        _tmp = f"{_tmp}%{tmp['variables'][_aerocom_var]['units']}"
+                    tmp["variables"][_aerocom_var]["netcdf_keys"].append(_tmp)
+
         return tmp
 
     def is_valid_url(self, url):

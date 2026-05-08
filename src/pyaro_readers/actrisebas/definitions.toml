@@ -74,6 +74,8 @@ ebas_matrix = ["aerosol", "pm10", "pm25"]
 standard_names = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_dry_aerosol_particles_in_air",
     "mass_concentration_of_sulphate_total_in_pm10_in_air",
     "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
+units = 'ug S/m3'
+
 
 # Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
 [variables.concso4c]
@@ -87,6 +89,7 @@ standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_in_dry_
 #standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_dry_aerosol_particles_in_air",
 #    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm10_in_air",
 #    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm2p5_in_air", ]
+units = 'ug S/m3'
 
 [variables.vmro3]
 actris_variable = ["ozone amount fraction"]
