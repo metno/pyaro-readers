@@ -1026,13 +1026,30 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 VAR_COVERAGE_VARIABLE_KEY
                             ]:
                                 pass
-                                netcdf_vars_to_look_at[url][
+                                # This might not be only one entry!
+                                if (
                                     _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
-                                ] = _var[VAR_COVERAGE_EXTRA_METADATA_KEY][
-                                    VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY
-                                ][
-                                    VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
-                                ]
+                                    not in netcdf_vars_to_look_at[url]
+                                ):
+                                    netcdf_vars_to_look_at[url][
+                                        _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
+                                    ] = [
+                                        _var[VAR_COVERAGE_EXTRA_METADATA_KEY][
+                                            VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
+                                        ]
+                                    ]
+                                else:
+                                    netcdf_vars_to_look_at[url][
+                                        _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
+                                    ].append(
+                                        _var[VAR_COVERAGE_EXTRA_METADATA_KEY][
+                                            VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
+                                        ]
+                                    )
+                                # netcdf_vars_to_look_at[url][_var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]] = \
+                                #         _var[VAR_COVERAGE_EXTRA_METADATA_KEY][VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY][
+                                #             VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
+                                #     ]
                                 if REWRITE_NETCDF_VAR_NAME:
                                     netcdf_vars_to_look_at[url][
                                         _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
