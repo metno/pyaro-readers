@@ -436,6 +436,9 @@ class GHOSTReader(AutoFilterReader):
 
             units = varinfo["units"]
 
+            if units == "unitless":
+                units = "1"
+
             # ToDo: it is important that station comes first since we use numpy
             # indexing below and not xarray.isel or similar, due to performance
             # issues. This may need to be updated in case of profile data.
