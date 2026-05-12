@@ -189,6 +189,54 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         ),
     )
 
+    GHOSTVAR = "concso4"
+
+    def test_pyaerocom_ghost_single_var(self):
+        # test the ghost reader via pyaerocom
+        try:
+            from pyaerocom.io.pyaro.pyaro_config import PyaroConfig
+            from pyaerocom.io import ReadUngridded
+        except ImportError:
+            assert "pyaerocom not installed"
+            return
+
+        data_name = "ghosttest"
+        data_id = "ghostreader"
+        url = (
+            "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/GHOST_v2/download"
+        )
+        obsconfig = PyaroConfig(
+            name=data_name,
+            reader_id=data_id,
+            filename_or_obj_or_url=url,
+            filters={
+                "time_bounds": {
+                    "startend_include": [("2019-01-01 00:00:00", "2020-01-01 00:00:00")]
+                },  # Include data between these time bounds
+                "variables": {"include": ["sconcso4"]},
+            },
+            networks=[
+                "EEA",
+                "US_EPA_AQS",
+            ],
+            area_classifications=[
+                "rural",
+                "rural-near_city",
+                "rural-regional",
+                "rural-remote",
+            ],
+            station_classifications=["background"],
+            frequency="monthly",
+            compressed=True,
+            # name_map={self.GHOSTVAR: "sconcso4"},
+            name_map={"sconcso4": self.GHOSTVAR},
+        )
+        reader = ReadUngridded(f"{data_name}")
+        data = reader.read(vars_to_retrieve=["sconcso4", "concso4"], configs=obsconfig)
+        # data = reader.read(configs=obsconfig)
+        self.assertGreaterEqual(len(data.unique_station_names), 4)
+        self.assertIn("Alta_Floresta", data.unique_station_names)
+
     def test_pyaerocom_aeronet(self):
         # test reading via pyaerocom
         try:
