@@ -102,9 +102,9 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
                 {}, [_var], []
             )
-            # filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
+            filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
             # filters = [self.station_filter, variable_filter_pyaerocom]
-            filters = [variable_filter_pyaerocom]
+            # filters = [variable_filter_pyaerocom]
             engine = pyaro.list_timeseries_engines()[self.engine]
             with engine.open(TEST_URL, filters=filters) as ts:
                 self.assertGreaterEqual(len(ts.variables()), 1)
