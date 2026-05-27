@@ -94,9 +94,9 @@ TIME_COVERAGE_TIME_KEY = "temporal_extent"
 TIME_COVERAGE_START_KEY = "time_period_begin"
 TIME_COVERAGE_END_KEY = "time_period_end"
 
-# keys o get the betcdf variable name information from the API reponse
+# keys o get the netcdf variable name information from the API reponse
 VAR_COVERAGE_ROOT_KEY = "_source"
-VAR_COVERAGE_VARIABLE_KEY = "variables"
+VAR_COVERAGE_VARIABLE_KEY = "variables"  # this is a list!
 VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY = "variable_name"
 VAR_COVERAGE_EXTRA_METADATA_KEY = "extra_metadata"
 VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY = "insitu"
@@ -104,6 +104,11 @@ VAR_COVERAGE_NETCDF_VARIABLE_NAME_KEY = "nc_varname"
 VAR_COVERAGE_EBAS_MATRIX_NAME_KEY = "ebas_matrix"
 VAR_COVERAGE_EBAS_COMPONENT_NAME_KEY = "ebas_component_name"
 VAR_COVERAGE_EBAS_UNIT_NAME_KEY = "ebas_unit"
+# This is for the ACTRIS part
+VAR_COVERAGE_ACTRIS_PROPERTY_OF_INTEREST_NAME_KEY = "variable_property_of_interest"
+VAR_COVERAGE_ACTRIS_OBJECT_OF_INTEREST_KEY = "object_of_interest"
+VAR_COVERAGE_ACTRIS_VARIABLE_MATRIX_KEY = "variable_matrix"
+VAR_COVERAGE_ACTRIS_VARIABLE_CONTRAINTS_KEY = "variable_constraints"
 
 # name of netcdf time variable in the netcdf files
 # should be "time" as of CF convention, but other names can be added here
