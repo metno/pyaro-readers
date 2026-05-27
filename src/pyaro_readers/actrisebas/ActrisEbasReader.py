@@ -71,7 +71,7 @@ EBAS_FLAG_NAN_NUMBER = 0
 # name of the root key containing the download information
 # DISTRIBUTION_ROOT_KEY = "md_distribution_information"
 DISTRIBUTION_ROOT_KEY = "_source"
-DISTRIBUTION_INFO_KEY = "distribution_information"
+DISTRIBUTION_INFO_KEY = "distribution_information"  # list
 DISTRIBUTION_PROTOCOL_KEY = "protocol"
 DISTRIBUTION_PROTOCOL_NAME_OPENDAP = "OPeNDAP".lower()
 DISTRIBUTION_PROTOCOL_NAME_HTTP = "http".lower()
@@ -98,7 +98,7 @@ TIME_COVERAGE_END_KEY = "time_period_end"
 VAR_COVERAGE_ROOT_KEY = "_source"
 VAR_COVERAGE_VARIABLE_KEY = "variables"  # this is a list!
 VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY = "variable_name"
-VAR_COVERAGE_EXTRA_METADATA_KEY = "extra_metadata"
+VAR_COVERAGE_EXTRA_METADATA_KEY = "extra_metadata"  # list
 VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY = "insitu"
 VAR_COVERAGE_NETCDF_VARIABLE_NAME_KEY = "nc_varname"
 VAR_COVERAGE_EBAS_MATRIX_NAME_KEY = "ebas_matrix"
@@ -109,6 +109,9 @@ VAR_COVERAGE_ACTRIS_PROPERTY_OF_INTEREST_NAME_KEY = "variable_property_of_intere
 VAR_COVERAGE_ACTRIS_OBJECT_OF_INTEREST_KEY = "object_of_interest"
 VAR_COVERAGE_ACTRIS_VARIABLE_MATRIX_KEY = "variable_matrix"
 VAR_COVERAGE_ACTRIS_VARIABLE_CONTRAINTS_KEY = "variable_constraints"
+VAR_COVERAGE_ACTRIS_INSTRUMENT_KEY = "instrument"  # list
+VAR_COVERAGE_ACTRIS_FRAMEWORK_KEY = "framework"  # list
+VAR_COVERAGE_ACTRIS_TEMPORAK_RESOLUTION_KEY = "temporal_resolution"
 
 # name of netcdf time variable in the netcdf files
 # should be "time" as of CF convention, but other names can be added here
@@ -179,7 +182,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._set_filters(filters)
         # self._header = []
         self._metadata = {}
-        self._tmp_metadata = {}
+        self.api_metadata = {}
         # save the entire API reponse for later reference
         # list due to the repsonse being paginated
         self._api_response = []
@@ -193,7 +196,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self._metadata["revision"] = datetime.datetime.strftime(
             self._revision, "%y%m%d%H%M%S"
         )
-        self._tmp_metadata["revision"] = datetime.datetime.strftime(
+        self.api_metadata["revision"] = datetime.datetime.strftime(
             self._revision, "%y%m%d%H%M%S"
         )
         self.ebas_valid_flags = self.get_ebas_valid_flags()
@@ -253,7 +256,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.actris_vars_to_read = {}
         self.opendap_netcdf_info = {}
         for var in self.vars_to_read:
-            self._tmp_metadata[var] = {}
+            self.api_metadata[var] = {}
             # handle pyaerocom variables here:
             # if a given variable name is in the list of pyaerocom variable names in definitions.toml
             self.actris_vars_to_read[var] = []
@@ -338,7 +341,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         except requests.RequestException as e:
                             hits = {"error": str(e)}
 
-                self._tmp_metadata[_pyaro_var][_actris_var] = hits
+                self.api_metadata[_pyaro_var][_actris_var] = hits
                 # extract opendap urls
                 self.open_dap_urls_to_dl[_actris_var], netcdf_info_dummy = (
                     self.extract_opendap_info(
@@ -357,7 +360,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         sites_to_exclude=self.sites_to_exclude,
                     )
 
-                assert self._tmp_metadata[_pyaro_var][_actris_var]
+                assert self.api_metadata[_pyaro_var][_actris_var]
 
     def metadata(self):
         return self._metadata
@@ -1019,7 +1022,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 logger.info(f"Successfully read URL {url}")
                                 tmp_data.close()
                             except Exception as e:
-                                # logger.error(f"failed to read {url} with error {e}")
+                                logger.error(f"failed to read {url} with error {e}")
                                 continue
 
                         if url not in opendap_urls_to_dl[site_name]:
@@ -1184,7 +1187,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # and possibly edit that in the actual reading
         tmp_var = self.vars_to_read[0]
         tmp_actris_var = self.actris_vars_to_read[tmp_var][0]
-        for _station in self._tmp_metadata[tmp_var][tmp_actris_var]:
+        for _station in self.api_metadata[tmp_var][tmp_actris_var]:
             _stat_name = _station[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
                 LOCATION_NAME_KEY
             ]

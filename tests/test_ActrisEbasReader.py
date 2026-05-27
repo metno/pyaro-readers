@@ -30,8 +30,8 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # pyaerocom_vars_to_read = ["concso2"]
     # pyaerocom_vars_to_read = ["vmrso2"]
 
-    # pyaerocom_vars_to_read = ["concso4t"]
-    pyaerocom_vars_to_read = ["concso4c"]
+    pyaerocom_vars_to_read = ["concso4t"]
+    # pyaerocom_vars_to_read = ["concso4c"]
     # pyaerocom_vars_to_read = ["concpm10"]
     # pyaerocom_vars_to_read = ["concpm25"]
     # pyaerocom_vars_to_read = ["concpm1"]
@@ -102,9 +102,9 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
             variable_filter_pyaerocom = pyaro.timeseries.Filter.VariableNameFilter(
                 {}, [_var], []
             )
-            filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
+            # filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
             # filters = [self.station_filter, variable_filter_pyaerocom]
-            # filters = [variable_filter_pyaerocom]
+            filters = [variable_filter_pyaerocom]
             engine = pyaro.list_timeseries_engines()[self.engine]
             with engine.open(TEST_URL, filters=filters) as ts:
                 self.assertGreaterEqual(len(ts.variables()), 1)
