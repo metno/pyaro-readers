@@ -89,7 +89,7 @@ class GHOSTReader(AutoFilterReader):
         ] = "daily",
         joly_peuch_min_max: tuple[int, int] | None = None,
         measurement_methods: list[str] = [],
-        use_prefiltered=True,
+        use_prefiltered=False,
         compressed: bool = True,
         area_classifications=[],
         station_classifications=[],
