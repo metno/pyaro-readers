@@ -91,7 +91,6 @@ class LCSData(Data):
 
 
 class LCSReader(AutoFilterReader):
-
     read_columns = [
         "start",
         "stop",
@@ -100,7 +99,7 @@ class LCSReader(AutoFilterReader):
         "lat",
         "PM25",
         "spread",
-        # "qc",    # Might want to read this at a later point, to give users better control over quality
+        "qc",  # Might want to read this at a later point, to give users better control over quality
         "quality",
         "network",
     ]
@@ -108,7 +107,8 @@ class LCSReader(AutoFilterReader):
     def __init__(
         self,
         filename: str,
-        min_quality: int = 2,
+        min_quality: int | None = 2,
+        quality_flag: int | None = None,
         min_spread: int = 3,
         network: Literal["PA", "SC", "both"] = "both",
         *,
@@ -136,9 +136,19 @@ class LCSReader(AutoFilterReader):
             dataset = dataset.filter(pl.col("network").eq(network))
 
         dataset = dataset.filter(pl.col("spread").ge(float(min_spread)))
-        dataset = dataset.filter(pl.col("quality").ge(float(min_quality)))
+
+        if quality_flag is not None and min_quality is not None:
+            raise LCSReaderException("Cannot specify both quality_flag and min_quality")
+        if quality_flag is not None:
+            dataset = dataset.filter(pl.col("qc").eq(str(quality_flag)))
+        elif min_quality is not None:
+            dataset = dataset.filter(pl.col("quality").ge(float(min_quality)))
+        else:
+            raise LCSReaderException("Must specify either quality_flag or min_quality")
 
         self._dataset = dataset.collect()
+
+        breakpoint()
 
     def metadata(self) -> dict[str, str]:
         return {"revision": self._revision}
