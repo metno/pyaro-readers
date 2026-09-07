@@ -35,7 +35,8 @@ logger = logging.getLogger(__name__)
 # default API URL base
 # BASE_API_URL = "https://dev-actris-md2.nilu.no/"
 # BASE_API_URL = "https://prod-actris-md2.nilu.no/"
-BASE_API_URL = "https://dev-actris-md.nilu.no/"
+# BASE_API_URL = "https://dev-actris-md.nilu.no/"
+BASE_API_URL = "https://prod-actris-md.nilu.no/"
 # base URL to query for data for a certain variable
 # VAR_QUERY_URL = f"{BASE_API_URL}metadata/content/"
 VAR_QUERY_URL = f"{BASE_API_URL}/api/metadata/search"
@@ -71,7 +72,7 @@ EBAS_FLAG_NAN_NUMBER = 0
 # name of the root key containing the download information
 # DISTRIBUTION_ROOT_KEY = "md_distribution_information"
 DISTRIBUTION_ROOT_KEY = "_source"
-DISTRIBUTION_INFO_KEY = "distribution_information"  # list
+DISTRIBUTION_INFO_KEY = "distribution_information"
 DISTRIBUTION_PROTOCOL_KEY = "protocol"
 DISTRIBUTION_PROTOCOL_NAME_OPENDAP = "OPeNDAP".lower()
 DISTRIBUTION_PROTOCOL_NAME_HTTP = "http".lower()
@@ -843,8 +844,14 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
     def get_ebas_data_units(self, tmp_data, var_name, url):
         """small helper method to get the ebas unit from the data file"""
-        unit = tmp_data[var_name].attrs["units"]
-        ebas_unit = tmp_data[var_name].attrs["ebas_unit"]
+        try:
+            unit = tmp_data[var_name].attrs["units"]
+            ebas_unit = tmp_data[var_name].attrs["ebas_unit"]
+        except (KeyError, ValueError):
+            logger.error(
+                f"Error: no units or ebas_unit attribute found for variable {var_name} in URL {url}"
+            )
+            return None
         if unit != ebas_unit:
             logger.error(
                 f"Error: mismatch between units {unit} and ebas_unit {ebas_unit} attributes for URL {url}"
@@ -975,9 +982,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         netcdf_vars_to_look_at = {}
         # highest hierachy is a list
         for site_idx, site_data in enumerate(json_resp):
-            site_name = site_data[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
-                LOCATION_NAME_KEY
-            ]
+            try:
+                site_name = site_data[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
+                    LOCATION_NAME_KEY
+                ]
+            except KeyError:
+                logger.error(
+                    f"Error: no site name found in API response for site index {site_idx}. Skipping that site..."
+                )
+                continue
             product_type = site_data[PRODUCT_TYPE_ROOT_KEY][PRODUCT_TYPE_KEY]
             logger.info(f"product type station {site_name}: {product_type}")
             if product_type not in PRODUCT_TYPES_TO_COPY:
@@ -1095,8 +1108,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 ][TIME_COVERAGE_END_KEY],
                             )
                             self.time_coverages[url] = (
-                                np.datetime64(int(time_dummy[0]), "s"),
-                                np.datetime64(int(time_dummy[1]), "s"),
+                                np.datetime64(time_dummy[0], "s"),
+                                np.datetime64(time_dummy[1], "s"),
                             )
                         else:
                             logger.info(
@@ -1188,9 +1201,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         tmp_var = self.vars_to_read[0]
         tmp_actris_var = self.actris_vars_to_read[tmp_var][0]
         for _station in self.api_metadata[tmp_var][tmp_actris_var]:
-            _stat_name = _station[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
-                LOCATION_NAME_KEY
-            ]
+            try:
+                _stat_name = _station[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY][
+                    LOCATION_NAME_KEY
+                ]
+            except KeyError:
+                logger.error(
+                    f"Error: no station name found in API response for variable {tmp_var} and ACTRIS variable {tmp_actris_var}. Skipping that station..."
+                )
+                continue
             if _stat_name is None:
                 continue
             if _stat_name not in self._stations:
