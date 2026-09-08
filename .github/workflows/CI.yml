@@ -37,7 +37,7 @@ jobs:
       matrix:
         python-version: [ '3.12', '3.13', '3.14' ]
         experimental: [ false ]
-        os: [ ubuntu-22.04 ]
+        os: [ ubuntu-24.04 ]
     steps:
       - name: Install system packages
         run: |
