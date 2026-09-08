@@ -255,29 +255,35 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # Because the user might have given a pyaerocom name, build self.actris_vars_to_read with a list
         # of ACTRIS variables to read. values are a list
         self.actris_vars_to_read = {}
+        # The following is a key of how to find matching netcdf variable names like ['ozone%air%nmol/mol']
+        self.actris_netcdf_keys = {}
         self.opendap_netcdf_info = {}
         for var in self.vars_to_read:
             self.api_metadata[var] = {}
             # handle pyaerocom variables here:
             # if a given variable name is in the list of pyaerocom variable names in definitions.toml
-            self.actris_vars_to_read[var] = []
+            # self.actris_vars_to_read[var] = []
+            # self.actris_netcdf_keys[var] = []
             if var in self.def_data["variables"]:
                 # user gave a pyaerocom variable name
                 self.actris_vars_to_read[var] = self.def_data["variables"][var][
                     "actris_variable"
                 ]
-                for _actris_var in self.actris_vars_to_read[var]:
-                    try:
-                        self.standard_names[_actris_var] = self.get_ebas_standard_name(
-                            var
-                        )
-                    except KeyError:
-                        logger.info(
-                            f"No ebas standard names found for {var}. Trying those of the actris variable {self.actris_vars_to_read[var][0]} instead..."
-                        )
-                        self.standard_names[_actris_var] = (
-                            self.get_actris_standard_name(_actris_var)
-                        )
+                self.actris_netcdf_keys[var] = self.def_data["variables"][var][
+                    "netcdf_keys"
+                ]
+                # for _actris_var in self.actris_vars_to_read[var]:
+                #     try:
+                #         self.standard_names[_actris_var] = self.get_ebas_standard_name(
+                #             var
+                #         )
+                #     except KeyError:
+                #         logger.info(
+                #             f"No ebas standard names found for {var}. Trying those of the actris variable {self.actris_vars_to_read[var][0]} instead..."
+                #         )
+                #         self.standard_names[_actris_var] = (
+                #             self.get_actris_standard_name(_actris_var)
+                #         )
 
             else:
                 # user gave ACTRIS name

@@ -24,13 +24,13 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     engine = "actrisebas"
     # actris_vars_to_read = ["aerosol particle elemental carbon mass concentration"]
     # pyaerocom_vars_to_read = ["conco3"]
-    # pyaerocom_vars_to_read = ["vmro3"]
+    pyaerocom_vars_to_read = ["vmro3"]
     # pyaerocom_vars_to_read = ["wetso4"]
     # pyaerocom_vars_to_read = ["concca"]
     # pyaerocom_vars_to_read = ["concso2"]
     # pyaerocom_vars_to_read = ["vmrso2"]
 
-    pyaerocom_vars_to_read = ["concso4t"]
+    # pyaerocom_vars_to_read = ["concso4t"]
     # pyaerocom_vars_to_read = ["concso4c"]
     # pyaerocom_vars_to_read = ["concpm10"]
     # pyaerocom_vars_to_read = ["concpm25"]

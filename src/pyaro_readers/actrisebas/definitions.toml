@@ -98,6 +98,7 @@ actris_matrix = ["gas phase"]
 ebas_component = ["ozone"]
 ebas_matrix = ["air"]
 standard_names = ["mole_fraction_of_ozone_in_air"]
+units = 'nmol/mol'
 
 # compund variable; special treatment needed
 #[variables.vmrox]
