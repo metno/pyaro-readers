@@ -77,6 +77,9 @@ DISTRIBUTION_PROTOCOL_KEY = "protocol"
 DISTRIBUTION_PROTOCOL_NAME_OPENDAP = "OPeNDAP".lower()
 DISTRIBUTION_PROTOCOL_NAME_HTTP = "http".lower()
 DISTRIBUTION_URL_KEY = "dataset_url"
+DISTRIBUTION_ACCES_RESTRICT_KEY = "access_restriction"
+DISTRIBUTION_ACCES_RESTRICT_VAL_KEY = "restricted"
+
 
 # some info to get to station name and location
 LOCATION_ROOT_KEY = "_source"
@@ -372,6 +375,37 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
     def metadata(self):
         return self._metadata
 
+    def get_netcdf_var_to_read(self, actris_variable, thredds_url, aerocom_var_to_read):
+        """
+        helper method to get the netcdf variable name to read from the API response
+        :param actris_variable:
+        :param thredds_url:
+        :return:
+        """
+
+        found_flag = False
+        netcdf_var = ""
+        for _idx in range(len(self.actris_netcdf_keys[aerocom_var_to_read])):
+            try:
+                netcdf_var = self.opendap_netcdf_info[thredds_url][actris_variable][
+                    self.actris_netcdf_keys[aerocom_var_to_read][_idx]
+                ]
+                logger.info(
+                    f"found netcdf variable {netcdf_var} for url {thredds_url} and variable {aerocom_var_to_read}"
+                )
+                found_flag = True
+                break
+            except KeyError:
+                pass
+
+        if not found_flag:
+            logger.error(
+                f"no netcdf variable information found in API response for url {thredds_url} and variable {actris_variable}. Skipping that URL..."
+            )
+            return None
+
+        return netcdf_var
+
     def _read(
         self,
         tqdm_desc="reading stations",
@@ -396,18 +430,27 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     self._metadata[site_name] = {}
 
                     for f_idx, thredds_url in enumerate(urls_to_dl[site_name]):
-                        try:
-                            _data_var = self.opendap_netcdf_info[thredds_url][
-                                actris_variable
-                            ]
-                            logger.info(
-                                f"netcdf variable found for url {thredds_url} and variable {actris_variable}: {_data_var}"
-                            )
-                        except KeyError:
-                            logger.error(
-                                f"no netcdf variable information found in API response for url {thredds_url} and variable {actris_variable}. Skipping that URL..."
-                            )
+                        _data_var = self.get_netcdf_var_to_read(
+                            actris_variable, thredds_url, _var
+                        )
+                        if _data_var is None:
                             continue
+                        #
+                        #
+                        #
+                        #
+                        # try:
+                        #     _data_var = self.opendap_netcdf_info[thredds_url][
+                        #         actris_variable
+                        #     ]
+                        #     logger.info(
+                        #         f"netcdf variable found for url {thredds_url} and variable {actris_variable}: {_data_var}"
+                        #     )
+                        # except KeyError:
+                        #     logger.error(
+                        #         f"no netcdf variable information found in API response for url {thredds_url} and variable {actris_variable}. Skipping that URL..."
+                        #     )
+                        #     continue
                         _local_file_flag = False
                         # time coverage per URL is in the API response
                         # but build a fall back in case that's not working
@@ -581,6 +624,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
 
                         # apply flags
+                        if len((vals.shape)) != 1:
+                            # This is 3d data we can't handle atm
+                            logger.info(
+                                f"URL: {url} variable {_data_var} is not 1D. Skipping that variable."
+                            )
+                            continue
+
                         # quick test if we need to apply flags at all
                         if (
                             np.nansum(ebas_flags)
@@ -793,8 +843,14 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             if len(ebas_flags.shape) > 1:
                 for _ebas_flag in ebas_flags:
                     for f_idx, flag in enumerate(_ebas_flag):
-                        if (flag == 0) or (flag in self.ebas_valid_flags):
-                            flags[f_idx] = Flag.VALID
+                        try:
+                            if (flag == 0) or (flag in self.ebas_valid_flags):
+                                flags[f_idx] = Flag.VALID
+                        except (IndexError, ValueError) as e:
+                            logger.error(
+                                f"failed to set flags for {f_idx} with error {e}"
+                            )
+                            continue
             else:
                 for f_idx, flag in enumerate(ebas_flags):
                     if (flag == 0) or (flag in self.ebas_valid_flags):
@@ -1021,6 +1077,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     ):
                         logger.info(
                             f"skipping site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]}"
+                        )
+                        continue
+                    # check for access restrictions for now
+                    elif distribution_data["access_restriction"]["restricted"]:
+                        logger.info(
+                            f"skipping url {distribution_data[DISTRIBUTION_URL_KEY]} due to access restrictions"
                         )
                         continue
                     else:
