@@ -7,6 +7,7 @@ import os
 import re
 import requests
 import sys
+import time
 from urllib.parse import urlparse
 
 if sys.version_info >= (3, 11):  # pragma: no cover
@@ -18,6 +19,8 @@ import numpy as np
 import numpy.typing as npt
 import polars
 import xarray as xr
+import time
+
 from tqdm import tqdm
 
 from pyaro.timeseries import (
@@ -147,9 +150,12 @@ REWRITE_NETCDF_VAR_NAME = False
 # default page size for the API
 PAGE_SIZE = 20
 
-# Flag to enable testing file access at thetime we are analysing the API response.
+# Flag to enable testing file access at the time we are analysing the API response.
 # Mainly used for testing since the data hasn't populated to Nilu's thredds server yet
-TEST_ACCESS_ON_API_RESPONSE_FLAG = True
+TEST_ACCESS_ON_API_RESPONSE_FLAG = False
+# TEST_ACCESS_ON_API_RESPONSE_FLAG = True
+
+MAX_CACHE_TIME = 60 * 60 * 24  # 24h in seconds
 
 
 class ActrisEbasStdNameNotFoundException(Exception):
@@ -219,6 +225,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             self.remove_non_pyaerocom_time_steps = False
 
         self.cache_dir = None
+        self.api_cache_file = None
         try:
             _cache_dir = Path(os.environ[CACHE_ENVIRONMENT_VAR_NAME])
             if _cache_dir.exists():
@@ -275,6 +282,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 self.actris_netcdf_keys[var] = self.def_data["variables"][var][
                     "netcdf_keys"
                 ]
+                _cache_files = []
+                for _cache_file in self.def_data["variables"][var]["actris_variable"]:
+                    _cache_files.append(
+                        os.path.join(
+                            self.cache_dir,
+                            f"api_cache_{var}_{_cache_file.replace(' ', '-')}.json",
+                        )
+                    )
+                self.cache_files = _cache_files
                 # for _actris_var in self.actris_vars_to_read[var]:
                 #     try:
                 #         self.standard_names[_actris_var] = self.get_ebas_standard_name(
@@ -292,21 +308,33 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 # user gave ACTRIS name
                 self.actris_vars_to_read[var].append(var)
                 self.standard_names[var] = self.get_actris_standard_name(var)
+                # setting the cache file name for the API response is missing here
+                # But we likely never use this path anyway
 
         for _pyaro_var in self.actris_vars_to_read:
             self._metadata[_pyaro_var] = {}
-            for _actris_var in self.actris_vars_to_read[_pyaro_var]:
-                # for testing since the API was error-prone and slow in the past.
-                # might also be useful for caching at some point, but for now test_file
-                # never exists
-                test_file = os.path.join(
-                    os.path.dirname(os.path.realpath(__file__)),
-                    f"{_actris_var}.json",
+            for _var_idx, _actris_var in enumerate(
+                self.actris_vars_to_read[_pyaro_var]
+            ):
+                _cache_file = self.cache_files[_var_idx]
+                # check if the cache file exists and is fresh enough
+                cache_is_fresh = os.path.exists(_cache_file) and (
+                    time.time() - os.path.getmtime(_cache_file) <= MAX_CACHE_TIME
                 )
-                if os.path.exists(test_file) and test_flag:
-                    with open(test_file, "r") as f:
-                        json_resp = json.load(f)
+                if cache_is_fresh:
+                    # load cache file instead of asking the API directly
+                    with open(_cache_file, "r") as f:
+                        logger.info(
+                            f"reading api response from cache file {_cache_file}"
+                        )
+                        hits = json.load(f)
+
                 else:
+                    # remove cache file
+                    try:
+                        os.remove(_cache_file)
+                    except OSError:
+                        pass
                     query = {
                         "bool": {
                             "must": [
@@ -352,6 +380,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             hits = {"error": str(e)}
 
                 self.api_metadata[_pyaro_var][_actris_var] = hits
+                # write api response to cache file
+                if cache_flag and not cache_is_fresh:
+                    logger.info(f"writing API response to cache file {_cache_file}")
+                    with open(_cache_file, "w") as f:
+                        json.dump(hits, f)
                 # extract opendap urls
                 self.open_dap_urls_to_dl[_actris_var], netcdf_info_dummy = (
                     self.extract_opendap_info(
@@ -365,7 +398,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     # extract download urls (to be read using http) urls
                     # these are unused atm, but might serve as a sanity check later on
                     self.dl_urls_to_dl[_actris_var] = self.extract_dl_url_info(
-                        json_resp,
+                        hits,
                         sites_to_read=self.sites_to_read,
                         sites_to_exclude=self.sites_to_exclude,
                     )
@@ -1034,6 +1067,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         json_resp: dict,
         sites_to_read: list[str] = [],
         sites_to_exclude: list[str] = [],
+        cached_only: bool = False,
     ) -> dict:
         """
         small helper method to extract opendap URLs to download from json reponse from the EBAS API
@@ -1086,12 +1120,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                         continue
                     else:
-                        if REWRITE_THREDDS_URL:
-                            url = distribution_data[DISTRIBUTION_URL_KEY].replace(
-                                "thredds.", "dev-thredds."
-                            )
-                        else:
-                            url = distribution_data[DISTRIBUTION_URL_KEY]
+                        url = distribution_data[DISTRIBUTION_URL_KEY]
+                        # if REWRITE_THREDDS_URL:
+                        #     url = distribution_data[DISTRIBUTION_URL_KEY].replace(
+                        #         "thredds.", "dev-thredds."
+                        #     )
+                        # else:
+                        #
 
                         if (
                             TEST_ACCESS_ON_API_RESPONSE_FLAG
