@@ -155,7 +155,9 @@ PAGE_SIZE = 20
 TEST_ACCESS_ON_API_RESPONSE_FLAG = False
 # TEST_ACCESS_ON_API_RESPONSE_FLAG = True
 
-MAX_CACHE_TIME = 60 * 60 * 24  # 24h in seconds
+MAX_CACHE_TIME = int(
+    os.environ.get("PYARO_ACTRIS_EBAS_CACHE_TIME", 60 * 60 * 24)
+)  # 24h in seconds
 
 
 class ActrisEbasStdNameNotFoundException(Exception):

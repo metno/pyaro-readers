@@ -15,7 +15,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     }
     AERONETVAR = "od440aer"
     # ACTRISEBASVAR = "concNno"
-    # ACTRISEBASVAR = "concNno2"
+    ACTRISEBASVAR = "concNno2"
     # ACTRISEBASVAR = "concNhno3"
     # ACTRISEBASVAR = "concNtnh"
     # ACTRISEBASVAR = "concNnh3"
@@ -42,7 +42,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "wetoxs"
     # ACTRISEBASVAR = "wetoxn"
     # ACTRISEBASVAR = "prmm"
-    ACTRISEBASVAR = "vmro3"
+    # ACTRISEBASVAR = "vmro3"
     # ACTRISEBASVAR = "sc550aer"
     ACTRISEBASVARLIST = [
         "concNno",

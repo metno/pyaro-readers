@@ -14,6 +14,7 @@ actris_matrix = ["inorganics"]
 ebas_component = ["nitrogen_monoxide"]
 ebas_matrix = ["air"]
 standard_names = ["mass_concentration_of_nitrogen_monoxide_expressed_as_nitrogen_in_air"]
+units = 'ug N/m3'
 
 [variables.concNno2]
 actris_variable = ["nitrogen dioxide mass concentration"]
@@ -21,6 +22,7 @@ actris_matrix = ["inorganics"]
 ebas_component = ["nitrogen_dioxide"]
 ebas_matrix = ["air"]
 standard_names = ["mass_concentration_of_nitrogen_dioxide_expressed_as_nitrogen_in_air"]
+units = 'ug N/m3'
 
 # No idea what to search for
 [variables.concNtno3]
@@ -114,6 +116,7 @@ actris_matrix = ["gas phase"]
 ebas_component = ["carbon_monoxide"]
 ebas_matrix = ["air"]
 standard_names = ["mass_fraction_of_carbon_monoxide_in_air"]
+units = 'nmol/mol'
 
 [variables.concpm10]
 actris_variable = ["aerosol particle mass concentration"]
