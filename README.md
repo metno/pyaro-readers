@@ -58,10 +58,10 @@ where `metadata.csv` is csv file containing station metadata (https://discomap.e
 
 ### ACTRIS-EBAS (alpha version)
 Reader for the EBAS data of the ACTRIS data portal (https://data.actris.eu/).
-This reader talks directly to the API at [https://prod-actris-md2.nilu.no/](https://prod-actris-md2.nilu.no/). 
+This reader talks directly to the API at [https://prod-actris-md2.nilu.no/](https://prod-actris-md2.nilu.no/).
 Detailed information can be found in the reader's [README.md](src/pyaro_readers/actrisebas/README.md).
 
-Because the variable naming supported at this early stage uses the naming scheme of the 
+Because the variable naming supported at this early stage uses the naming scheme of the
 [pyaerocom project](https://pyaerocom.readthedocs.io/en/latest/), this reader is depending on pyaerocom being installed
 and supports only a very limited number of variables.
 Additional variables can be added editing the file [`definitions.toml`](src/pyaro_readers/actrisebas/definitions.toml).
@@ -81,7 +81,7 @@ columns = [
         "lat",
         "PM25",
         "spread",
-        "qc",   
+        "qc",
         "quality",
         "network",
     ]
@@ -91,7 +91,7 @@ columns = [
 
 ### GHOST
 
-Reader GHOST data (https://essd.copernicus.org/articles/16/4417/2024/). Can read any combination of the networks found in the GHOST dataset, as well as the aggregated GHOST network (not working as of 04.05.2026 due to corrupted file on Zenodo). Data can be filtered on 
+Reader GHOST data (https://essd.copernicus.org/articles/16/4417/2024/). Can read any combination of the networks found in the GHOST dataset, as well as the aggregated GHOST network (not working as of 04.05.2026 due to corrupted file on Zenodo). Data can be filtered on
 
 - `frequency`, the frequency of the read data. Coarser data includes the finer data
 - `area_classification`, e.g. rural, urban
@@ -271,6 +271,11 @@ if __name__ == "__main__":
 ```
 
 ### ACTRIS-EBAS
+Set the environment variable to a data-cache:
+```bash
+export PYARO_CACHE_DIR_EBAS_ACTRIS=/tmp
+```
+
 ```python
 import pyaro
 import pyaro.timeseries
@@ -291,7 +296,7 @@ def main():
             filters = [station_filter, variable_filter_pyaerocom, time_filter]
             engine = pyaro.list_timeseries_engines()[read_engine]
             with engine.open(TEST_URL, filters=filters) as ts:
-                print(ts.data[_var])
+                print(ts.data(_var))
 
 if __name__ == "__main__":
     main()
