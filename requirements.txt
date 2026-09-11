@@ -1,0 +1,9 @@
+pyaro >= 0.1.1, < 0.3
+geocoder_reverse_natural_earth >= 0.0.2
+netCDF4
+requests
+tqdm
+numpy
+xarray
+cf-units
+polars[pyarrow]

@@ -5,25 +5,69 @@
 #[variables.<pyaerocom var name>]
 #actris_variable = [<list of actris variables>] (according to the ACTRIS vocabulary)
 #actris_matrix = [<list of actris matrixes>] (unused atm)
-#ebas_component = [<list of ebas component names>] (unused atm)
-#ebas_matrix = [<list of ebas matrix names>] (unused atm)
+#ebas_component = [<list of ebas component names>]
+#ebas_matrix = [<list of ebas matrix names>]
 
-[variables.conco3]
-actris_variable = ["ozone mass concentration"]
-actris_matrix = ["gas phase"]
-ebas_component = ["ozone"]
+[variables.concNno]
+actris_variable = ["nitric oxide mass concentration"]
+actris_matrix = ["inorganics"]
+ebas_component = ["nitrogen_monoxide"]
 ebas_matrix = ["air"]
-standard_names = ["mass_concentration_of_ozone_in_air"]
+standard_names = ["mass_concentration_of_nitrogen_monoxide_expressed_as_nitrogen_in_air"]
+units = 'ug N/m3'
 
-[variables.vmro3]
-#actris_variable = ["ozone amount fraction"]
-actris_variable = ["ozone mass concentration"]
-actris_matrix = ["gas phase"]
-ebas_component = ["ozone"]
+[variables.concNno2]
+actris_variable = ["nitrogen dioxide mass concentration"]
+actris_matrix = ["inorganics"]
+ebas_component = ["nitrogen_dioxide"]
 ebas_matrix = ["air"]
-standard_names = ["mole_fraction_of_ozone_in_air"]
+standard_names = ["mass_concentration_of_nitrogen_dioxide_expressed_as_nitrogen_in_air"]
+units = 'ug N/m3'
 
+# No idea what to search for
+[variables.concNtno3]
+actris_variable = ["gas and particle nitric acid and nitrate mass concentration"]
+actris_matrix = ["inorganics"]
+ebas_component = ["sum_nitric_acid_and_nitrate"]
+ebas_matrix = ["air+aerosol"]
+standard_names = ["mass_concentration_of_sum_nitric_acid_and_nitrate_expressed_as_nitrogen_in_aerosol"]
 
+[variables.concNhno3]
+actris_variable = ["nitric acid mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["nitric_acid"]
+ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_nitric_acid_expressed_as_nitrogen_in_air"]
+
+[variables.concNtnh]
+actris_variable = ["gas and particle ammonia and ammonium mass concentration"]
+actris_matrix = ["inorganics"]
+ebas_component = ["sum_ammonia_and_ammonium"]
+ebas_matrix = ["air+aerosol"]
+standard_names = ["mass_concentration_of_sum_ammonia_and_ammonium_in_aerosol"]
+
+[variables.concNnh3]
+actris_variable = ["ammonia mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ammonia"]
+ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_ammonia_expressed_as_nitrogen_in_air"]
+
+[variables.concnh4]
+actris_variable = ["ammonia mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ammonium"]
+ebas_matrix = ["pm10","aerosol","pm25"]
+standard_names = ["mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
+
+[variables.concSso2]
+actris_variable = ["sulfur dioxide mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["sulphur_dioxide"]
+ebas_matrix = ["air",]
+standard_names = ["mass_concentration_of_sulphur_dioxide_expressed_as_sulphur_in_air", ]
+
+# Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
 [variables.concso4t]
 actris_variable = ["aerosol particle sulphate mass concentration"]
 actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
@@ -32,10 +76,10 @@ ebas_matrix = ["aerosol", "pm10", "pm25"]
 standard_names = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_dry_aerosol_particles_in_air",
     "mass_concentration_of_sulphate_total_in_pm10_in_air",
     "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
-#standard_names = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_dry_aerosol_particles_in_air",
-#    "mass_concentration_of_sulphate_total_in_pm10_in_air",
-#    "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
+units = 'ug S/m3'
 
+
+# Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
 [variables.concso4c]
 actris_variable = ["aerosol particle sulphate mass concentration"]
 actris_matrix = ["aerosol particle phase", "PM10", "PM2.5"]
@@ -47,6 +91,122 @@ standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_in_dry_
 #standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_dry_aerosol_particles_in_air",
 #    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm10_in_air",
 #    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm2p5_in_air", ]
+units = 'ug S/m3'
+
+[variables.vmro3]
+actris_variable = ["ozone amount fraction"]
+#actris_variable = ["ozone mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ozone"]
+ebas_matrix = ["air"]
+standard_names = ["mole_fraction_of_ozone_in_air"]
+units = 'nmol/mol'
+
+# compund variable; special treatment needed
+#[variables.vmrox]
+#actris_variable = [""]
+#actris_matrix = ["inorganics"]
+#ebas_component = [""]
+#ebas_matrix = [""]
+#standard_names = [""]
+
+[variables.vmrco]
+actris_variable = ["carbon monoxide amount fraction"]
+actris_matrix = ["gas phase"]
+ebas_component = ["carbon_monoxide"]
+ebas_matrix = ["air"]
+standard_names = ["mass_fraction_of_carbon_monoxide_in_air"]
+units = 'nmol/mol'
+
+[variables.concpm10]
+actris_variable = ["aerosol particle mass concentration"]
+#actris_variable = ["aerosol particle number concentration"]
+actris_matrix = ["particle phase"]
+ebas_component = ["pm10_mass"]
+ebas_matrix = ["pm10",]
+standard_names = ["mass_concentration_of_pm10_ambient_aerosol_particles_in_air", ]
+
+[variables.concpm25]
+actris_variable = ["aerosol particle mass concentration"]
+#actris_variable = ["aerosol particle number concentration"]
+actris_matrix = ["particle phase"]
+ebas_component = ["pm25_mass"]
+ebas_matrix = ["pm25",]
+standard_names = ["mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air", ]
+
+#Not in current EBAS data set
+[variables.concno3pm10]
+actris_variable = ["aerosol particle nitrate mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["nitrate"]
+ebas_matrix = ["pm10","aerosol"]
+# The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
+standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
+
+[variables.concno3pm25]
+actris_variable = ["aerosol particle nitrate mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["nitrate"]
+ebas_matrix = ["pm25","pm1"]
+# The last part might not be what we really want, but the first two standard_name don't appear in the data files
+standard_names = ["mass_concentration_of_nitrate_in_pm2p5_in_air",
+    "mass_concentration_of_nitrate_in_pm1_in_air",
+    "mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
+
+[variables.concno3pm1]
+actris_variable = ["aerosol particle nitrate mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["nitrate"]
+ebas_matrix = ["pm1_non_refractory"]
+# The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
+standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
+
+[variables.concnh4pm25]
+actris_variable = ["aerosol particle ammonium mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ammonium"]
+ebas_matrix = ["pm25","pm1"]
+# The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
+standard_names = ["mass_concentration_of_ammonium_in_pm2p5_in_air"]
+
+[variables.concnh4pm1]
+actris_variable = ["aerosol particle ammonium mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ammonium"]
+ebas_matrix = ["pm1_non_refractory"]
+# The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
+standard_names = ["mass_concentration_of_ammonium_in_non_refractory_pm1_in_air"]
+#    "mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
+
+# Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
+[variables.concso4pm25]
+actris_variable = ["aerosol particle sulphate mass concentration"]
+actris_matrix = ["aerosol particle phase", "PM2.5", "PM1"]
+ebas_component = ["sulphate_corrected","sulphate_total"]
+ebas_matrix = ["pm25", "pm1"]
+# there's no standard name for sulphate_corrected and sulphate_total for pm1 in the EBAS submission handbook
+standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm2p5_in_air",
+    "mass_concentration_of_sulphate_total_in_pm2p5_in_air",
+    # backup to find anything to return. To be removed as soon as we have the correct search term
+    "mass_concentration_of_sulphate_corrected_for_seaspray_in_dry_aerosol_particles_in_air"]
+
+# Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
+[variables.concso4pm1]
+actris_variable = ["aerosol particle sulphate mass concentration"]
+actris_matrix = ["aerosol particle phase", "PM2.5", "PM1"]
+ebas_component = ["sulphate_corrected","sulphate_total"]
+ebas_matrix = ["pm1_non_refractory"]
+# there's no standard name for sulphate_corrected with matrix pm1_non_refractory in the EBAS submission handbook
+standard_names = ["mass_concentration_of_sulphate_total_in_non_refractory_pm1_in_air",
+    # backup to find anything to return. To be removed as soon as we have the correct search term
+    "mass_concentration_of_sulphate_corrected_for_seaspray_in_dry_aerosol_particles_in_air"]
+
+[variables.concCecpm10]
+actris_variable = ["aerosol particle elemental carbon mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["elemental_carbon"]
+ebas_matrix = ["pm10"]
+standard_names = ["mass_concentration_of_elemental_carbon_in_pm10_in_air"]
 
 [variables.concCecpm25]
 actris_variable = ["aerosol particle elemental carbon mass concentration"]
@@ -56,6 +216,13 @@ ebas_matrix = ["pm25", "pm1"]
 standard_names = ["mass_concentration_of_elemental_carbon_in_pm2p5_in_air",
     "mass_concentration_of_elemental_carbon_in_pm1_in_air", ]
 
+[variables.concCocpm10]
+actris_variable = ["aerosol particle organic carbon mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["organic_carbon"]
+ebas_matrix = ["pm10"]
+standard_names = ["mass_concentration_of_organic_carbon_in_pm10_in_air"]
+
 [variables.concCocpm25]
 actris_variable = ["aerosol particle organic carbon mass concentration"]
 actris_matrix = ["aerosol particle phase"]
@@ -63,6 +230,33 @@ ebas_component = ["organic_carbon"]
 ebas_matrix = ["pm25", "pm1"]
 standard_names = ["mass_concentration_of_organic_carbon_in_pm2p5_in_air",
     "mass_concentration_of_organic_carbon_in_pm1_in_air", ]
+
+[variables.concom1]
+actris_variable = ["aerosol particle organics mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["organic_mass"]
+ebas_matrix = ["pm1_non_refractory"]
+standard_names = ["mass_concentration_of_organic_mass_in_non_refractory_pm1_in_air"]
+
+[variables.concsspm10]
+actris_variable = ["aerosol particle sodium mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["sodium"]
+ebas_matrix = ["pm10", "aerosol"]
+standard_names = ["mass_concentration_of_sodium_in_pm10_in_air",
+    "mass_concentration_of_sodium_in_dry_aerosol_particles_in_air"]
+# Not implemented yet
+scaling_factor = 3.27
+
+[variables.concsspm25]
+actris_variable = ["aerosol particle sodium mass concentration"]
+actris_matrix = ["aerosol particle phase"]
+ebas_component = ["sodium"]
+ebas_matrix = ["pm10", "aerosol"]
+standard_names = ["mass_concentration_of_sodium_in_pm2p5_in_air"]
+# Not implemented yet
+scaling_factor = 3.27
+
 
 [variables.concca]
 actris_variable = ["aerosol particle calcium mass concentration"]
@@ -80,13 +274,6 @@ ebas_component = ["sulphur_dioxide"]
 ebas_matrix = ["air",]
 standard_names = ["mass_concentration_of_sulphur_dioxide_expressed_as_sulphur_in_air", ]
 
-[variables.concSso2]
-actris_variable = ["sulfur dioxide mass concentration"]
-actris_matrix = ["gas phase"]
-ebas_component = ["sulphur_dioxide"]
-ebas_matrix = ["air",]
-standard_names = ["mass_concentration_of_sulphur_dioxide_expressed_as_sulphur_in_air", ]
-
 [variables.vmrso2]
 actris_variable = ["sulfur dioxide mass concentration"]
 actris_matrix = ["gas phase"]
@@ -94,13 +281,12 @@ ebas_component = ["sulphur_dioxide"]
 ebas_matrix = ["air",]
 standard_names = ["mole_fraction_of_sulfur_dioxide_in_air", ]
 
-[variables.concpm10]
-actris_variable = ["aerosol particle mass concentration"]
-#actris_variable = ["aerosol particle number concentration"]
-actris_matrix = ["particle phase"]
-ebas_component = ["pm10_mass"]
-ebas_matrix = ["pm10",]
-standard_names = ["mass_concentration_of_pm10_ambient_aerosol_particles_in_air", ]
+[variables.conco3]
+actris_variable = ["ozone mass concentration"]
+actris_matrix = ["gas phase"]
+ebas_component = ["ozone"]
+ebas_matrix = ["air"]
+standard_names = ["mass_concentration_of_ozone_in_air"]
 
 [variables.concpm1]
 actris_variable = ["aerosol particle mass concentration"]
@@ -109,15 +295,6 @@ actris_matrix = ["particle phase"]
 ebas_component = ["pm1_mass"]
 ebas_matrix = ["pm1",]
 standard_names = ["mass_concentration_of_pm1_ambient_aerosol_particles_in_air", ]
-
-[variables.concpm25]
-actris_variable = ["aerosol particle mass concentration"]
-#actris_variable = ["aerosol particle number concentration"]
-actris_matrix = ["particle phase"]
-ebas_component = ["pm25_mass"]
-ebas_matrix = ["pm25",]
-standard_names = ["mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air", ]
-
 
 [variables.concprcpso4]
 actris_variable = ["precipitation sulphate mass concentration"]
@@ -141,18 +318,42 @@ standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
 # only used for calculated variables
 units = "mg S m-2 d-1"
 
+[variables.wetrdn]
+# Att! needs 2 variables to be calculated, but both need to be in the same file
+actris_variable = ["precipitation nitrate mass concentration"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["ammonium"]
+ebas_matrix = ["precip", ]
+standard_names = ["mass_concentration_of_ammonium_in_precipitation", ]
+# This field indicates, that another variable needs to read and that the variable above needs to be calculated
+standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
+# only used for calculated variables
+units = "mg N m-2 d-1"
+
 [variables.wetoxs]
 # Att! needs 2 variables to be calculated, but both need to be in the same file
-# This is the same wetso4 for the moment
 actris_variable = ["precipitation sulphate mass concentration"]
 actris_matrix = ["precipitation phase"]
-ebas_component = ["sulphate_corrected"]
+ebas_component = ["sulphate_corrected", "sulphate_total"]
 ebas_matrix = ["precip", ]
-standard_names = ["mass_concentration_of_sulphate_corrected_in_precipitation", ]
+standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_precipitation",
+    "mass_concentration_of_sulphate_total_in_precipitation", ]
 # This field indicates, that another variable needs to read and that the variable above needs to be calculated
 standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
 # only used for calculated variables
 units = "mg S m-2 d-1"
+
+[variables.wetoxn]
+# Att! needs 2 variables to be calculated, but both need to be in the same file
+actris_variable = ["precipitation nitrate mass concentration"]
+actris_matrix = ["precipitation phase"]
+ebas_component = ["nitrate"]
+ebas_matrix = ["precip", ]
+standard_names = ["mass_concentration_of_nitrate_in_precipitation", ]
+# This field indicates, that another variable needs to read and that the variable above needs to be calculated
+standard_names_2nd_var = ["lwe_thickness_of_precipitation_amount",]
+# only used for calculated variables
+units = "mg N m-2 d-1"
 
 [variables.prmm]
 # needs an additional unit conversion from "mm" to "mm d-1"
