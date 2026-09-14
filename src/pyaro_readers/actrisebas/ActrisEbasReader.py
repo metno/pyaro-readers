@@ -216,7 +216,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.sites_to_exclude = []
         self.vars_to_read = None
         self.units = None
+        # That's a datetime.datetime object
         self.times_to_read = (np.datetime64(1, "Y"), np.datetime64(120, "Y"))
+        # The same in np.datetime64 format. This is used for filtering the data read from the netcdf files
+        self.np_times_to_read = (
+            np.datetime64(self.times_to_read[0]),
+            np.datetime64(self.times_to_read[1]),
+        )
         # keep pyaerocom based stuff optional
         try:
             import pyaerocom.exceptions
@@ -250,6 +256,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 # by pyaro
                 if filter.has_envelope():
                     self.times_to_read = filter.envelope()
+                    self.np_times_to_read = (
+                        np.datetime64(self.times_to_read[0]),
+                        np.datetime64(self.times_to_read[1]),
+                    )
                 else:
                     # No filtering of time
                     pass
@@ -695,16 +705,30 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 self.units,
                             )
 
+                        idx_to_copy = np.where(
+                            (start_time >= self.np_times_to_read[0])
+                            & (stop_time <= self.np_times_to_read[1])
+                        )[0]
+                        if len(idx_to_copy) == 0:
+                            logger.info(
+                                f"URL: {url} variable {_data_var} has no data in the requested time range. Skipping that variable. Should not happen if the API contains correct data..."
+                            )
+                            continue
+                        else:
+                            logger.info(
+                                f"kept {len(idx_to_copy)} of {len(vals)} values for variable {_data_var} in the requested time range."
+                            )
+
                         self._data[_var].append(
-                            value=vals,
-                            station=station,
-                            latitude=lat,
-                            longitude=lon,
-                            altitude=altitude,
-                            start_time=start_time,
-                            end_time=stop_time,
-                            flag=flags,
-                            standard_deviation=standard_deviation,
+                            value=vals[idx_to_copy],
+                            station=station[idx_to_copy],
+                            latitude=lat[idx_to_copy],
+                            longitude=lon[idx_to_copy],
+                            altitude=altitude[idx_to_copy],
+                            start_time=start_time[idx_to_copy],
+                            end_time=stop_time[idx_to_copy],
+                            flag=flags[idx_to_copy],
+                            standard_deviation=standard_deviation[idx_to_copy],
                         )
                         # stop after the 1st matching variable
                         logger.info(
@@ -950,8 +974,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             )
             return None
         if unit != ebas_unit:
-            logger.error(
-                f"Error: mismatch between units {unit} and ebas_unit {ebas_unit} attributes for URL {url}"
+            logger.info(
+                f"Info: mismatch between units {unit} and ebas_unit {ebas_unit} attributes for URL {url}. This might be intended."
             )
         try:
             return CF_UNITS[ebas_unit]
