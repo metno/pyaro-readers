@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyaro_readers"
+version = "0.1.9.dev1"
+authors = [{ name = "MET Norway" }]
+description = "implementations of pyaerocom reading plugings using pyaro as interface"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "pyaro >= 0.1.1, < 0.3",
+    "geocoder_reverse_natural_earth >= 0.0.2",
+    "netCDF4",
+    "requests",
+    "tqdm",
+    "numpy",
+    "xarray",
+    "cf-units",
+    "polars[pyarrow]",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/metno/pyaro-readers"
+"Bug Tracker" = "https://github.com/metno/pyaro-readers/issues"
+
+[project.entry-points."pyaro.timeseries"]
+aeronetsunreader = "pyaro_readers.aeronetsunreader:AeronetSunTimeseriesEngine"
+aeronetsdareader = "pyaro_readers.aeronetsdareader:AeronetSdaTimeseriesEngine"
+ascii2netcdf = "pyaro_readers.ascii2netcdf:Ascii2NetcdfTimeseriesEngine"
+eeareader = "pyaro_readers.eeareader:EEATimeseriesEngine"
+netcdf_rw = "pyaro_readers.netcdf_rw:Netcdf_RWTimeseriesEngine"
+harp = "pyaro_readers.harpreader:AeronetHARPEngine"
+nilupmfabsorption = "pyaro_readers.nilupmfabsorptionreader:NILUPMFAbsorptionTimeseriesEngine"
+actrisebas = "pyaro_readers.actrisebas:ActrisEbasTimeSeriesEngine"
+nilupmfebas = "pyaro_readers.nilupmfebas:EbasPmfTimeseriesEngine"
+parquet = "pyaro_readers.parquet:ParquetTimeseriesEngine"
+mergingreader = "pyaro_readers.merging_reader:MergingReaderEngine"
+lcsreader = "pyaro_readers.lcsreader:LCSTimeseriesEngine"
+ghostreader = "pyaro_readers.ghostreader:GHOSTTimeseriesEngine"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.csv", "*.toml", "*.json"]
+
+[tool.tox]
+legacy_tox_ini = """
+[tox]
+min_version = 4.0
+skip_missing_interpreters = True
+isolated_build = True
+env_list =
+    py312
+    py313
+    py314
+    format
+
+[testenv]
+commands = python3 -m unittest discover -s tests
+
+[testenv:format]
+commands =
+    pre-commit run --all-files --show-diff-on-failure
+deps =
+    pre-commit
+"""

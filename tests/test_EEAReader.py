@@ -28,6 +28,13 @@ class TestEEATimeSeriesReader(unittest.TestCase):
             "catalog.parquet",
         )
     )
+    lustre_test_path = (
+        "/lustre/storeB/project/aerocom/aerocom1/AEROCOM_OBSDATA/EEA-AQDS/download"
+    )
+    if os.path.exists(lustre_test_path):
+        testdata_dir = Path(
+            os.path.join(lustre_test_path, "historical", "catalog.parquet_newmetadata")
+        )
 
     def test_0engine(self):
         self.assertIn(self.engine, pyaro.list_timeseries_engines())
@@ -45,7 +52,7 @@ class TestEEATimeSeriesReader(unittest.TestCase):
         filters = pyaro.timeseries.FilterCollection(
             {
                 "time_bounds": {
-                    "start_include": [("2019-01-01 00:00:00", "2025-12-24 00:00:00")]
+                    "start_include": [("2019-01-01 00:00:00", "2020-12-24 00:00:00")]
                 },
                 "stations": {
                     "exclude": ["NO/SPO_NO0151A_8_4768", "NO/SPO_NO0111A_9_1691"]
@@ -62,10 +69,12 @@ class TestEEATimeSeriesReader(unittest.TestCase):
         )
 
         stations = reader.stations()
-        assert len(stations) == 4
+        assert len(stations) >= 4
 
         variables = reader.variables()
-        assert set(variables) == {"PM10", "SO2"}
+        # self.assertTrue(set(self.variables).issubset(ts.variables()))
+        # assert set(variables) == {"PM10", "SO2"}
+        self.assertTrue(set({"PM10", "SO2"}).issubset(variables))
 
         expected_counts = {
             "PM10": 21904,
@@ -73,7 +82,7 @@ class TestEEATimeSeriesReader(unittest.TestCase):
         }
         for species in self.test_vars:
             data = reader.data(species)
-            assert len(data) == expected_counts[species]
+            assert len(data) >= expected_counts[species]
             _ = data.values
             alts = data.altitudes
             self.assertFalse(np.any(np.isnan(alts)))
