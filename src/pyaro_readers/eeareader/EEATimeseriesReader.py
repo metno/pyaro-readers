@@ -4,7 +4,6 @@ from pathlib import Path
 from collections.abc import Iterable
 import dataclasses
 import pathlib
-from functools import cached_property
 from typing import Literal
 
 from tqdm import tqdm
@@ -31,10 +30,11 @@ class EEAReaderException(Exception):
 
 
 class EEAData(Data):
-    def __init__(self, data, variable: str, metadata) -> None:
+    def __init__(self, data, variable: str, metadata, unit: str | None = None) -> None:
         self._data = data
         self._variable = variable
         self._metadata = metadata
+        self._unit = unit
 
     @property
     def _joined(self) -> polars.DataFrame:
@@ -53,24 +53,17 @@ class EEAData(Data):
 
     @property
     def units(self) -> str:
-        units = self._data["Unit"].unique()
-        if len(units) == 0:
+        if self._unit is None:
             raise EEAReaderException("No units present in this dataset")
-        elif len(units) != 1:
-            base_unit = cf_units.Unit(units[0])
-            for unit in units[1:]:
-                if base_unit.convert(1, unit) != 1.0:
-                    raise EEAReaderException(
-                        f"Multiple different units present in this dataset ({units[0]} and {unit})"
-                    )
-
-        return units[0]
+        return self._unit
 
     def keys(self):
         raise NotImplementedError
 
     def slice(self, index):
-        return EEAData(self._data.filter(index), self._variable, self._metadata)
+        return EEAData(
+            self._data.filter(index), self._variable, self._metadata, self._unit
+        )
 
     @property
     def variable(self) -> str:
@@ -140,13 +133,35 @@ class EEAData(Data):
         return self._nrecords()
 
 
-def _read(filepath: Path, filters: list[polars.Expr]) -> polars.DataFrame:
+def _validate_unit(units: Iterable[str], context: str = "") -> str | None:
+    """Ensure a collection of unit strings are equivalent (allowing for
+    cf_units-convertible variants), returning the representative unit.
+    Returns None if no units were provided.
+    """
+    units = list(dict.fromkeys(units))
+    if len(units) == 0:
+        return None
+    if len(units) > 1:
+        base_unit = cf_units.Unit(units[0])
+        for unit in units[1:]:
+            if base_unit.convert(1, unit) != 1.0:
+                raise EEAReaderException(
+                    f"Multiple different units present{context} ({units[0]} and {unit})"
+                )
+
+    return units[0]
+
+
+def _read(
+    filepath: Path,
+    filters: list[polars.Expr],
+    known_unit: str | None = None,
+) -> tuple[polars.DataFrame, str | None]:
     # Use Polars' native (non-pyarrow) parquet reader with expression-based
     # predicate/projection pushdown. This avoids routing every file through
-    # PyArrow's separate parquet reader and memory pool, which was found to
-    # retain a much larger resident-memory high-water mark than Polars' own
-    # engine when reading many small files.
-    lf = polars.scan_parquet(filepath).select(
+    # PyArrow's separate parquet reader and memory pool
+    # this is much faster (at least 2x)
+    lf = polars.scan_parquet(filepath, low_memory=True, cache=False).select(
         "Samplingpoint",
         "Start",
         "End",
@@ -156,7 +171,19 @@ def _read(filepath: Path, filters: list[polars.Expr]) -> polars.DataFrame:
     )
     if filters:
         lf = lf.filter(polars.all_horizontal(filters))
-    return lf.collect().cast({"Value": polars.Float32})
+    dataset = lf.collect().cast({"Value": polars.Float32})
+
+    # Validate against any unit already established from previously read
+    # files, so unit consistency is checked incrementally as each file is
+    # read rather than by collecting every file's unit into a list and
+    # validating separately afterwards.
+    units = dataset["Unit"].unique()
+    if known_unit is not None:
+        units = [known_unit, *units]
+    unit = _validate_unit(units, context=f" in {filepath}")
+    dataset = dataset.drop("Unit")
+
+    return dataset, unit
 
 
 @dataclasses.dataclass
@@ -242,30 +269,50 @@ def _read_hourly_files(
     datapaths: list[Path],
     metadata: polars.DataFrame,
     filters: _Filters,
-) -> polars.DataFrame:
+    station_ids: polars.DataFrame,
+) -> tuple[polars.DataFrame, str | None]:
+    id_dtype = station_ids["samplingpoint_id"].dtype
     dataset = polars.DataFrame(
         schema={
-            "Samplingpoint": str,
             # "Pollutant": polars.Int32,
             "Start": polars.Datetime("ns"),
             "End": polars.Datetime("ns"),
             "Value": polars.Float32,
-            "Unit": str,
             # "AggType": str,
             "Validity": polars.Int32,
             # "Verification": polars.Int32,
             # "ResultTime": datetime,
             # "DataCapture": datetime,
             # "FkObservationLog": str,
+            "samplingpoint_id": id_dtype,
         }
     )
 
+    unit = None
     pbar = tqdm(datapaths, disable=None)
     for file in pbar:
         pbar.set_description(f"Processing hourly {file.name:>54}")
-        dataset.vstack(_read(file, filters.filters_hourly), in_place=True)
+        file_dataset, unit = _read(file, filters.filters_hourly, unit)
+        # Map Samplingpoint -> samplingpoint_id per-file, while each file's
+        # frame is still small, and drop the (comparatively large) string
+        # column immediately. This avoids ever holding a full-size
+        # Samplingpoint string column across all files combined, which was
+        # previously the dominant cost of a separate mapping step performed
+        # once on the whole accumulated dataset. A join() against the small
+        # station_ids lookup table is faster here than replace_strict(),
+        # since each per-file frame (and thus the join's left side) is small.
+        file_dataset = (
+            file_dataset.with_columns(
+                polars.col("Samplingpoint")
+                .str.replace_many(["GI/", "/"], ["GB_", "_"])
+                .alias("station")
+            )
+            .join(station_ids, on="station", how="left")
+            .drop("Samplingpoint", "station")
+        )
+        dataset.vstack(file_dataset, in_place=True)
 
-    dataset.rechunk()
+    dataset = dataset.rechunk()
 
     # OBS: Times are given in this timezone for non-daily observations
     # this assumption is also used for pyarrow filtering
@@ -279,14 +326,15 @@ def _read_hourly_files(
         .dt.convert_time_zone("UTC"),
     )
 
-    return dataset
+    return dataset, unit
 
 
 def _read_daily_files(
     datapaths: list[Path],
     metadata: polars.DataFrame,
     filters: _Filters,
-) -> polars.DataFrame:
+    station_ids: polars.DataFrame,
+) -> tuple[polars.DataFrame, str | None]:
     dataset = polars.DataFrame(
         schema={
             "Samplingpoint": str,
@@ -294,7 +342,6 @@ def _read_daily_files(
             "Start": polars.Datetime("ns"),
             "End": polars.Datetime("ns"),
             "Value": polars.Float32,
-            "Unit": str,
             # "AggType": str,
             "Validity": polars.Int32,
             # "Verification": polars.Int32,
@@ -304,12 +351,14 @@ def _read_daily_files(
         }
     )
 
+    unit = None
     pbar = tqdm(datapaths, disable=None)
     for file in pbar:
         pbar.set_description(f"Processing daily {file.name:>54}")
-        dataset.vstack(_read(file, filters.filters_daily), in_place=True)
+        file_dataset, unit = _read(file, filters.filters_daily, unit)
+        dataset.vstack(file_dataset, in_place=True)
 
-    dataset.rechunk()
+    dataset = dataset.rechunk()
 
     # Join with metadata table to get latitude, longitude and altitude
     metadata = metadata.with_columns(
@@ -323,31 +372,75 @@ def _read_daily_files(
         ]
     )
 
-    # Round-about way to force timezone in there
-    # https://github.com/pola-rs/polars/issues/12761
-    tz_exprs_start = [
-        polars.when(polars.col("Timezone") == tz).then(
-            polars.col("Start").dt.replace_time_zone(tz).dt.convert_time_zone("UTC")
-        )
-        for tz in metadata["Timezone"].unique()
-    ]
-    tz_exprs_end = [
-        polars.when(polars.col("Timezone") == tz).then(
-            polars.col("End").dt.replace_time_zone(tz).dt.convert_time_zone("UTC")
-        )
-        for tz in metadata["Timezone"].unique()
-    ]
+    dataset = dataset.join(metadata, left_on="Samplingpoint", right_on="selector", how="left")
 
-    joined = (
-        dataset.join(metadata, left_on="Samplingpoint", right_on="selector", how="left")
-        .with_columns(
-            polars.coalesce(tz_exprs_start),
-            polars.coalesce(tz_exprs_end),
+    # Convert Start/End from each row's local reporting timezone to UTC.
+    #
+    # polars.dt.replace_time_zone() only accepts a literal timezone name, not
+    # one taken from a column (https://github.com/pola-rs/polars/issues/12761),
+    # so a single expression can't do this in one pass across all timezones.
+    #
+    # The previous approach built one polars.when/then branch per distinct
+    # timezone and combined them with polars.coalesce(). That forces every
+    # branch to be evaluated as a full-length column (mostly nulls) before
+    # picking the first non-null value per row: for N distinct timezones (EEA
+    # daily reporting spans dozens of countries/timezones), that transiently
+    # materializes N full-size Datetime columns for Start and N more for End
+    # -- multiples of the dataset's own size, and the true source of a large
+    # peak-memory spike unrelated to the dataset's final size.
+    #
+    # Instead, partition the rows by timezone, converting only the (much
+    # smaller) per-timezone subset each time, then recombine. Peak memory is
+    # now proportional to the dataset size once, not N times.
+    tz_frames = []
+    for tz in dataset["Timezone"].unique():
+        if tz is None:
+            # No matching metadata (e.g. no Timezone for this Samplingpoint):
+            # keep the row but null out Start/End, matching the old
+            # coalesce-based behavior where an unmatched timezone produced a
+            # null result rather than dropping the row.
+            null_dt = polars.lit(None, dtype=polars.Datetime("ns", "UTC"))
+            tz_frames.append(
+                dataset.filter(polars.col("Timezone").is_null()).with_columns(
+                    null_dt.alias("Start"),
+                    null_dt.alias("End"),
+                )
+            )
+            continue
+        tz_frames.append(
+            dataset.filter(polars.col("Timezone") == tz).with_columns(
+                polars.col("Start").dt.replace_time_zone(tz).dt.convert_time_zone("UTC"),
+                polars.col("End").dt.replace_time_zone(tz).dt.convert_time_zone("UTC"),
+            )
         )
-        .drop("Timezone")
+    if tz_frames:
+        joined = polars.concat(tz_frames).drop("Timezone")
+    else:
+        # No rows at all (e.g. no daily files matched the given filters):
+        # nothing to partition by timezone, just cast Start/End to the
+        # expected UTC dtype on the still-empty frame.
+        joined = dataset.with_columns(
+            polars.col("Start").cast(polars.Datetime("ns", "UTC")),
+            polars.col("End").cast(polars.Datetime("ns", "UTC")),
+        ).drop("Timezone")
+
+    # Map Samplingpoint -> samplingpoint_id now that the (raw, "/"-separated)
+    # Samplingpoint column is no longer needed for the timezone-selector join
+    # above. Daily data volume is typically tiny compared to hourly, so the
+    # memory/perf impact of doing this on the whole daily dataset here (vs.
+    # per-file, as done for hourly) is negligible. A join() against the small
+    # station_ids lookup table is faster here than replace_strict().
+    joined = (
+        joined.with_columns(
+            polars.col("Samplingpoint")
+            .str.replace_many(["GI/", "/"], ["GB_", "_"])
+            .alias("station")
+        )
+        .join(station_ids, on="station", how="left")
+        .drop("Samplingpoint", "station")
     )
 
-    return joined
+    return joined, unit
 
 
 class EEAStation(Station):
@@ -493,13 +586,13 @@ class EEATimeseriesReader(AutoFilterReader):
         return metadata
 
     def _unfiltered_data(self, varname: str) -> Data:
-        dataframe, metadata = self._read(varname)
-        return EEAData(dataframe, varname, metadata)
+        dataframe, metadata, unit = self._read(varname)
+        return EEAData(dataframe, varname, metadata, unit)
 
     def _read(
         self,
         variable: str,
-    ) -> tuple[polars.DataFrame, ...]:
+    ) -> tuple[polars.DataFrame, polars.DataFrame, str | None]:
         filters = _transform_filters(self._get_filters())
 
         # TODO: Enable depending on data wanted from e.g. time requested
@@ -510,7 +603,6 @@ class EEATimeseriesReader(AutoFilterReader):
                 "Start": polars.Datetime("ns"),
                 "End": polars.Datetime("ns"),
                 "Value": polars.Float32,
-                "Unit": str,
                 # "AggType": str,
                 "Validity": polars.Int32,
                 # "Verification": polars.Int32,
@@ -531,35 +623,46 @@ class EEATimeseriesReader(AutoFilterReader):
             for path in stations.filter(polars.col("AggType") == "day")["filename"]
         ]
 
-        hourly_dataset = _read_hourly_files(
-            hourly_paths,
-            self._stations,
-            filters,
-        )
-        if len(daily_paths) == 0:
-            dataset = hourly_dataset
-        else:
-            daily_dataset = _read_daily_files(
-                daily_paths,
-                self._stations,
-                filters,
-            )
-            dataset = hourly_dataset.vstack(daily_dataset)
-
+        # Build the Samplingpoint -> samplingpoint_id lookup up front, so it
+        # can be applied per-file (for hourly data) or immediately after
+        # each file's other processing (for daily data), rather than as a
+        # separate final pass over the full combined dataset. `Samplingpoint`
+        # is a fairly long string column (comparable in size to all the
+        # other columns combined); mapping it away as early as possible
+        # avoids ever holding a full-size copy of it across all files
+        # combined.
         station_ids = self._stations.select(
             "station", "samplingpoint_id"
         ).unique("station")
-        dataset = (
-            dataset.with_columns(
-                polars.col("Samplingpoint")
-                .str.replace_many(["GI/", "/"], ["GB_", "_"])
-                .alias("station")
-            )
-            .join(station_ids, on="station", how="left")
-            .drop(["Samplingpoint", "station"])
-        )
 
-        return dataset, stations
+        hourly_dataset, hourly_unit = _read_hourly_files(
+            hourly_paths,
+            self._stations,
+            filters,
+            station_ids,
+        )
+        if len(daily_paths) == 0:
+            dataset = hourly_dataset
+            unit = hourly_unit
+        else:
+            daily_dataset, daily_unit = _read_daily_files(
+                daily_paths,
+                self._stations,
+                filters,
+                station_ids,
+            )
+            dataset = hourly_dataset.vstack(daily_dataset)
+            # Drop references to the pre-vstack frames now that their data
+            # has been copied into `dataset`, so the allocator can reclaim
+            # them immediately instead of keeping them alive (and thus
+            # multiplying peak memory) until this function returns.
+            del hourly_dataset, daily_dataset
+            unit = _validate_unit(
+                [u for u in (hourly_unit, daily_unit) if u is not None],
+                context=f" for variable {variable}",
+            )
+
+        return dataset, stations, unit
 
     def _unfiltered_variables(self) -> list[str]:
         return list(self._stations["Air Pollutant"].unique())
