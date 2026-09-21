@@ -36,26 +36,22 @@ class EEAData(Data):
         self._variable = variable
         self._metadata = metadata
 
-    @cached_property
+    @property
     def _joined(self) -> polars.DataFrame:
         """Values and metadata are kept separated until needed to allow
         for lazy views
         """
         # Only keep values we need to reduce dataframe size
-        joined = self._data.select("station").join(
-            self._metadata.with_columns(
-                (polars.col("Country Code") + "/" + polars.col("Sampling Point Id"))
-                .str.replace("/", "_")
-                .alias("station")
-            )
-            .select("station", "Longitude", "Latitude", "Altitude")
-            .unique("station"),
-            on="station",
+        joined = self._data.select("samplingpoint_id").join(
+            self._metadata.select(
+                "samplingpoint_id", "Longitude", "Latitude", "Altitude"
+            ).unique("samplingpoint_id"),
+            on="samplingpoint_id",
             how="left",
         )
         return joined
 
-    @cached_property
+    @property
     def units(self) -> str:
         units = self._data["Unit"].unique()
         if len(units) == 0:
@@ -86,7 +82,19 @@ class EEAData(Data):
 
     @property
     def stations(self) -> np.ndarray:
-        return self._data["station"].to_numpy()
+        station_names = self._metadata.select(
+            "samplingpoint_id", "station"
+        ).unique("samplingpoint_id")
+        return (
+            self._data.select("samplingpoint_id")
+            .join(station_names, on="samplingpoint_id", how="left")
+            .get_column("station")
+            .to_numpy()
+        )
+
+    @property
+    def station_ids(self) -> np.ndarray:
+        return self._data["samplingpoint_id"].to_numpy()
 
     @property
     def latitudes(self) -> np.ndarray:
@@ -132,33 +140,36 @@ class EEAData(Data):
         return self._nrecords()
 
 
-def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
-    return polars.read_parquet(
-        filepath,
-        use_pyarrow=True,
-        pyarrow_options={"filters": pyarrow_filters},
-        columns=[
-            "Samplingpoint",
-            "Start",
-            "End",
-            "Value",
-            "Unit",
-            "Validity",
-        ],
-    ).cast({"Value": polars.Float32})
+def _read(filepath: Path, filters: list[polars.Expr]) -> polars.DataFrame:
+    # Use Polars' native (non-pyarrow) parquet reader with expression-based
+    # predicate/projection pushdown. This avoids routing every file through
+    # PyArrow's separate parquet reader and memory pool, which was found to
+    # retain a much larger resident-memory high-water mark than Polars' own
+    # engine when reading many small files.
+    lf = polars.scan_parquet(filepath).select(
+        "Samplingpoint",
+        "Start",
+        "End",
+        "Value",
+        "Unit",
+        "Validity",
+    )
+    if filters:
+        lf = lf.filter(polars.all_horizontal(filters))
+    return lf.collect().cast({"Value": polars.Float32})
 
 
 @dataclasses.dataclass
 class _Filters:
-    pyarrow_filters_hourly: list[tuple[str, str, str | datetime]]
-    pyarrow_filters_daily: list[tuple[str, str, str | datetime]]
+    filters_hourly: list[polars.Expr]
+    filters_daily: list[polars.Expr]
     time: pyaro.timeseries.Filter.TimeBoundsFilter | None
 
 
-def _pyarrow_timefilter_hourly(
+def _timefilter_hourly(
     filter: pyaro.timeseries.Filter.TimeBoundsFilter,
-) -> list[tuple[str, str, datetime]]:
-    # Time filtering might not be expressible as pyarrow filters alone,
+) -> list[polars.Expr]:
+    # Time filtering might not be expressible as pushdown filters alone,
     # so we supply a coarse filter which should be filtered later on
     # TODO: Make this support more filtering whilst reading
     min_time, max_time = filter.envelope()
@@ -171,17 +182,17 @@ def _pyarrow_timefilter_hourly(
     min_time += offset
 
     return [
-        ("Start", ">=", min_time),
-        ("Start", "<=", max_time),
-        ("End", ">=", min_time),
-        ("End", "<=", max_time),
+        polars.col("Start") >= min_time,
+        polars.col("Start") <= max_time,
+        polars.col("End") >= min_time,
+        polars.col("End") <= max_time,
     ]
 
 
-def _pyarrow_timefilter_daily(
+def _timefilter_daily(
     filter: pyaro.timeseries.Filter.TimeBoundsFilter,
-) -> list[tuple[str, str, datetime]]:
-    # Time filtering might not be expressible as pyarrow filters alone,
+) -> list[polars.Expr]:
+    # Time filtering might not be expressible as pushdown filters alone,
     # so we supply a coarse filter which should be filtered later on
     # TODO: Make this support more filtering whilst reading
     min_time, max_time = filter.envelope()
@@ -195,34 +206,34 @@ def _pyarrow_timefilter_daily(
     offset = timedelta(hours=26)
 
     return [
-        ("Start", ">=", min_time - offset),
-        ("Start", "<=", max_time + offset),
-        ("End", ">=", min_time - offset),
-        ("End", "<=", max_time + offset),
+        polars.col("Start") >= (min_time - offset),
+        polars.col("Start") <= (max_time + offset),
+        polars.col("End") >= (min_time - offset),
+        polars.col("End") <= (max_time + offset),
     ]
 
 
 def _transform_filters(
     filters: Iterable[pyaro.timeseries.Filter.Filter],
 ) -> _Filters:
-    validity_filter = ("Validity", ">", 0)
+    validity_filter = polars.col("Validity") > 0
 
-    pyarrow_filters_daily = [validity_filter]
-    pyarrow_filters_hourly = pyarrow_filters_daily.copy()
+    filters_daily = [validity_filter]
+    filters_hourly = filters_daily.copy()
     time_filter = None
 
     for filter in filters:
         if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
             if filter.has_envelope():
-                pyarrow_filters_hourly.extend(_pyarrow_timefilter_hourly(filter))
-                pyarrow_filters_daily.extend(_pyarrow_timefilter_daily(filter))
+                filters_hourly.extend(_timefilter_hourly(filter))
+                filters_daily.extend(_timefilter_daily(filter))
             time_filter = filter
         else:
             continue  # handled post-read
 
     return _Filters(
-        pyarrow_filters_daily=pyarrow_filters_daily,
-        pyarrow_filters_hourly=pyarrow_filters_hourly,
+        filters_daily=filters_daily,
+        filters_hourly=filters_hourly,
         time=time_filter,
     )
 
@@ -252,7 +263,7 @@ def _read_hourly_files(
     pbar = tqdm(datapaths, disable=None)
     for file in pbar:
         pbar.set_description(f"Processing hourly {file.name:>54}")
-        dataset.vstack(_read(file, filters.pyarrow_filters_hourly), in_place=True)
+        dataset.vstack(_read(file, filters.filters_hourly), in_place=True)
 
     dataset.rechunk()
 
@@ -296,7 +307,7 @@ def _read_daily_files(
     pbar = tqdm(datapaths, disable=None)
     for file in pbar:
         pbar.set_description(f"Processing daily {file.name:>54}")
-        dataset.vstack(_read(file, filters.pyarrow_filters_daily), in_place=True)
+        dataset.vstack(_read(file, filters.filters_daily), in_place=True)
 
     dataset.rechunk()
 
@@ -448,6 +459,10 @@ class EEATimeseriesReader(AutoFilterReader):
             .str.replace("/", "_")
             .alias("station"),
         )
+        samplingpoint_ids = metadata.select("station").unique().with_row_index(
+            "samplingpoint_id"
+        )
+        metadata = metadata.join(samplingpoint_ids, on="station", how="left")
         for filter in self._get_filters():
             if isinstance(filter, pyaro.timeseries.Filter.CountryFilter):
                 metadata = metadata.filter(
@@ -479,11 +494,6 @@ class EEATimeseriesReader(AutoFilterReader):
 
     def _unfiltered_data(self, varname: str) -> Data:
         dataframe, metadata = self._read(varname)
-        dataframe = dataframe.with_columns(
-            polars.col("Samplingpoint")
-            .str.replace_many({"GI/": "GB_", "/": "_"})
-            .alias("station")
-        )
         return EEAData(dataframe, varname, metadata)
 
     def _read(
@@ -535,6 +545,19 @@ class EEATimeseriesReader(AutoFilterReader):
                 filters,
             )
             dataset = hourly_dataset.vstack(daily_dataset)
+
+        station_ids = self._stations.select(
+            "station", "samplingpoint_id"
+        ).unique("station")
+        dataset = (
+            dataset.with_columns(
+                polars.col("Samplingpoint")
+                .str.replace_many(["GI/", "/"], ["GB_", "_"])
+                .alias("station")
+            )
+            .join(station_ids, on="station", how="left")
+            .drop(["Samplingpoint", "station"])
+        )
 
         return dataset, stations
 
