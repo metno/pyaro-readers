@@ -3,7 +3,7 @@
 #prototype
 # the order in the list below is preserved and determines the order the data is read
 #[variables.<pyaerocom var name>]
-#actris_variable = [<list of actris variables>] (according to the ACTRIS vocabulary)
+#actris_variable = [<list of actris variables>] (according to the ACTRIS vocabulary; only the first is used atm)
 #actris_matrix = [<list of actris matrixes>] (unused atm)
 #ebas_component = [<list of ebas component names>]
 #ebas_matrix = [<list of ebas matrix names>]
@@ -77,6 +77,7 @@ standard_names = ["mass_concentration_of_total_sulphateexpressed_as_sulphur_in_d
     "mass_concentration_of_sulphate_total_in_pm10_in_air",
     "mass_concentration_of_sulphate_total_in_pm2p5_in_air", ]
 units = 'ug S/m3'
+variable_constraints = ['expressed as sulfur']
 
 
 # Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
@@ -92,6 +93,7 @@ standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_in_dry_
 #    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm10_in_air",
 #    "mass_concentration_of_sulphate_corrected_for_seaspray_expressed_as_sulphur_in_pm2p5_in_air", ]
 units = 'ug S/m3'
+variable_constraints = ['expressed as sulfur']
 
 [variables.vmro3]
 actris_variable = ["ozone amount fraction"]

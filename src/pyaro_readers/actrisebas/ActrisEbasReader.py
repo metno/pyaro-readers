@@ -115,10 +115,10 @@ VAR_COVERAGE_EBAS_UNIT_NAME_KEY = "ebas_unit"
 VAR_COVERAGE_ACTRIS_PROPERTY_OF_INTEREST_NAME_KEY = "variable_property_of_interest"
 VAR_COVERAGE_ACTRIS_OBJECT_OF_INTEREST_KEY = "object_of_interest"
 VAR_COVERAGE_ACTRIS_VARIABLE_MATRIX_KEY = "variable_matrix"
-VAR_COVERAGE_ACTRIS_VARIABLE_CONTRAINTS_KEY = "variable_constraints"
+VAR_COVERAGE_ACTRIS_VARIABLE_CONSTRAINTS_KEY = "variable_constraints"
 VAR_COVERAGE_ACTRIS_INSTRUMENT_KEY = "instrument"  # list
 VAR_COVERAGE_ACTRIS_FRAMEWORK_KEY = "framework"  # list
-VAR_COVERAGE_ACTRIS_TEMPORAK_RESOLUTION_KEY = "temporal_resolution"
+VAR_COVERAGE_ACTRIS_TEMPORAL_RESOLUTION_KEY = "temporal_resolution"
 
 # name of netcdf time variable in the netcdf files
 # should be "time" as of CF convention, but other names can be added here
@@ -139,6 +139,10 @@ CF_UNITS["ug/m3"] = "ug m-3"
 CF_UNITS["nmol/mol"] = "nmol mol-1"
 CF_UNITS["mm"] = "mm d-1"
 CF_UNITS["mg/l"] = "mg S m-2 d-1"
+CF_UNITS["ug /m3"] = "ug m-3"
+CF_UNITS["ug S/m3"] = "ugS/m3"
+CF_UNITS["ug N/m3"] = "ugN/m3"
+CF_UNITS["ug C/m3"] = "ugC/m3"
 # CF_UNITS[""] = ""
 
 # Used to adjust the APIs thredds URL for testing
@@ -278,21 +282,28 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # of ACTRIS variables to read. values are a list
         self.actris_vars_to_read = {}
         # The following is a key of how to find matching netcdf variable names like ['ozone%air%nmol/mol']
+        self.ebas_netcdf_keys = {}
+        # self.actris_netcdf_keys is a list of keys to find the netcdf variable name in the API response for a given pyaerocom variable name
         self.actris_netcdf_keys = {}
+
         self.opendap_netcdf_info = {}
+        self.cache_files = {}
         for var in self.vars_to_read:
             self.api_metadata[var] = {}
             # handle pyaerocom variables here:
             # if a given variable name is in the list of pyaerocom variable names in definitions.toml
             # self.actris_vars_to_read[var] = []
-            # self.actris_netcdf_keys[var] = []
+            # self.ebas_netcdf_keys[var] = []
             if var in self.def_data["variables"]:
                 # user gave a pyaerocom variable name
                 self.actris_vars_to_read[var] = self.def_data["variables"][var][
                     "actris_variable"
                 ]
-                self.actris_netcdf_keys[var] = self.def_data["variables"][var][
+                self.ebas_netcdf_keys[var] = self.def_data["variables"][var][
                     "netcdf_keys"
+                ]
+                self.actris_netcdf_keys[var] = self.def_data["variables"][var][
+                    "actris_netcdf_keys"
                 ]
                 _cache_files = []
                 for _cache_file in self.def_data["variables"][var]["actris_variable"]:
@@ -302,7 +313,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             f"api_cache_{var}_{_cache_file.replace(' ', '-')}.json",
                         )
                     )
-                self.cache_files = _cache_files
+                self.cache_files[var] = _cache_files
                 # for _actris_var in self.actris_vars_to_read[var]:
                 #     try:
                 #         self.standard_names[_actris_var] = self.get_ebas_standard_name(
@@ -328,7 +339,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             for _var_idx, _actris_var in enumerate(
                 self.actris_vars_to_read[_pyaro_var]
             ):
-                _cache_file = self.cache_files[_var_idx]
+                _cache_file = self.cache_files[_pyaro_var][_var_idx]
                 # check if the cache file exists and is fresh enough
                 cache_is_fresh = os.path.exists(_cache_file) and (
                     time.time() - os.path.getmtime(_cache_file) <= MAX_CACHE_TIME
@@ -430,11 +441,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         found_flag = False
         netcdf_var = ""
-        for _idx in range(len(self.actris_netcdf_keys[aerocom_var_to_read])):
+        for _key in self.actris_netcdf_keys[aerocom_var_to_read]:
             try:
-                netcdf_var = self.opendap_netcdf_info[thredds_url][actris_variable][
-                    self.actris_netcdf_keys[aerocom_var_to_read][_idx]
-                ]
+                netcdf_var = self.constraints[thredds_url][_key]
                 logger.info(
                     f"found netcdf variable {netcdf_var} for url {thredds_url} and variable {aerocom_var_to_read}"
                 )
@@ -442,6 +451,18 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 break
             except KeyError:
                 pass
+        # for _idx in range(len(self.ebas_netcdf_keys[aerocom_var_to_read])):
+        #     try:
+        #         netcdf_var = self.opendap_netcdf_info[thredds_url][actris_variable][
+        #             self.ebas_netcdf_keys[aerocom_var_to_read][_idx]
+        #         ]
+        #         logger.info(
+        #             f"found netcdf variable {netcdf_var} for url {thredds_url} and variable {aerocom_var_to_read}"
+        #         )
+        #         found_flag = True
+        #         break
+        #     except KeyError:
+        #         pass
 
         if not found_flag:
             logger.error(
@@ -637,6 +658,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         # units...
                         # logs if netcdf-CF units and EBAS units are not equal
                         self.units = self.get_ebas_data_units(tmp_data, _data_var, url)
+                        if self.units not in CF_UNITS.values():
+                            logger.error(
+                                f"URL: {url} variable {_data_var} has no CF unit mapping. Skipping that variable."
+                            )
+                            continue
 
                         long_name = tmp_data.attrs["ebas_station_name"]
                         # the station name from the API might not match the one from the data file
@@ -1102,6 +1128,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # That's a dict containing the netcdf variable names per ACTRIS vocabulary term
         # extracted from the API response
         netcdf_vars_to_look_at = {}
+        # store contraints per URL:
+        self.constraints = {}
         # highest hierachy is a list
         for site_idx, site_data in enumerate(json_resp):
             try:
@@ -1170,6 +1198,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         if url not in opendap_urls_to_dl[site_name]:
                             opendap_urls_to_dl[site_name].append(url)
                             netcdf_vars_to_look_at[url] = {}
+                            self.constraints[url] = {}
                             # opendap_urls_to_dl[site_name].append(url)
                             logger.info(
                                 f"site: {site_name} / proto: {distribution_data[DISTRIBUTION_PROTOCOL_KEY]} included in URL list"
@@ -1178,7 +1207,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             for _var in site_data[VAR_COVERAGE_ROOT_KEY][
                                 VAR_COVERAGE_VARIABLE_KEY
                             ]:
-                                pass
                                 # This might not be only one entry!
                                 if (
                                     _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
@@ -1187,6 +1215,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                     netcdf_vars_to_look_at[url][
                                         _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
                                     ] = {}
+                                    # self.constraints[url][_var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]] = {}
                                 _insitu = _var[VAR_COVERAGE_EXTRA_METADATA_KEY][
                                     VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY
                                 ]
@@ -1200,7 +1229,6 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                     VAR_COVERAGE_EBAS_MATRIX_NAME_KEY
                                 ]
                                 _ebas_key = f"{_ebas_component_key}%{_ebas_matrix_key}%{_ebas_unit_key}"
-
                                 netcdf_vars_to_look_at[url][
                                     _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
                                 ][_ebas_key] = _insitu[
@@ -1210,21 +1238,52 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 #         _var[VAR_COVERAGE_EXTRA_METADATA_KEY][VAR_COVERAGE_EXTRA_METADATA_INSITU_KEY][
                                 #             VAR_COVERAGE_NETVDF_VARIABLE_NAME_KEY
                                 #     ]
-                                if REWRITE_NETCDF_VAR_NAME:
-                                    netcdf_vars_to_look_at[url][
-                                        _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
-                                    ] = re.sub(
-                                        r"^v_",
-                                        "",
-                                        netcdf_vars_to_look_at[url][
-                                            _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
-                                        ],
-                                    )
+                                # if REWRITE_NETCDF_VAR_NAME:
+                                #     netcdf_vars_to_look_at[url][
+                                #         _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
+                                #     ] = re.sub(
+                                #         r"^v_",
+                                #         "",
+                                #         netcdf_vars_to_look_at[url][
+                                #             _var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]
+                                #         ],
+                                #     )
 
                                 # this is the entry for the cache file name
                                 netcdf_vars_to_look_at[
                                     str(self.local_file_from_url(url))
                                 ] = netcdf_vars_to_look_at[url]
+
+                                # _var[VAR_COVERAGE_ACTRIS_VARIABLE_CONSTRAINTS_KEY] exists only if the variable actually has contraints
+                                _contraint_key = f"{_var[VAR_COVERAGE_ACTRIS_VARIABLE_NAME_KEY]}%{_var[VAR_COVERAGE_ACTRIS_VARIABLE_MATRIX_KEY]}%"
+                                try:
+
+                                    _constraint_dummy = []
+                                    for _i in range(
+                                        len(
+                                            _var[
+                                                VAR_COVERAGE_ACTRIS_VARIABLE_CONSTRAINTS_KEY
+                                            ]
+                                        )
+                                    ):
+                                        _constraint_dummy.append(
+                                            _var[
+                                                VAR_COVERAGE_ACTRIS_VARIABLE_CONSTRAINTS_KEY
+                                            ][_i]["constraint"]
+                                        )
+                                        _key_dummy = f"{_contraint_key}{_var[VAR_COVERAGE_ACTRIS_VARIABLE_CONSTRAINTS_KEY][_i]['constraint']}"
+
+                                        self.constraints[url][_key_dummy] = _insitu[
+                                            VAR_COVERAGE_NETCDF_VARIABLE_NAME_KEY
+                                        ]
+                                except KeyError:
+                                    self.constraints[url][_contraint_key] = _insitu[
+                                        VAR_COVERAGE_NETCDF_VARIABLE_NAME_KEY
+                                    ]
+
+                                self.constraints[str(self.local_file_from_url(url))] = (
+                                    self.constraints[url]
+                                )
 
                         if url not in self.time_coverages:
                             # this is in seconds from the epoch
@@ -1391,6 +1450,17 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                     if "units" in tmp["variables"][_aerocom_var]:
                         _tmp = f"{_tmp}%{tmp['variables'][_aerocom_var]['units']}"
                     tmp["variables"][_aerocom_var]["netcdf_keys"].append(_tmp)
+
+            tmp["variables"][_aerocom_var]["actris_netcdf_keys"] = []
+            for _matrix in tmp["variables"][_aerocom_var]["actris_matrix"]:
+                _tmp = (
+                    f"{tmp['variables'][_aerocom_var]['actris_variable'][0]}%{_matrix}"
+                )
+                if "variable_constraints" in tmp["variables"][_aerocom_var]:
+                    _tmp = f"{_tmp}%{tmp['variables'][_aerocom_var]['variable_constraints'][0]}"
+                else:
+                    _tmp = f"{_tmp}%"
+                tmp["variables"][_aerocom_var]["actris_netcdf_keys"].append(_tmp)
 
         return tmp
 
