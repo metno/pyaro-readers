@@ -5,6 +5,8 @@ import logging
 import pyaro
 import pyaro.timeseries
 
+import pyaerocom
+
 # from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
 logger = logging.getLogger(__name__)
@@ -19,6 +21,7 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
         log_file = f"actrisebas.log"
         # log_file = f"/home/jang/tmp/logging/pyaerocom.log"
     logging.basicConfig(filename=log_file, level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
     logger.info("Started")
 
     engine = "actrisebas"

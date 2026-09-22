@@ -1295,9 +1295,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                     TIME_COVERAGE_TIME_KEY
                                 ][TIME_COVERAGE_END_KEY],
                             )
+                            # The API time strings are time zone aware (indicated by the trailing "Z"
+                            # Remove the "Z" since that would cause a user warning
                             self.time_coverages[url] = (
-                                np.datetime64(time_dummy[0], "s"),
-                                np.datetime64(time_dummy[1], "s"),
+                                np.datetime64(time_dummy[0].replace("Z", ""), "s"),
+                                np.datetime64(time_dummy[1].replace("Z", ""), "s"),
                             )
                         else:
                             logger.info(
