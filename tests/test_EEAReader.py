@@ -77,6 +77,9 @@ class TestEEATimeSeriesReader(unittest.TestCase):
             _ = data.values
             alts = data.altitudes
             self.assertFalse(np.any(np.isnan(alts)))
+            station_ids = data.station_ids
+            self.assertFalse(np.any(np.isnan(station_ids)))
+            self.assertEqual(len(station_ids), len(data))
 
 
 if __name__ == "__main__":
