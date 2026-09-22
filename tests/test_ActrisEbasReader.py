@@ -9,9 +9,12 @@ import pyaro.timeseries
 
 logger = logging.getLogger(__name__)
 
+
 TEST_URL = "https://prod-actris-md2.nilu.no/"
 
 
+# skip all tests in this file
+@unittest.skip("Skipping all tests in this file, since actris endpoint changed")
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     log_file = os.getenv("PYAEROCOM_LOG_FILE")
     if log_file is not None:
