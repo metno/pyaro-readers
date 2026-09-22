@@ -81,5 +81,6 @@ class TestEEATimeSeriesReader(unittest.TestCase):
             self.assertFalse(np.any(np.isnan(station_ids)))
             self.assertEqual(len(station_ids), len(data))
 
+
 if __name__ == "__main__":
     unittest.main()

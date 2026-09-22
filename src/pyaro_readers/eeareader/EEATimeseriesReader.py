@@ -75,9 +75,9 @@ class EEAData(Data):
 
     @property
     def stations(self) -> np.ndarray:
-        station_names = self._metadata.select(
-            "samplingpoint_id", "station"
-        ).unique("samplingpoint_id")
+        station_names = self._metadata.select("samplingpoint_id", "station").unique(
+            "samplingpoint_id"
+        )
         return (
             self._data.select("samplingpoint_id")
             .join(station_names, on="samplingpoint_id", how="left")
@@ -366,7 +366,9 @@ def _read_daily_files(
         ]
     )
 
-    dataset = dataset.join(metadata, left_on="Samplingpoint", right_on="selector", how="left")
+    dataset = dataset.join(
+        metadata, left_on="Samplingpoint", right_on="selector", how="left"
+    )
 
     # Convert Start/End from each row's local reporting timezone to UTC.
     #
@@ -388,7 +390,9 @@ def _read_daily_files(
             continue
         tz_frames.append(
             dataset.filter(polars.col("Timezone") == tz).with_columns(
-                polars.col("Start").dt.replace_time_zone(tz).dt.convert_time_zone("UTC"),
+                polars.col("Start")
+                .dt.replace_time_zone(tz)
+                .dt.convert_time_zone("UTC"),
                 polars.col("End").dt.replace_time_zone(tz).dt.convert_time_zone("UTC"),
             )
         )
@@ -527,8 +531,8 @@ class EEATimeseriesReader(AutoFilterReader):
             .str.replace("/", "_")
             .alias("station"),
         )
-        samplingpoint_ids = metadata.select("station").unique().with_row_index(
-            "samplingpoint_id"
+        samplingpoint_ids = (
+            metadata.select("station").unique().with_row_index("samplingpoint_id")
         )
         metadata = metadata.join(samplingpoint_ids, on="station", how="left")
         for filter in self._get_filters():
@@ -600,9 +604,9 @@ class EEATimeseriesReader(AutoFilterReader):
 
         # Build the Samplingpoint -> samplingpoint_id lookup up front, so it
         # can be applied while reading the files.
-        station_ids = self._stations.select(
-            "station", "samplingpoint_id"
-        ).unique("station")
+        station_ids = self._stations.select("station", "samplingpoint_id").unique(
+            "station"
+        )
 
         hourly_dataset, hourly_unit = _read_hourly_files(
             hourly_paths,
@@ -621,7 +625,7 @@ class EEATimeseriesReader(AutoFilterReader):
                 station_ids,
             )
             dataset = hourly_dataset.vstack(daily_dataset)
-            # Drop references to the pre-vstack frames 
+            # Drop references to the pre-vstack frames
             del hourly_dataset, daily_dataset
             unit = _validate_unit(
                 [u for u in (hourly_unit, daily_unit) if u is not None],
