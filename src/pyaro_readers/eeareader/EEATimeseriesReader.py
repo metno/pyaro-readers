@@ -89,6 +89,17 @@ class EEAData(Data):
     def station_ids(self) -> np.ndarray:
         return self._data["samplingpoint_id"].to_numpy()
 
+    def stations_by_ids(self, station_ids: np.ndarray) -> np.ndarray:
+        station_names = self._metadata.select("samplingpoint_id", "station").unique(
+            "samplingpoint_id"
+        )
+        return (
+            polars.DataFrame({"samplingpoint_id": station_ids})
+            .join(station_names, on="samplingpoint_id", how="left")
+            .get_column("station")
+            .to_numpy()
+        )
+
     @property
     def latitudes(self) -> np.ndarray:
         return self._joined["Latitude"].to_numpy()
@@ -111,15 +122,16 @@ class EEAData(Data):
 
     @property
     def flags(self) -> np.ndarray:
-        def mapper(value: int) -> int:
-            if value == 1:
-                return pyaro.timeseries.Flag.VALID
-            elif value == 2 or value == 3:
-                return pyaro.timeseries.Flag.BELOW_THRESHOLD
-            else:
-                return pyaro.timeseries.Flag.INVALID
-
-        valid = self._data["Validity"].map_elements(mapper, return_dtype=int)
+        valid = self._data.select(
+            polars.when(polars.col("Validity") == 1)
+            .then(polars.lit(pyaro.timeseries.Flag.VALID))
+            .when(polars.col("Validity").is_in([2, 3]))
+            .then(polars.lit(pyaro.timeseries.Flag.BELOW_THRESHOLD))
+            .when(polars.col("Validity").is_null())
+            .then(polars.lit(None, dtype=polars.Int64))
+            .otherwise(polars.lit(pyaro.timeseries.Flag.INVALID))
+            .alias("flags")
+        ).get_column("flags")
         return valid.to_numpy()
 
     @property
