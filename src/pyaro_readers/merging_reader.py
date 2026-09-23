@@ -49,9 +49,6 @@ class MergingReaderConcatData(Data):
     def variable(self) -> str:
         return self._variable
 
-    def keys(self):
-        raise NotImplementedError
-
     def slice(self, index):
         # Split the index for each part
         lengths = [len(d) for d in self._data]
@@ -67,6 +64,40 @@ class MergingReaderConcatData(Data):
     @property
     def stations(self) -> np.ndarray:
         return np.concatenate([d.stations for d in self._data])
+
+    @property
+    def station_ids(self) -> np.ndarray:
+        """New ids of the merged readers. The internal readers might have
+        different / overlapping station_ids which are then mapped to new ids.
+        If two readers contain the same station_name, they will have
+        different station_ids in the merged result.
+
+        :return: compined station_ids
+        """
+        all = []
+        self._offset = [0]
+        for i, d in enumerate(self._data):
+            new_ids = d.station_ids.copy()
+            new_ids += self._offset[i]
+            self._offset.append(np.max(new_ids)+1)
+            all.append(new_ids)
+        return np.concatenate(all)
+
+
+    def stations_by_ids(self, station_ids: np.ndarray) -> np.ndarray:
+        """Get the stations corresponding to the merged station_ids.
+        This function can only be called after `station_ids` have been accessed
+        at least once to initialize the offsets.
+
+        :param station_ids: The merged station_ids.
+        :return: The stations corresponding to the merged station_ids.
+        """
+        station_ids = np.asarray(station_ids) # ensure it is a numpy array
+        all = []
+        for i, d in enumerate(self._data):
+            new_ids = station_ids - self._offset[i]
+            all.append(d.stations_by_ids(new_ids))
+        return np.concatenate(all)
 
     @property
     def latitudes(self) -> np.ndarray:
