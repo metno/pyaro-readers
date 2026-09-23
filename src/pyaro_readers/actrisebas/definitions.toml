@@ -147,7 +147,7 @@ standard_names = ["mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air"
 #Not in current EBAS data set
 [variables.concno3pm10]
 actris_variable = ["aerosol particle nitrate mass concentration"]
-actris_matrix = ["gas phase"]
+actris_matrix = ["aerosol particle phase", "PM10"]
 ebas_component = ["nitrate"]
 ebas_matrix = ["pm10","aerosol"]
 # The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
@@ -155,7 +155,7 @@ standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentra
 
 [variables.concno3pm25]
 actris_variable = ["aerosol particle nitrate mass concentration"]
-actris_matrix = ["gas phase"]
+actris_matrix = ["PM25", "PM1"]
 ebas_component = ["nitrate"]
 ebas_matrix = ["pm25","pm1"]
 # The last part might not be what we really want, but the first two standard_name don't appear in the data files
@@ -165,15 +165,16 @@ standard_names = ["mass_concentration_of_nitrate_in_pm2p5_in_air",
 
 [variables.concno3pm1]
 actris_variable = ["aerosol particle nitrate mass concentration"]
-actris_matrix = ["gas phase"]
+actris_matrix = ["PM1"]
 ebas_component = ["nitrate"]
 ebas_matrix = ["pm1_non_refractory"]
 # The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
 standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
+variable_constraints = ['non-refractory']
 
 [variables.concnh4pm25]
 actris_variable = ["aerosol particle ammonium mass concentration"]
-actris_matrix = ["gas phase"]
+actris_matrix = ["aerosol particle phase"]
 ebas_component = ["ammonium"]
 ebas_matrix = ["pm25","pm1"]
 # The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
@@ -181,12 +182,13 @@ standard_names = ["mass_concentration_of_ammonium_in_pm2p5_in_air"]
 
 [variables.concnh4pm1]
 actris_variable = ["aerosol particle ammonium mass concentration"]
-actris_matrix = ["gas phase"]
+actris_matrix = ["PM1"]
 ebas_component = ["ammonium"]
 ebas_matrix = ["pm1_non_refractory"]
 # The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
 standard_names = ["mass_concentration_of_ammonium_in_non_refractory_pm1_in_air"]
 #    "mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
+variable_constraints = ['non-refractory']
 
 # Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
 [variables.concso4pm25]
@@ -203,13 +205,14 @@ standard_names = ["mass_concentration_of_sulphate_corrected_for_seaspray_express
 # Might be wrong due to same standard_names used for different units; No effort taken atm to resolve
 [variables.concso4pm1]
 actris_variable = ["aerosol particle sulphate mass concentration"]
-actris_matrix = ["aerosol particle phase", "PM2.5", "PM1"]
+actris_matrix = ["PM1"]
 ebas_component = ["sulphate_corrected","sulphate_total"]
 ebas_matrix = ["pm1_non_refractory"]
 # there's no standard name for sulphate_corrected with matrix pm1_non_refractory in the EBAS submission handbook
 standard_names = ["mass_concentration_of_sulphate_total_in_non_refractory_pm1_in_air",
     # backup to find anything to return. To be removed as soon as we have the correct search term
     "mass_concentration_of_sulphate_corrected_for_seaspray_in_dry_aerosol_particles_in_air"]
+variable_constraints = ['non-refractory']
 
 [variables.concCecpm10]
 actris_variable = ["aerosol particle elemental carbon mass concentration"]
