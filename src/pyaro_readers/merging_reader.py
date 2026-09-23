@@ -79,10 +79,9 @@ class MergingReaderConcatData(Data):
         for i, d in enumerate(self._data):
             new_ids = d.station_ids.copy()
             new_ids += self._offset[i]
-            self._offset.append(np.max(new_ids)+1)
+            self._offset.append(np.max(new_ids) + 1)
             all.append(new_ids)
         return np.concatenate(all)
-
 
     def stations_by_ids(self, station_ids: np.ndarray) -> np.ndarray:
         """Get the stations corresponding to the merged station_ids.
@@ -92,7 +91,7 @@ class MergingReaderConcatData(Data):
         :param station_ids: The merged station_ids.
         :return: The stations corresponding to the merged station_ids.
         """
-        station_ids = np.asarray(station_ids) # ensure it is a numpy array
+        station_ids = np.asarray(station_ids)  # ensure it is a numpy array
         all = []
         for i, d in enumerate(self._data):
             new_ids = station_ids - self._offset[i]
