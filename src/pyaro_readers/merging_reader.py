@@ -2,6 +2,7 @@ from typing import Any, Literal
 
 import cf_units
 import numpy as np
+import pyaro
 from pyaro.timeseries import Data, Station
 from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterEngine, AutoFilterReader
 from pyaro.timeseries.Filter import FilterCollection, FilterFactory
