@@ -28,7 +28,9 @@ class TestMergingReader(unittest.TestCase):
                 {
                     "reader_id": "ascii2netcdf",
                     "filename_or_obj_or_url": EBAS_URL,
-                    "filters": {"stations": {"include": ["NO9999"]}}, # non existent station
+                    "filters": {
+                        "stations": {"include": ["NO9999"]}
+                    },  # non existent station
                 },
             ],
             mode="concat",
@@ -47,10 +49,13 @@ class TestMergingReader(unittest.TestCase):
             self.assertTrue(all(station_names == station_names2))
 
             station_names3 = _data.stations_by_ids([3, 3, 1, 2, 0])
-            self.assertTrue(all(station_names3 == ["SE0014", "SE0014", "NO0056", "SE0005", "NO0002"]))
+            self.assertTrue(
+                all(
+                    station_names3 == ["SE0014", "SE0014", "NO0056", "SE0005", "NO0002"]
+                )
+            )
 
             _metadata = ts.metadata()
-
 
     def test_with_zero_len_dataset(self):
         d0 = {"reader_id": "ascii2netcdf", "filename_or_obj_or_url": EBAS_URL}

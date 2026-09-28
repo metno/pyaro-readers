@@ -11,8 +11,7 @@ import numpy as np
 import polars
 import pyaro.timeseries
 from pyaro.timeseries import Data, Reader, Station
-from pyaro.timeseries.AutoFilterReaderEngine import (AutoFilterEngine,
-                                                     AutoFilterReader)
+from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterEngine, AutoFilterReader
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)

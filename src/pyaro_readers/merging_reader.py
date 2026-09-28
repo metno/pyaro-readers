@@ -3,8 +3,7 @@ from typing import Any, Literal
 import cf_units
 import numpy as np
 from pyaro.timeseries import Data, Station
-from pyaro.timeseries.AutoFilterReaderEngine import (AutoFilterEngine,
-                                                     AutoFilterReader)
+from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterEngine, AutoFilterReader
 from pyaro.timeseries.Filter import FilterCollection, FilterFactory
 
 
@@ -93,8 +92,10 @@ class MergingReaderConcatData(Data):
         stations = np.empty(station_ids.shape, dtype="<U64")
         start, end = 0, 0
         for i, d in enumerate(self._data):
-            if (i+1) < len(d):
-                idx = (station_ids >= self._offset[i]) & (station_ids < self._offset[i + 1])
+            if (i + 1) < len(d):
+                idx = (station_ids >= self._offset[i]) & (
+                    station_ids < self._offset[i + 1]
+                )
             else:
                 idx = station_ids >= self._offset[i]
             new_ids = station_ids[idx] - self._offset[i]
