@@ -95,11 +95,17 @@ class MergingReaderConcatData(Data):
         :return: The stations corresponding to the merged station_ids.
         """
         station_ids = np.asarray(station_ids)  # ensure it is a numpy array
-        all = []
+        # create array of same size as station_ids with dtype <U64
+        stations = np.empty(station_ids.shape, dtype="<U64")
+        start, end = 0, 0
         for i, d in enumerate(self._data):
-            new_ids = station_ids - self._offset[i]
-            all.append(d.stations_by_ids(new_ids))
-        return np.concatenate(all)
+            if (i+1) < len(d):
+                idx = (station_ids >= self._offset[i]) & (station_ids < self._offset[i + 1])
+            else:
+                idx = station_ids >= self._offset[i]
+            new_ids = station_ids[idx] - self._offset[i]
+            stations[idx] = d.stations_by_ids(new_ids)
+        return stations
 
     @property
     def latitudes(self) -> np.ndarray:
