@@ -5,8 +5,10 @@ from pathlib import Path
 import pyaro
 import pyaro.timeseries
 import numpy as np
+import polars
 
 from pyaro_readers.eeareader import EEATimeseriesReader
+from pyaro_readers.eeareader.EEATimeseriesReader import EEAData
 
 
 class TestEEATimeSeriesReader(unittest.TestCase):
@@ -28,6 +30,30 @@ class TestEEATimeSeriesReader(unittest.TestCase):
             "catalog.parquet",
         )
     )
+
+    def test_coordinate_lookup_preserves_order_and_missing_ids(self):
+        data = EEAData(
+            polars.DataFrame({"samplingpoint_id": [2, None, 0, 2, 1]}),
+            "O3",
+            polars.DataFrame(
+                {
+                    "samplingpoint_id": [0, 1, 2],
+                    "Longitude": [10.0, 20.0, 30.0],
+                    "Latitude": [1.0, 2.0, 3.0],
+                    "Altitude": [100.0, 200.0, 300.0],
+                }
+            ),
+        )
+
+        np.testing.assert_allclose(
+            data.latitudes, [3.0, np.nan, 1.0, 3.0, 2.0], equal_nan=True
+        )
+        np.testing.assert_allclose(
+            data.longitudes, [30.0, np.nan, 10.0, 30.0, 20.0], equal_nan=True
+        )
+        np.testing.assert_allclose(
+            data.altitudes, [300.0, np.nan, 100.0, 300.0, 200.0], equal_nan=True
+        )
 
     def test_0engine(self):
         self.assertIn(self.engine, pyaro.list_timeseries_engines())
