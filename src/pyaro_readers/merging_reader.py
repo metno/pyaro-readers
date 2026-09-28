@@ -79,7 +79,10 @@ class MergingReaderConcatData(Data):
         for i, d in enumerate(self._data):
             new_ids = d.station_ids.copy()
             new_ids += self._offset[i]
-            self._offset.append(np.max(new_ids) + 1)
+            if len(new_ids) == 0:
+                self._offset.append(self._offset[i])
+            else:
+                self._offset.append(np.max(new_ids) + 1)
             all.append(new_ids)
         return np.concatenate(all)
 
