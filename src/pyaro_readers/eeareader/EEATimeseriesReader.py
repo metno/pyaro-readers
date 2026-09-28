@@ -28,23 +28,20 @@ class EEAData(Data):
         self._metadata = metadata
         self._unit = unit
 
-    def _joined(self, key) -> np.ndarray:
+    @property
+    def _joined(self) -> polars.DataFrame:
         """Values and metadata are kept separated until needed to allow
         for lazy views
-        :param key: The key to join with samplingpoint_id, e.g.
-          Longitude, Latitude, Altitude
         """
-
-        metadata = (
-            self._metadata.select("samplingpoint_id", key)
-            .unique("samplingpoint_id")
-            .sort("samplingpoint_id")
+        # Only keep values we need to reduce dataframe size
+        joined = self._data.select("samplingpoint_id").join(
+            self._metadata.select(
+                "samplingpoint_id", "Longitude", "Latitude", "Altitude"
+            ).unique("samplingpoint_id"),
+            on="samplingpoint_id",
+            how="left",
         )
-        samp_ids = metadata["samplingpoint_id"].to_numpy()
-        values = metadata[key].to_numpy()
-        idx = np.searchsorted(samp_ids, self._data["samplingpoint_id"].to_numpy())
-
-        return values[idx]
+        return joined
 
     @property
     def units(self) -> str:
@@ -97,15 +94,15 @@ class EEAData(Data):
 
     @property
     def latitudes(self) -> np.ndarray:
-        return self._joined("Latitude")
+        return self._joined["Latitude"].to_numpy()
 
     @property
     def longitudes(self) -> np.ndarray:
-        return self._joined("Longitude")
+        return self._joined["Longitude"].to_numpy()
 
     @property
     def altitudes(self) -> np.ndarray:
-        return self._joined("Altitude")
+        return self._joined["Altitude"].to_numpy()
 
     @property
     def start_times(self) -> np.ndarray:
