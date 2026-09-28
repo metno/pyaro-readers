@@ -1,17 +1,11 @@
-from typing import Literal, Any
+from typing import Any, Literal
 
-import numpy as np
 import cf_units
-from pyaro.timeseries.AutoFilterReaderEngine import (
-    AutoFilterReader,
-    AutoFilterEngine,
-)
-from pyaro.timeseries import (
-    Station,
-    Data,
-)
-import pyaro.timeseries
-from pyaro.timeseries.Filter import FilterFactory, FilterCollection
+import numpy as np
+from pyaro.timeseries import Data, Station
+from pyaro.timeseries.AutoFilterReaderEngine import (AutoFilterEngine,
+                                                     AutoFilterReader)
+from pyaro.timeseries.Filter import FilterCollection, FilterFactory
 
 
 class MergingReaderException(Exception):

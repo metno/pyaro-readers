@@ -2,6 +2,7 @@ import os
 import unittest
 
 import pyaro
+
 from pyaro_readers.merging_reader import MergingReader
 
 EBAS_URL = file = os.path.join(
