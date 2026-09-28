@@ -3,7 +3,6 @@ import logging
 import pathlib
 from collections.abc import Iterable
 from datetime import datetime, timedelta
-from functools import cached_property
 from pathlib import Path
 from typing import Literal
 
@@ -29,45 +28,20 @@ class EEAData(Data):
         self._metadata = metadata
         self._unit = unit
 
-    @cached_property
-    def _station_coordinate_lookup(self) -> tuple[np.ndarray, dict[str, np.ndarray]]:
-        metadata = (
+    @property
+    def _joined(self) -> polars.DataFrame:
+        """Values and metadata are kept separated until needed to allow
+        for lazy views
+        """
+        # Only keep values we need to reduce dataframe size
+        joined = self._data.select("samplingpoint_id").join(
             self._metadata.select(
                 "samplingpoint_id", "Longitude", "Latitude", "Altitude"
-            )
-            .drop_nulls("samplingpoint_id")
-            .unique("samplingpoint_id")
-            .sort("samplingpoint_id")
+            ).unique("samplingpoint_id"),
+            on="samplingpoint_id",
+            how="left",
         )
-        station_ids = (
-            metadata.get_column("samplingpoint_id").cast(polars.Int64).to_numpy()
-        )
-        coordinates = {
-            column: metadata.get_column(column).to_numpy()
-            for column in ("Longitude", "Latitude", "Altitude")
-        }
-        return station_ids, coordinates
-
-    def _coordinates(self, column: str) -> np.ndarray:
-        station_ids, coordinates = self._station_coordinate_lookup
-        data_ids = (
-            self._data.get_column("samplingpoint_id")
-            .cast(polars.Int64)
-            .fill_null(-1)
-            .to_numpy()
-        )
-        values = coordinates[column]
-        result = np.full(
-            len(data_ids), np.nan, dtype=np.result_type(values.dtype, np.float32)
-        )
-        positions = np.searchsorted(station_ids, data_ids)
-        matched = (data_ids >= 0) & (positions < len(station_ids))
-        matched_indices = np.flatnonzero(matched)
-        matched[matched_indices] = (
-            station_ids[positions[matched_indices]] == data_ids[matched_indices]
-        )
-        result[matched] = values[positions[matched]]
-        return result
+        return joined
 
     @property
     def units(self) -> str:
@@ -120,15 +94,15 @@ class EEAData(Data):
 
     @property
     def latitudes(self) -> np.ndarray:
-        return self._coordinates("Latitude")
+        return self._joined["Latitude"].to_numpy()
 
     @property
     def longitudes(self) -> np.ndarray:
-        return self._coordinates("Longitude")
+        return self._joined["Longitude"].to_numpy()
 
     @property
     def altitudes(self) -> np.ndarray:
-        return self._coordinates("Altitude")
+        return self._joined["Altitude"].to_numpy()
 
     @property
     def start_times(self) -> np.ndarray:
