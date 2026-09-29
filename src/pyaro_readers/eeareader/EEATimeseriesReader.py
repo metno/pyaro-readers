@@ -1,26 +1,18 @@
+import dataclasses
 import logging
+import pathlib
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from pathlib import Path
-from collections.abc import Iterable
-import dataclasses
-import pathlib
 from typing import Literal
 
-from tqdm import tqdm
-import numpy as np
 import cf_units
+import numpy as np
 import polars
-from pyaro.timeseries.AutoFilterReaderEngine import (
-    AutoFilterReader,
-    AutoFilterEngine,
-)
-from pyaro.timeseries import (
-    Reader,
-    Data,
-    Station,
-)
 import pyaro.timeseries
-
+from pyaro.timeseries import Data, Reader, Station
+from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterEngine, AutoFilterReader
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 

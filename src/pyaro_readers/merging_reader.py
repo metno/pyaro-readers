@@ -1,17 +1,11 @@
-from typing import Literal, Any
+from typing import Any, Literal
 
-import numpy as np
 import cf_units
-from pyaro.timeseries.AutoFilterReaderEngine import (
-    AutoFilterReader,
-    AutoFilterEngine,
-)
-from pyaro.timeseries import (
-    Station,
-    Data,
-)
-import pyaro.timeseries
-from pyaro.timeseries.Filter import FilterFactory, FilterCollection
+import numpy as np
+import pyaro
+from pyaro.timeseries import Data, Station
+from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterEngine, AutoFilterReader
+from pyaro.timeseries.Filter import FilterCollection, FilterFactory
 
 
 class MergingReaderException(Exception):
@@ -79,7 +73,10 @@ class MergingReaderConcatData(Data):
         for i, d in enumerate(self._data):
             new_ids = d.station_ids.copy()
             new_ids += self._offset[i]
-            self._offset.append(np.max(new_ids) + 1)
+            if len(new_ids) == 0:
+                self._offset.append(self._offset[i])
+            else:
+                self._offset.append(np.max(new_ids) + 1)
             all.append(new_ids)
         return np.concatenate(all)
 
@@ -92,11 +89,19 @@ class MergingReaderConcatData(Data):
         :return: The stations corresponding to the merged station_ids.
         """
         station_ids = np.asarray(station_ids)  # ensure it is a numpy array
-        all = []
+        # create array of same size as station_ids with dtype <U64
+        stations = np.empty(station_ids.shape, dtype="<U64")
+        start, end = 0, 0
         for i, d in enumerate(self._data):
-            new_ids = station_ids - self._offset[i]
-            all.append(d.stations_by_ids(new_ids))
-        return np.concatenate(all)
+            if (i + 1) < len(d):
+                idx = (station_ids >= self._offset[i]) & (
+                    station_ids < self._offset[i + 1]
+                )
+            else:
+                idx = station_ids >= self._offset[i]
+            new_ids = station_ids[idx] - self._offset[i]
+            stations[idx] = d.stations_by_ids(new_ids)
+        return stations
 
     @property
     def latitudes(self) -> np.ndarray:
