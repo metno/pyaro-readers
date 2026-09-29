@@ -4,6 +4,7 @@ import pathlib
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 from pathlib import Path
+import resource
 from typing import Literal
 
 import cf_units
@@ -28,20 +29,42 @@ class EEAData(Data):
         self._metadata = metadata
         self._unit = unit
 
-    @property
-    def _joined(self) -> polars.DataFrame:
+    def _joined(self, key) -> np.ndarray:
         """Values and metadata are kept separated until needed to allow
         for lazy views
         """
-        # Only keep values we need to reduce dataframe size
-        joined = self._data.select("samplingpoint_id").join(
-            self._metadata.select(
-                "samplingpoint_id", "Longitude", "Latitude", "Altitude"
-            ).unique("samplingpoint_id"),
-            on="samplingpoint_id",
-            how="left",
+        metadata = (
+            self._metadata.select("samplingpoint_id", key)
+            .unique("samplingpoint_id")
+            .sort("samplingpoint_id")
         )
-        return joined
+        keydata = metadata[key].to_numpy()
+        meta_sids = metadata["samplingpoint_id"].to_numpy()
+        del metadata
+
+        ids = self.station_ids
+        # don't use deduplication, no advantage even for very large dataset (EEA/PM10/15yrs)
+        if False:
+            # deduplicate adjacent ids
+            keep = np.empty(ids.shape, dtype=bool)
+            keep[0] = True
+            keep[1:] = ids[1:] != ids[0:-1]
+
+            # find the corresponding indices
+            idx_keep = np.searchsorted(meta_sids, ids[keep])
+            del ids
+
+            # deduplicate adjacent ids
+            counts = (
+                np.cumsum(keep, dtype=np.uint32) - 1
+            )  # positions of last deduplicated data
+
+            return keydata[idx_keep[counts]]
+        else:
+            # direct lookup without deduplication
+            idx = np.searchsorted(meta_sids, ids)
+            del ids
+            return keydata[idx]
 
     @property
     def units(self) -> str:
@@ -94,15 +117,15 @@ class EEAData(Data):
 
     @property
     def latitudes(self) -> np.ndarray:
-        return self._joined["Latitude"].to_numpy()
+        return self._joined("Latitude")
 
     @property
     def longitudes(self) -> np.ndarray:
-        return self._joined["Longitude"].to_numpy()
+        return self._joined("Longitude")
 
     @property
     def altitudes(self) -> np.ndarray:
-        return self._joined["Altitude"].to_numpy()
+        return self._joined("Altitude")
 
     @property
     def start_times(self) -> np.ndarray:
