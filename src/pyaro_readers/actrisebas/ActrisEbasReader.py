@@ -1382,7 +1382,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
     def _unfiltered_data(self, varname) -> Data:
         self._read()
-        return self._data[varname]
+        try:
+            return self._data[varname]
+        except KeyError:
+            logger.error(f"Error: variable {varname} not found in data.")
+            raise KeyError(f"Variable {varname} not found in data.")
 
     def _unfiltered_stations(self) -> dict[str, Station]:
         # self._read()
