@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyaro_readers"
-version = "0.1.9.dev2"
+version = "0.1.13.dev0"
 authors = [{ name = "MET Norway" }]
 description = "implementations of pyaerocom reading plugings using pyaro as interface"
 readme = "README.md"
@@ -22,7 +22,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "pyaro >= 0.1.1, < 0.3",
+    "pyaro >= 0.3.3, < 0.4.0",
     "geocoder_reverse_natural_earth >= 0.0.2",
     "netCDF4",
     "requests",
