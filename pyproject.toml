@@ -58,6 +58,9 @@ where = ["src"]
 [tool.setuptools.package-data]
 "*" = ["*.csv", "*.toml", "*.json"]
 
+[project.optional-dependencies]
+test = ["pre-commit", ]
+
 [tool.tox]
 legacy_tox_ini = """
 [tox]

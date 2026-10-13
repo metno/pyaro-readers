@@ -52,9 +52,9 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     ACTRISEBASVARLIST = [
         "concNno",
         "concNno2",
-        # "concNtno3",
+        "concNtno3",
         "concNhno3",
-        # "concNtnh",
+        "concNtnh",
         "concNnh3",
         "concnh4",
         "concSso2",
@@ -382,7 +382,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             f"Found {len(data.unique_station_names)} stations for variable {self.ACTRISEBASVAR}"
         )
 
-    def test_pyaerocom_actrisebas_many_var(self, var_list=ACTRISEBASMANYVARLIST):
+    def test_pyaerocom_actrisebas_many_var(self, var_list=ACTRISEBASVARLIST):
         # test multi var reading via pyaerocom
         # not working properly atm as it's reading only one variable atm
         try:
@@ -395,16 +395,19 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         data_name = "PYARO_actrisebas"
         data_id = "actrisebas"
         station_filter = {
-            "stations": {
-                "include": [
-                    "Birkenes II",
-                    "Jungfraujoch",
-                    "Ispra",
-                    "Melpitz",
-                    "Westerland",
-                ]
-            },
+            # "stations": {
+            #     "include": [
+            #         "Birkenes II",
+            #         "Jungfraujoch",
+            #         "Ispra",
+            #         "Melpitz",
+            #         "Westerland",
+            #     ]
+            # },
             "variables": {"include": var_list},
+            "time_bounds": {
+                "startend_include": [("2020-01-01 00:00:00", "2023-12-31 00:00:00")]
+            },
         }
         # needs to be the variable name for actrisebas, but PyaroConfig wants this to a string and not a list
         # (the pydantic setup is too pedantic)
