@@ -1,27 +1,19 @@
+import dataclasses
 import logging
+import pathlib
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from pathlib import Path
-from collections.abc import Iterable
-import dataclasses
-import pathlib
-from functools import cached_property
+import resource
 from typing import Literal
 
-from tqdm import tqdm
-import numpy as np
 import cf_units
+import numpy as np
 import polars
-from pyaro.timeseries.AutoFilterReaderEngine import (
-    AutoFilterReader,
-    AutoFilterEngine,
-)
-from pyaro.timeseries import (
-    Reader,
-    Data,
-    Station,
-)
 import pyaro.timeseries
-
+from pyaro.timeseries import Data, Reader, Station
+from pyaro.timeseries.AutoFilterReaderEngine import AutoFilterEngine, AutoFilterReader
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -31,50 +23,62 @@ class EEAReaderException(Exception):
 
 
 class EEAData(Data):
-    def __init__(self, data, variable: str, metadata) -> None:
+    def __init__(self, data, variable: str, metadata, unit: str | None = None) -> None:
         self._data = data
         self._variable = variable
         self._metadata = metadata
+        self._unit = unit
 
-    @cached_property
-    def _joined(self) -> polars.DataFrame:
+    def _joined(self, key) -> np.ndarray:
         """Values and metadata are kept separated until needed to allow
         for lazy views
         """
-        # Only keep values we need to reduce dataframe size
-        joined = self._data.select("station").join(
-            self._metadata.with_columns(
-                (polars.col("Country Code") + "/" + polars.col("Sampling Point Id"))
-                .str.replace("/", "_")
-                .alias("station")
-            )
-            .select("station", "Longitude", "Latitude", "Altitude")
-            .unique("station"),
-            on="station",
-            how="left",
+        metadata = (
+            self._metadata.select("samplingpoint_id", key)
+            .unique("samplingpoint_id")
+            .sort("samplingpoint_id")
         )
-        return joined
+        keydata = metadata[key].to_numpy()
+        meta_sids = metadata["samplingpoint_id"].to_numpy()
+        del metadata
 
-    @cached_property
+        ids = self.station_ids
+        # don't use deduplication, no advantage even for very large dataset (EEA/PM10/15yrs)
+        if False:
+            # deduplicate adjacent ids
+            keep = np.empty(ids.shape, dtype=bool)
+            keep[0] = True
+            keep[1:] = ids[1:] != ids[0:-1]
+
+            # find the corresponding indices
+            idx_keep = np.searchsorted(meta_sids, ids[keep])
+            del ids
+
+            # deduplicate adjacent ids
+            counts = (
+                np.cumsum(keep, dtype=np.uint32) - 1
+            )  # positions of last deduplicated data
+
+            return keydata[idx_keep[counts]]
+        else:
+            # direct lookup without deduplication
+            idx = np.searchsorted(meta_sids, ids)
+            del ids
+            return keydata[idx]
+
+    @property
     def units(self) -> str:
-        units = self._data["Unit"].unique()
-        if len(units) == 0:
+        if self._unit is None:
             raise EEAReaderException("No units present in this dataset")
-        elif len(units) != 1:
-            base_unit = cf_units.Unit(units[0])
-            for unit in units[1:]:
-                if base_unit.convert(1, unit) != 1.0:
-                    raise EEAReaderException(
-                        f"Multiple different units present in this dataset ({units[0]} and {unit})"
-                    )
-
-        return units[0]
+        return self._unit
 
     def keys(self):
         raise NotImplementedError
 
     def slice(self, index):
-        return EEAData(self._data.filter(index), self._variable, self._metadata)
+        return EEAData(
+            self._data.filter(index), self._variable, self._metadata, self._unit
+        )
 
     @property
     def variable(self) -> str:
@@ -86,19 +90,42 @@ class EEAData(Data):
 
     @property
     def stations(self) -> np.ndarray:
-        return self._data["station"].to_numpy()
+        station_names = self._metadata.select("samplingpoint_id", "station").unique(
+            "samplingpoint_id"
+        )
+        return (
+            self._data.select("samplingpoint_id")
+            .join(station_names, on="samplingpoint_id", how="left")
+            .get_column("station")
+            .to_numpy()
+        )
+
+    @property
+    def station_ids(self) -> np.ndarray:
+        return self._data["samplingpoint_id"].to_numpy()
+
+    def stations_by_ids(self, station_ids: np.ndarray) -> np.ndarray:
+        station_names = self._metadata.select("samplingpoint_id", "station").unique(
+            "samplingpoint_id"
+        )
+        return (
+            polars.DataFrame({"samplingpoint_id": station_ids})
+            .join(station_names, on="samplingpoint_id", how="left")
+            .get_column("station")
+            .to_numpy()
+        )
 
     @property
     def latitudes(self) -> np.ndarray:
-        return self._joined["Latitude"].to_numpy()
+        return self._joined("Latitude")
 
     @property
     def longitudes(self) -> np.ndarray:
-        return self._joined["Longitude"].to_numpy()
+        return self._joined("Longitude")
 
     @property
     def altitudes(self) -> np.ndarray:
-        return self._joined["Altitude"].to_numpy()
+        return self._joined("Altitude")
 
     @property
     def start_times(self) -> np.ndarray:
@@ -110,15 +137,16 @@ class EEAData(Data):
 
     @property
     def flags(self) -> np.ndarray:
-        def mapper(value: int) -> int:
-            if value == 1:
-                return pyaro.timeseries.Flag.VALID
-            elif value == 2 or value == 3:
-                return pyaro.timeseries.Flag.BELOW_THRESHOLD
-            else:
-                return pyaro.timeseries.Flag.INVALID
-
-        valid = self._data["Validity"].map_elements(mapper, return_dtype=int)
+        valid = self._data.select(
+            polars.when(polars.col("Validity") == 1)
+            .then(polars.lit(pyaro.timeseries.Flag.VALID))
+            .when(polars.col("Validity").is_in([2, 3]))
+            .then(polars.lit(pyaro.timeseries.Flag.BELOW_THRESHOLD))
+            .when(polars.col("Validity").is_null())
+            .then(polars.lit(None, dtype=polars.Int64))
+            .otherwise(polars.lit(pyaro.timeseries.Flag.INVALID))
+            .alias("flags")
+        ).get_column("flags")
         return valid.to_numpy()
 
     @property
@@ -132,33 +160,67 @@ class EEAData(Data):
         return self._nrecords()
 
 
-def _read(filepath: Path, pyarrow_filters) -> polars.DataFrame:
-    return polars.read_parquet(
-        filepath,
-        use_pyarrow=True,
-        pyarrow_options={"filters": pyarrow_filters},
-        columns=[
-            "Samplingpoint",
-            "Start",
-            "End",
-            "Value",
-            "Unit",
-            "Validity",
-        ],
-    ).cast({"Value": polars.Float32})
+def _validate_unit(units: Iterable[str], context: str = "") -> str | None:
+    """Ensure a collection of unit strings are equivalent (allowing for
+    cf_units-convertible variants), returning the representative unit.
+    Returns None if no units were provided.
+    """
+    units = list(dict.fromkeys(units))
+    if len(units) == 0:
+        return None
+    if len(units) > 1:
+        base_unit = cf_units.Unit(units[0])
+        for unit in units[1:]:
+            if base_unit.convert(1, unit) != 1.0:
+                raise EEAReaderException(
+                    f"Multiple different units present{context} ({units[0]} and {unit})"
+                )
+
+    return units[0]
+
+
+def _read(
+    filepath: Path,
+    filters: list[polars.Expr],
+    known_unit: str | None = None,
+) -> tuple[polars.DataFrame, str | None]:
+    # Use Polars' native (non-pyarrow) parquet reader with expression-based
+    # predicate/projection pushdown.
+    # This is much faster (at least 2x) than using PyArrow's separate parquet reader.
+    lf = polars.scan_parquet(filepath, low_memory=True, cache=False).select(
+        "Samplingpoint",
+        "Start",
+        "End",
+        "Value",
+        "Unit",
+        "Validity",
+    )
+    if filters:
+        lf = lf.filter(polars.all_horizontal(filters))
+    dataset = lf.collect().cast({"Value": polars.Float32})
+
+    # Validate against any unit already established from previously read
+    # files, so unit consistency is checked incrementally
+    units = dataset["Unit"].unique()
+    if known_unit is not None:
+        units = [known_unit, *units]
+    unit = _validate_unit(units, context=f" in {filepath}")
+    dataset = dataset.drop("Unit")
+
+    return dataset, unit
 
 
 @dataclasses.dataclass
 class _Filters:
-    pyarrow_filters_hourly: list[tuple[str, str, str | datetime]]
-    pyarrow_filters_daily: list[tuple[str, str, str | datetime]]
+    filters_hourly: list[polars.Expr]
+    filters_daily: list[polars.Expr]
     time: pyaro.timeseries.Filter.TimeBoundsFilter | None
 
 
-def _pyarrow_timefilter_hourly(
+def _timefilter_hourly(
     filter: pyaro.timeseries.Filter.TimeBoundsFilter,
-) -> list[tuple[str, str, datetime]]:
-    # Time filtering might not be expressible as pyarrow filters alone,
+) -> list[polars.Expr]:
+    # Time filtering might not be expressible as pushdown filters alone,
     # so we supply a coarse filter which should be filtered later on
     # TODO: Make this support more filtering whilst reading
     min_time, max_time = filter.envelope()
@@ -171,17 +233,17 @@ def _pyarrow_timefilter_hourly(
     min_time += offset
 
     return [
-        ("Start", ">=", min_time),
-        ("Start", "<=", max_time),
-        ("End", ">=", min_time),
-        ("End", "<=", max_time),
+        polars.col("Start") >= min_time,
+        polars.col("Start") <= max_time,
+        polars.col("End") >= min_time,
+        polars.col("End") <= max_time,
     ]
 
 
-def _pyarrow_timefilter_daily(
+def _timefilter_daily(
     filter: pyaro.timeseries.Filter.TimeBoundsFilter,
-) -> list[tuple[str, str, datetime]]:
-    # Time filtering might not be expressible as pyarrow filters alone,
+) -> list[polars.Expr]:
+    # Time filtering might not be expressible as pushdown filters alone,
     # so we supply a coarse filter which should be filtered later on
     # TODO: Make this support more filtering whilst reading
     min_time, max_time = filter.envelope()
@@ -195,34 +257,34 @@ def _pyarrow_timefilter_daily(
     offset = timedelta(hours=26)
 
     return [
-        ("Start", ">=", min_time - offset),
-        ("Start", "<=", max_time + offset),
-        ("End", ">=", min_time - offset),
-        ("End", "<=", max_time + offset),
+        polars.col("Start") >= (min_time - offset),
+        polars.col("Start") <= (max_time + offset),
+        polars.col("End") >= (min_time - offset),
+        polars.col("End") <= (max_time + offset),
     ]
 
 
 def _transform_filters(
     filters: Iterable[pyaro.timeseries.Filter.Filter],
 ) -> _Filters:
-    validity_filter = ("Validity", ">", 0)
+    validity_filter = polars.col("Validity") > 0
 
-    pyarrow_filters_daily = [validity_filter]
-    pyarrow_filters_hourly = pyarrow_filters_daily.copy()
+    filters_daily = [validity_filter]
+    filters_hourly = filters_daily.copy()
     time_filter = None
 
     for filter in filters:
         if isinstance(filter, pyaro.timeseries.Filter.TimeBoundsFilter):
             if filter.has_envelope():
-                pyarrow_filters_hourly.extend(_pyarrow_timefilter_hourly(filter))
-                pyarrow_filters_daily.extend(_pyarrow_timefilter_daily(filter))
+                filters_hourly.extend(_timefilter_hourly(filter))
+                filters_daily.extend(_timefilter_daily(filter))
             time_filter = filter
         else:
             continue  # handled post-read
 
     return _Filters(
-        pyarrow_filters_daily=pyarrow_filters_daily,
-        pyarrow_filters_hourly=pyarrow_filters_hourly,
+        filters_daily=filters_daily,
+        filters_hourly=filters_hourly,
         time=time_filter,
     )
 
@@ -231,33 +293,50 @@ def _read_hourly_files(
     datapaths: list[Path],
     metadata: polars.DataFrame,
     filters: _Filters,
-) -> polars.DataFrame:
+    station_ids: polars.DataFrame,
+) -> tuple[polars.DataFrame, str | None]:
+    id_dtype = station_ids["samplingpoint_id"].dtype
     dataset = polars.DataFrame(
         schema={
-            "Samplingpoint": str,
             # "Pollutant": polars.Int32,
             "Start": polars.Datetime("ns"),
             "End": polars.Datetime("ns"),
             "Value": polars.Float32,
-            "Unit": str,
             # "AggType": str,
             "Validity": polars.Int32,
             # "Verification": polars.Int32,
             # "ResultTime": datetime,
             # "DataCapture": datetime,
             # "FkObservationLog": str,
+            "samplingpoint_id": id_dtype,
         }
     )
 
+    unit = None
     pbar = tqdm(datapaths, disable=None)
     for file in pbar:
         pbar.set_description(f"Processing hourly {file.name:>54}")
-        dataset.vstack(_read(file, filters.pyarrow_filters_hourly), in_place=True)
+        file_dataset, unit = _read(file, filters.filters_hourly, unit)
+        # Map Samplingpoint -> samplingpoint_id per-file, while each file's
+        # frame is still small, and drop the (comparatively large) string
+        # column immediately.
+        # A join() against the small station_ids lookup table is faster here than replace_strict(),
+        # since each per-file frame (and thus the join's left side) is small.
+        file_dataset = (
+            file_dataset.with_columns(
+                polars.col("Samplingpoint")
+                .str.replace_many(["GI/", "/"], ["GB_", "_"])
+                .alias("station")
+            )
+            .join(station_ids, on="station", how="left")
+            .drop("Samplingpoint", "station")
+        )
+        dataset.vstack(file_dataset, in_place=True)
 
-    dataset.rechunk()
+    dataset = dataset.rechunk()
 
     # OBS: Times are given in this timezone for non-daily observations
-    # this assumption is also used for pyarrow filtering
+    # this assumption is also used for polars filtering
     original_timezone_for_hourly_data = "Etc/GMT+1"
     dataset = dataset.with_columns(
         polars.col("Start")
@@ -268,14 +347,15 @@ def _read_hourly_files(
         .dt.convert_time_zone("UTC"),
     )
 
-    return dataset
+    return dataset, unit
 
 
 def _read_daily_files(
     datapaths: list[Path],
     metadata: polars.DataFrame,
     filters: _Filters,
-) -> polars.DataFrame:
+    station_ids: polars.DataFrame,
+) -> tuple[polars.DataFrame, str | None]:
     dataset = polars.DataFrame(
         schema={
             "Samplingpoint": str,
@@ -283,7 +363,6 @@ def _read_daily_files(
             "Start": polars.Datetime("ns"),
             "End": polars.Datetime("ns"),
             "Value": polars.Float32,
-            "Unit": str,
             # "AggType": str,
             "Validity": polars.Int32,
             # "Verification": polars.Int32,
@@ -293,12 +372,14 @@ def _read_daily_files(
         }
     )
 
+    unit = None
     pbar = tqdm(datapaths, disable=None)
     for file in pbar:
         pbar.set_description(f"Processing daily {file.name:>54}")
-        dataset.vstack(_read(file, filters.pyarrow_filters_daily), in_place=True)
+        file_dataset, unit = _read(file, filters.filters_daily, unit)
+        dataset.vstack(file_dataset, in_place=True)
 
-    dataset.rechunk()
+    dataset = dataset.rechunk()
 
     # Join with metadata table to get latitude, longitude and altitude
     metadata = metadata.with_columns(
@@ -312,31 +393,60 @@ def _read_daily_files(
         ]
     )
 
-    # Round-about way to force timezone in there
-    # https://github.com/pola-rs/polars/issues/12761
-    tz_exprs_start = [
-        polars.when(polars.col("Timezone") == tz).then(
-            polars.col("Start").dt.replace_time_zone(tz).dt.convert_time_zone("UTC")
-        )
-        for tz in metadata["Timezone"].unique()
-    ]
-    tz_exprs_end = [
-        polars.when(polars.col("Timezone") == tz).then(
-            polars.col("End").dt.replace_time_zone(tz).dt.convert_time_zone("UTC")
-        )
-        for tz in metadata["Timezone"].unique()
-    ]
-
-    joined = (
-        dataset.join(metadata, left_on="Samplingpoint", right_on="selector", how="left")
-        .with_columns(
-            polars.coalesce(tz_exprs_start),
-            polars.coalesce(tz_exprs_end),
-        )
-        .drop("Timezone")
+    dataset = dataset.join(
+        metadata, left_on="Samplingpoint", right_on="selector", how="left"
     )
 
-    return joined
+    # Convert Start/End from each row's local reporting timezone to UTC.
+    #
+    # artition the rows by timezone, converting only the (much
+    # smaller) per-timezone subset each time, then recombine. Peak memory is
+    # now proportional to the dataset size once, not N times.
+    tz_frames = []
+    for tz in dataset["Timezone"].unique():
+        if tz is None:
+            # No matching metadata (e.g. no Timezone for this Samplingpoint):
+            # keep the row but null out Start/End
+            null_dt = polars.lit(None, dtype=polars.Datetime("ns", "UTC"))
+            tz_frames.append(
+                dataset.filter(polars.col("Timezone").is_null()).with_columns(
+                    null_dt.alias("Start"),
+                    null_dt.alias("End"),
+                )
+            )
+            continue
+        tz_frames.append(
+            dataset.filter(polars.col("Timezone") == tz).with_columns(
+                polars.col("Start")
+                .dt.replace_time_zone(tz)
+                .dt.convert_time_zone("UTC"),
+                polars.col("End").dt.replace_time_zone(tz).dt.convert_time_zone("UTC"),
+            )
+        )
+    if tz_frames:
+        joined = polars.concat(tz_frames).drop("Timezone")
+    else:
+        # No rows at all (e.g. no daily files matched the given filters):
+        joined = dataset.with_columns(
+            polars.col("Start").cast(polars.Datetime("ns", "UTC")),
+            polars.col("End").cast(polars.Datetime("ns", "UTC")),
+        ).drop("Timezone")
+
+    # Map Samplingpoint -> samplingpoint_id now that the (raw, "/"-separated)
+    # Samplingpoint column is no longer needed for the timezone-selector join
+    # above. Daily data volume is typically tiny compared to hourly, so the
+    # memory/perf impact of doing this on the whole daily dataset here
+    joined = (
+        joined.with_columns(
+            polars.col("Samplingpoint")
+            .str.replace_many(["GI/", "/"], ["GB_", "_"])
+            .alias("station")
+        )
+        .join(station_ids, on="station", how="left")
+        .drop("Samplingpoint", "station")
+    )
+
+    return joined, unit
 
 
 class EEAStation(Station):
@@ -448,6 +558,10 @@ class EEATimeseriesReader(AutoFilterReader):
             .str.replace("/", "_")
             .alias("station"),
         )
+        samplingpoint_ids = (
+            metadata.select("station").unique().with_row_index("samplingpoint_id")
+        )
+        metadata = metadata.join(samplingpoint_ids, on="station", how="left")
         for filter in self._get_filters():
             if isinstance(filter, pyaro.timeseries.Filter.CountryFilter):
                 metadata = metadata.filter(
@@ -478,18 +592,13 @@ class EEATimeseriesReader(AutoFilterReader):
         return metadata
 
     def _unfiltered_data(self, varname: str) -> Data:
-        dataframe, metadata = self._read(varname)
-        dataframe = dataframe.with_columns(
-            polars.col("Samplingpoint")
-            .str.replace_many({"GI/": "GB_", "/": "_"})
-            .alias("station")
-        )
-        return EEAData(dataframe, varname, metadata)
+        dataframe, metadata, unit = self._read(varname)
+        return EEAData(dataframe, varname, metadata, unit)
 
     def _read(
         self,
         variable: str,
-    ) -> tuple[polars.DataFrame, ...]:
+    ) -> tuple[polars.DataFrame, polars.DataFrame, str | None]:
         filters = _transform_filters(self._get_filters())
 
         # TODO: Enable depending on data wanted from e.g. time requested
@@ -500,7 +609,6 @@ class EEATimeseriesReader(AutoFilterReader):
                 "Start": polars.Datetime("ns"),
                 "End": polars.Datetime("ns"),
                 "Value": polars.Float32,
-                "Unit": str,
                 # "AggType": str,
                 "Validity": polars.Int32,
                 # "Verification": polars.Int32,
@@ -521,22 +629,37 @@ class EEATimeseriesReader(AutoFilterReader):
             for path in stations.filter(polars.col("AggType") == "day")["filename"]
         ]
 
-        hourly_dataset = _read_hourly_files(
+        # Build the Samplingpoint -> samplingpoint_id lookup up front, so it
+        # can be applied while reading the files.
+        station_ids = self._stations.select("station", "samplingpoint_id").unique(
+            "station"
+        )
+
+        hourly_dataset, hourly_unit = _read_hourly_files(
             hourly_paths,
             self._stations,
             filters,
+            station_ids,
         )
         if len(daily_paths) == 0:
             dataset = hourly_dataset
+            unit = hourly_unit
         else:
-            daily_dataset = _read_daily_files(
+            daily_dataset, daily_unit = _read_daily_files(
                 daily_paths,
                 self._stations,
                 filters,
+                station_ids,
             )
             dataset = hourly_dataset.vstack(daily_dataset)
+            # Drop references to the pre-vstack frames
+            del hourly_dataset, daily_dataset
+            unit = _validate_unit(
+                [u for u in (hourly_unit, daily_unit) if u is not None],
+                context=f" for variable {variable}",
+            )
 
-        return dataset, stations
+        return dataset, stations, unit
 
     def _unfiltered_variables(self) -> list[str]:
         return list(self._stations["Air Pollutant"].unique())
