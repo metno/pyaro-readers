@@ -25,7 +25,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "vmrco"
     # ACTRISEBASVAR = "concpm10"
     # ACTRISEBASVAR = "concpm25"
-    # ACTRISEBASVAR = "concno3pm10"
+    ACTRISEBASVAR = "concno3pm10"
     # ACTRISEBASVAR = "concno3pm25"
     # ACTRISEBASVAR = "concno3pm1"
     # ACTRISEBASVAR = "concnh4pm25"
@@ -35,7 +35,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "concso4pm25"
     # ACTRISEBASVAR = "concpm25"
     # ACTRISEBASVAR = "concpm10"
-    ACTRISEBASVAR = "concso4pm1"
+    # ACTRISEBASVAR = "concso4pm1"
     # ACTRISEBASVAR = "concCecpm25"
     # ACTRISEBASVAR = "concCecpm10"
     # ACTRISEBASVAR = "concCocpm25"
@@ -362,7 +362,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
                 ]
             },
             "time_bounds": {
-                "startend_include": [("2023-01-01 00:00:00", "2023-12-31 00:00:00")]
+                "startend_include": [("2020-01-01 00:00:00", "2023-12-31 00:00:00")]
             },
         }
         # needs to be the variable name for actrisebas

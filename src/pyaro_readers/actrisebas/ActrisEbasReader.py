@@ -6,20 +6,22 @@ import logging
 import os
 import re
 import requests
-import sys
-import time
 from urllib.parse import urlparse
+import sys
 
 if sys.version_info >= (3, 11):  # pragma: no cover
     import tomllib
 else:  # pragma: no cover
     import tomli as tomllib
 
+
 import numpy as np
 import numpy.typing as npt
 import polars
 import xarray as xr
 import time
+import base64
+from pyaro_readers.actrisebas import thredds_auth
 
 from tqdm import tqdm
 
@@ -47,6 +49,8 @@ VAR_QUERY_URL = f"{BASE_API_URL}/api/metadata/search"
 DEFINITION_FILE_BASENAME = "definitions.toml"
 # online ressource of ebas flags
 EBAS_FLAG_URL = "https://folk.nilu.no/~ebas/EBAS_Masterdata/ebas_flags.csv"
+# default thredds URL to extract login info from ~/.netrc
+EBAS_THREDDS_SERVER = "thredds.nilu.no"
 
 DEFINITION_FILE = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), DEFINITION_FILE_BASENAME
@@ -218,6 +222,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         self.ebas_valid_flags = self.get_ebas_valid_flags()
         self.sites_to_read = []
         self.sites_to_exclude = []
+        self.restricted_urls = []
         self.vars_to_read = None
         self.units = None
         # That's a datetime.datetime object
@@ -288,6 +293,10 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         self.opendap_netcdf_info = {}
         self.cache_files = {}
+
+        # try to load EBAS credentials; sets self.readrestricted_urls to True if credentials are found
+        self._get_restricted_login()
+
         for var in self.vars_to_read:
             self.api_metadata[var] = {}
             # handle pyaerocom variables here:
@@ -552,8 +561,17 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             url = thredds_url
                         try:
                             logger.info(f"trying to read URL {url}")
-                            tmp_data = xr.open_dataset(url)
-                            logger.info(f"Successfully read URL {url}")
+                            if url not in self.restricted_urls:
+                                tmp_data = xr.open_dataset(url)
+                                logger.info(f"Successfully read URL {url}")
+                            else:
+                                logger.info(f"trying to read restricted URL {url}...")
+                                self._state = thredds_auth.ensure_fresh(self._state)
+                                tmp_data = thredds_auth.open_dataset(
+                                    url, token=self._state.access_token
+                                )
+                                logger.info(f"Successfully read restricted URL {url}")
+
                         except Exception as e:
                             logger.error(f"failed to read {url} with error {e}")
                             assert url
@@ -1168,13 +1186,20 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         )
                         continue
                     # check for access restrictions for now
-                    elif distribution_data["access_restriction"]["restricted"]:
-                        logger.info(
-                            f"skipping url {distribution_data[DISTRIBUTION_URL_KEY]} due to access restrictions"
-                        )
-                        continue
+                    # elif distribution_data["access_restriction"]["restricted"]:
+                    #     logger.info(
+                    #         f"skipping url {distribution_data[DISTRIBUTION_URL_KEY]} due to access restrictions"
+                    #     )
+                    #     continue
                     else:
+                        restricted_url_flag = False
                         url = distribution_data[DISTRIBUTION_URL_KEY]
+                        if distribution_data["access_restriction"]["restricted"]:
+                            logger.info(f"found access restricted url {url}.")
+                            restricted_url_flag = True
+                            self.restricted_urls.append(url)
+                            # check if the access token needs to be refreshed
+
                         # if REWRITE_THREDDS_URL:
                         #     url = distribution_data[DISTRIBUTION_URL_KEY].replace(
                         #         "thredds.", "dev-thredds."
@@ -1188,8 +1213,21 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         ):
                             try:
                                 # logger.info(f"trying to read URL {url} for testing purposes")
-                                tmp_data = xr.open_dataset(url)
-                                logger.info(f"Successfully read URL {url}")
+                                if not restricted_url_flag:
+                                    tmp_data = xr.open_dataset(url)
+                                    logger.info(f"Successfully read URL {url}")
+                                else:
+                                    logger.info(
+                                        f"trying to read restricted URL {url}..."
+                                    )
+                                    self._state = thredds_auth.ensure_fresh(self._state)
+                                    tmp_data = thredds_auth.open_dataset(
+                                        url, token=self._state.access_token
+                                    )
+                                    assert tmp_data
+                                    logger.info(
+                                        f"Successfully read restricted URL {url}"
+                                    )
                                 tmp_data.close()
                             except Exception as e:
                                 logger.error(f"failed to read {url} with error {e}")
@@ -1476,6 +1514,63 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             return all([result.scheme, result.netloc])
         except ValueError:
             return False
+
+    def _get_restricted_login(self):
+        """
+        helper method to determine if the user has access to restricted dataset
+        via get the thredds credentials from a user's .netrc file
+        :return:
+        """
+
+        import netrc
+
+        rc = netrc.netrc()
+        try:
+            self._ebas_username = rc.hosts[EBAS_THREDDS_SERVER][0]
+            self._ebas_password = rc.hosts[EBAS_THREDDS_SERVER][2]
+            self.read_restricted_thredds = self._get_thredds_auth()
+        except KeyError:
+            logger.warning(
+                f"THREDDS credentials for {EBAS_THREDDS_SERVER} not found in ~/.netrc file. "
+                "Disabling reading of restricted datasets."
+            )
+            self.read_restricted_thredds = False
+
+    def _get_thredds_auth(self):
+        """
+        helper method to get the thredds auth from the environment variables
+        :return:
+        """
+        # import thredds_auth
+        try:
+            self._state = thredds_auth.login(self._ebas_username, self._ebas_password)
+            logger.info(
+                f"EBAS access_token expires at {time.ctime(self._state.expires_at)}"
+            )
+            self._claims = self._decode_jwt_payload(self._state.access_token)
+            return True
+        except Exception:
+            logger.warning(
+                "login to thredds server failed due to missing credentials. Restricted access disabled."
+            )
+            return False
+
+    def _decode_jwt_payload(self, token: str) -> dict:
+        payload_b64 = token.split(".")[1]
+        padded = payload_b64 + "=" * (-len(payload_b64) % 4)
+        return json.loads(base64.urlsafe_b64decode(padded))
+
+    def _refresh_thredds_token(self):
+        """
+        helper method to refresh the thredds auth token if it is expired
+        :return:
+        """
+        # import thredds_auth
+        self._state = thredds_auth.refresh(self._state)
+        logger.info(
+            f"EBAS access_token refreshed, expires at {time.ctime(self._state.expires_at)}"
+        )
+        self._claims = self._decode_jwt_payload(self._state.access_token)
 
 
 class ActrisEbasTimeSeriesEngine(AutoFilterReaderEngine.AutoFilterEngine):

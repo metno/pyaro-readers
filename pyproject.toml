@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyaro_readers"
-version = "0.1.13.dev0"
+version = "0.1.13.dev1"
 authors = [{ name = "MET Norway" }]
 description = "implementations of pyaerocom reading plugings using pyaro as interface"
 readme = "README.md"
@@ -30,6 +30,7 @@ dependencies = [
     "numpy",
     "xarray",
     "cf-units",
+    "pydap",
     "polars[pyarrow]",
 ]
 
