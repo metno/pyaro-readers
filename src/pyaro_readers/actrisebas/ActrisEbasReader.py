@@ -450,6 +450,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         found_flag = False
         netcdf_var = ""
+        if (
+            thredds_url
+            == "https://thredds.nilu.no/thredds/dodsC/ebas_doi/7Q/AG/3Q/7QAG-3QVR.nc"
+        ):
+            assert thredds_url
+
         for _key in self.actris_netcdf_keys[aerocom_var_to_read]:
             try:
                 netcdf_var = self.constraints[thredds_url][_key]
@@ -474,7 +480,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         #         pass
 
         if not found_flag:
-            logger.error(
+            logger.info(
                 f"no netcdf variable information found in API response for url {thredds_url} and variable {actris_variable}. Skipping that URL..."
             )
             return None
@@ -762,6 +768,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             logger.info(
                                 f"kept {len(idx_to_copy)} of {len(vals)} values for variable {_data_var} in the requested time range."
                             )
+                        if (
+                            url
+                            == "https://thredds.nilu.no/thredds/dodsC/ebas_doi/7Q/AG/3Q/7QAG-3QVR.nc"
+                        ):
+                            assert url
 
                         self._data[_var].append(
                             value=vals[idx_to_copy],
@@ -1233,6 +1244,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 logger.error(f"failed to read {url} with error {e}")
                                 continue
 
+                        if (
+                            url
+                            == "https://thredds.nilu.no/thredds/dodsC/ebas_doi/7Q/AG/3Q/7QAG-3QVR.nc"
+                        ):
+                            assert url
+
                         if url not in opendap_urls_to_dl[site_name]:
                             opendap_urls_to_dl[site_name].append(url)
                             netcdf_vars_to_look_at[url] = {}
@@ -1340,9 +1357,12 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 np.datetime64(time_dummy[1].replace("Z", ""), "s"),
                             )
                         else:
-                            logger.info(
-                                f"Error: URL {url} already included in site used for a 2nd station!"
-                            )
+                            # time coverages are based on URLs that may contain more than one variable
+                            # the following log would therfore be misleading
+                            # logger.info(
+                            #     f"Error: URL {url} already included in site used for a 2nd station!"
+                            # )
+                            pass
                         break
         return opendap_urls_to_dl, netcdf_vars_to_look_at
 
@@ -1412,9 +1432,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 ),
                             )
                         else:
-                            logger.info(
-                                f"Error: dl URL {url} already included in site used for a 2nd station!"
-                            )
+                            # time coverage for an URL is the same for all variables, so this isn't really an error
+                            # in case more than one variable is read.
+                            # remove that logging entry for now
+                            # logger.info(f"Error: dl URL {url} already included in site used for a 2nd station!")
+                            pass
                         break
         return urls_to_dl
 

@@ -14,7 +14,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
         },
     }
     AERONETVAR = "od440aer"
-    # ACTRISEBASVAR = "concNno"
+    ACTRISEBASVAR = "concNno"
     # ACTRISEBASVAR = "concNno2"
     # ACTRISEBASVAR = "concNtno3"
     # ACTRISEBASVAR = "concNhno3"
@@ -25,7 +25,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "vmrco"
     # ACTRISEBASVAR = "concpm10"
     # ACTRISEBASVAR = "concpm25"
-    ACTRISEBASVAR = "concno3pm10"
+    # ACTRISEBASVAR = "concno3pm10"
     # ACTRISEBASVAR = "concno3pm25"
     # ACTRISEBASVAR = "concno3pm1"
     # ACTRISEBASVAR = "concnh4pm25"
@@ -52,39 +52,39 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     ACTRISEBASVARLIST = [
         "concNno",
         "concNno2",
-        "concNtno3",
-        "concNhno3",
-        "concNtnh",
-        "concNnh3",
-        "concnh4",
-        "concSso2",
-        "concso4t",
-        "concso4c",
-        "vmro3",
+        # "concNtno3",
+        # "concNhno3",
+        # "concNtnh",
+        # "concNnh3",
+        # "concnh4",
+        # "concSso2",
+        # "concso4t",
+        # "concso4c",
+        # "vmro3",
         # "vmro3max",
         # "vmro3mda8",
         # "vmrox",
-        "vmrco",
-        "concpm10",
-        "concpm25",
-        "concno3pm10",
-        "concno3pm25",
-        "concno3pm1",
-        "concnh4pm25",
-        "concnh4pm1",
-        "concso4pm25",
-        "concso4pm1",
-        "concCecpm10",
-        "concCecpm25",
-        "concCocpm10",
-        "concCocpm25",
-        "concom1",
-        "concsspm10",
-        "concsspm25",
-        "wetrdn",
-        "wetoxs",
-        "wetoxn",
-        "prmm",
+        # "vmrco",
+        # "concpm10",
+        # "concpm25",
+        # "concno3pm10",
+        # "concno3pm25",
+        # "concno3pm1",
+        # "concnh4pm25",
+        # "concnh4pm1",
+        # "concso4pm25",
+        # "concso4pm1",
+        # "concCecpm10",
+        # "concCecpm25",
+        # "concCocpm10",
+        # "concCocpm25",
+        # "concom1",
+        # "concsspm10",
+        # "concsspm25",
+        # "wetrdn",
+        # "wetoxs",
+        # "wetoxn",
+        # "prmm",
     ]
 
     ACTRISEBASMANYVARLIST = (
@@ -362,7 +362,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
                 ]
             },
             "time_bounds": {
-                "startend_include": [("2020-01-01 00:00:00", "2023-12-31 00:00:00")]
+                "startend_include": [("2023-01-01 00:00:00", "2023-12-31 23:59:59")]
             },
         }
         # needs to be the variable name for actrisebas

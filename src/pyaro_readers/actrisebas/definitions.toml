@@ -14,7 +14,7 @@ actris_matrix = ["gas phase"]
 ebas_component = ["nitrogen_monoxide"]
 ebas_matrix = ["air"]
 standard_names = ["mass_concentration_of_nitrogen_monoxide_expressed_as_nitrogen_in_air"]
-units = 'ug N/m3'
+#units = 'ug N/m3'
 variable_constraints = ['expressed as nitrogen']
 
 [variables.concNno2]
@@ -23,7 +23,7 @@ actris_matrix = ["gas phase"]
 ebas_component = ["nitrogen_dioxide"]
 ebas_matrix = ["air"]
 standard_names = ["mass_concentration_of_nitrogen_dioxide_expressed_as_nitrogen_in_air"]
-units = 'ug N/m3'
+#units = 'ug N/m3'
 variable_constraints = ['expressed as nitrogen']
 
 # No idea what to search for
