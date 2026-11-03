@@ -1,4 +1,4 @@
-# additional documantation for the actris EBAS reader
+# additional documentation for the actris EBAS reader
 This document contains some more detailed information about the actris EBAS reader.
 
 ## Things to remember
@@ -8,9 +8,9 @@ is valid for the underlaying data in the EBAS database, but not the actual expor
 The cached netcdf files are therfore only valid for a default time of 24h, with the possibility to
 extend that time via the environment variable `PYARO_ACTRIS_EBAS_CACHE_TIME`. The time has to be
 given in seconds.
-- This reader has an independant caching capability, that is only activated if the user sets the environment
+- This reader has an independant caching capability that is only activated if the user sets the environment
 variable `PYARO_CACHE_DIR_EBAS_ACTRIS`. The directory needs to exist.
-- 
+- Much data in the API isn't free. The user's credentials 
 
 ## Basic algorithm
 1. look in the [toml file](definitions.toml) for the requested variable name

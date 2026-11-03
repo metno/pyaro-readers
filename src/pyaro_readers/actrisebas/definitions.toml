@@ -54,18 +54,46 @@ variable_constraints = ['expressed as nitrogen']
 [variables.concNnh3]
 actris_variable = ["ammonia mass concentration"]
 actris_matrix = ["gas phase"]
+#actris_matrix = ["PM2.5"]
 ebas_component = ["ammonia"]
 ebas_matrix = ["air"]
 standard_names = ["mass_concentration_of_ammonia_expressed_as_nitrogen_in_air"]
 variable_constraints = ['expressed as nitrogen']
 
+#[variables.concNnh3pm25]
+#actris_variable = ["ammonia mass concentration"]
+#actris_matrix = ["PM2.5"]
+#ebas_component = ["ammonia"]
+#ebas_matrix = ["air"]
+#standard_names = ["mass_concentration_of_ammonia_expressed_as_nitrogen_in_air"]
+#variable_constraints = ['expressed as nitrogen']
+
 [variables.concnh4]
-actris_variable = ["ammonia mass concentration"]
-actris_matrix = ["gas phase"]
+actris_variable = ["aerosol particle ammonium mass concentration"]
+#actris_matrix = ["aerosol particle phase"]
+actris_matrix = ["PM2.5"]
 ebas_component = ["ammonium"]
 ebas_matrix = ["pm10","aerosol","pm25"]
 standard_names = ["mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
-variable_constraints = ['expressed as nitrogen']
+#variable_constraints = ['expressed as nitrogen']
+
+#[variables.concnh4pm25]
+#actris_variable = ["aerosol particle ammonium mass concentration"]
+##actris_matrix = ["aerosol particle phase"]
+#actris_matrix = ["PM2.5"]
+#ebas_component = ["ammonium"]
+#ebas_matrix = ["pm10","aerosol","pm25"]
+#standard_names = ["mass_concentration_of_ammonium_expressed_as_nitrogen_in_dry_aerosol_particles_in_air"]
+##variable_constraints = ['expressed as nitrogen']
+
+[variables.concnh4pm25]
+actris_variable = ["aerosol particle ammonium mass concentration"]
+actris_matrix = ["PM2.5", "PM1"]
+ebas_component = ["ammonium"]
+ebas_matrix = ["pm25","pm1"]
+# The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
+standard_names = ["mass_concentration_of_ammonium_in_pm2p5_in_air"]
+
 
 [variables.concSso2]
 actris_variable = ["sulfur dioxide mass concentration"]
@@ -155,7 +183,7 @@ standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentra
 
 [variables.concno3pm25]
 actris_variable = ["aerosol particle nitrate mass concentration"]
-actris_matrix = ["PM25", "PM1"]
+actris_matrix = ["PM2.5", "PM1"]
 ebas_component = ["nitrate"]
 ebas_matrix = ["pm25","pm1"]
 # The last part might not be what we really want, but the first two standard_name don't appear in the data files
@@ -171,14 +199,6 @@ ebas_matrix = ["pm1_non_refractory"]
 # The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
 standard_names = ["mass_concentration_of_nitrate_in_pm10_in_air","mass_concentration_of_nitrate_in_dry_aerosol_particles_in_air"]
 variable_constraints = ['non-refractory']
-
-[variables.concnh4pm25]
-actris_variable = ["aerosol particle ammonium mass concentration"]
-actris_matrix = ["aerosol particle phase"]
-ebas_component = ["ammonium"]
-ebas_matrix = ["pm25","pm1"]
-# The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files
-standard_names = ["mass_concentration_of_ammonium_in_pm2p5_in_air"]
 
 [variables.concnh4pm1]
 actris_variable = ["aerosol particle ammonium mass concentration"]
