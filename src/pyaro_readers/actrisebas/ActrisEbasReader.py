@@ -1468,7 +1468,15 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 continue
             if _stat_name not in self._stations:
                 facility_dummy = _station[LOCATION_ROOT_KEY][LOCATION_FACILITY_KEY]
-
+                try:
+                    facility_dummy[LOCATION_FACILITY_LOCATION_KEY][
+                        LOCATION_FACILITY_LOCATION_VALUE_KEY
+                    ][LOCATION_ALT_KEY]
+                except (IndexError, KeyError):
+                    logger.error(
+                        f"Error: Errornous location information for station {_stat_name}. Skipping that station..."
+                    )
+                    continue
                 self._stations[_stat_name] = Station(
                     {
                         "station": _stat_name,

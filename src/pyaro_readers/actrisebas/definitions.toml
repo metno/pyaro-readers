@@ -390,11 +390,12 @@ units = "mg N m-2 d-1"
 
 [variables.prmm]
 # needs an additional unit conversion from "mm" to "mm d-1"
-actris_variable = ["precipitation depth"]
+actris_variable = ["precipitation accumulated volume flux"]
 actris_matrix = ["precipitation phase"]
 ebas_component = ["precipitation_amount_off", "precipitation_amount"]
 ebas_matrix = ["precip"]
 standard_names = ["lwe_thickness_of_precipitation_amount", ]
+variable_constraints = ["accumulated"]
 
 [variables.sc550aer]
 # The following is WIP since there's several wavelengths in the file
