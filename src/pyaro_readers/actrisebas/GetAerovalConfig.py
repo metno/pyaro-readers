@@ -38,7 +38,11 @@ class AerovalConfig(abc.ABC):
             conf_name = f"{conf_base_name}-{_var}"
             pyaro_name = f"{obs_id_base_name}-{_idx}"
             var_filter = {"variables": {"include": [_var]}}
-            # time_filter = {'time_bounds': {'startend_include': [('2023-01-01 00:00:00', '2024-01-01 00:00:00')]}}
+            time_filter = {
+                "time_bounds": {
+                    "startend_include": [("2023-01-01 00:00:00", "2025-01-01 00:00:00")]
+                }
+            }
             pyaro_config_dict = dict(
                 name=conf_name,
                 reader_id=AerovalConfig.DEFAULT_READER_ID,
