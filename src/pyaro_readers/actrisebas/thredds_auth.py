@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import requests
 import xarray as xr
-import pydap
-
 
 KEYCLOAK_TOKEN_URL = os.getenv(
     "KEYCLOAK_TOKEN_URL",
@@ -30,6 +29,17 @@ class DatasetAccessError(Exception):
     def __init__(self, status_code: int, message: str):
         super().__init__(message)
         self.status_code = status_code
+
+
+class BearerAuth(requests.auth.AuthBase):
+    """Bearer auth passed via `auth=`, which (unlike `headers=`) is not overridden by ~/.netrc."""
+
+    def __init__(self, token: str) -> None:
+        self.token = token
+
+    def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
+        r.headers["Authorization"] = f"Bearer {self.token}"
+        return r
 
 
 @dataclass
@@ -78,12 +88,22 @@ def refresh(state: TokenState) -> TokenState:
     return _token_state_from_response(response.json())
 
 
-def ensure_fresh(state: TokenState, margin_s: float = 30) -> TokenState:
+def ensure_fresh(
+    state: TokenState,
+    margin_s: float = 30,
+    relogin: Callable[[], TokenState] | None = None,
+) -> TokenState:
     """Session-less equivalent of keycloak_auth.ensure_fresh_access_token():
-    refresh only if the access token is within `margin_s` of expiring."""
+    refresh only if the access token is within `margin_s` of expiring.
+    Falls back to `relogin()` if the refresh token is no longer valid."""
     if time.time() <= state.expires_at - margin_s:
         return state
-    return refresh(state)
+    try:
+        return refresh(state)
+    except requests.exceptions.HTTPError:
+        if relogin is None:
+            raise
+        return relogin()
 
 
 def open_dataset(url: str, token: str | None = None) -> xr.Dataset:
@@ -93,9 +113,9 @@ def open_dataset(url: str, token: str | None = None) -> xr.Dataset:
     since netCDF4's own DAP client doesn't surface a 401/403 quickly (it
     silently retries for 40-120s before raising a generic error).
     """
-    headers = {"Authorization": f"Bearer {token}"} if token else None
+    auth = BearerAuth(token) if token else None
     try:
-        probe = requests.get(f"{url}.dods?time[0:1:0]", headers=headers, timeout=5)
+        probe = requests.get(f"{url}.dods?time[0:1:0]", auth=auth, timeout=5)
     except requests.exceptions.RequestException as exc:
         raise DatasetAccessError(503, f"OPeNDAP server unreachable: {exc}") from exc
     if probe.status_code in (401, 403):
@@ -108,12 +128,10 @@ def open_dataset(url: str, token: str | None = None) -> xr.Dataset:
         # (it always leaves protocol=None, letting pydap probe/guess and warn),
         # so build the pydap dataset + store directly instead.
         from pydap.client import open_url
-
-        # from xarray.backends.pydap_ import PydapDataStore
-        from xarray.backends import PydapDataStore
+        from xarray.backends.pydap_ import PydapDataStore
 
         session = requests.Session()
-        session.headers["Authorization"] = f"Bearer {token}"
+        session.auth = auth
         pydap_dataset = open_url(url, session=session, protocol="dap2")
         store = PydapDataStore(pydap_dataset, protocol="dap2")
         return xr.open_dataset(store)

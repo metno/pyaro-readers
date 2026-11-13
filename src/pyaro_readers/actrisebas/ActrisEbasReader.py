@@ -569,7 +569,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                             logger.info(f"trying to read URL {url}")
                             if url not in self.restricted_urls:
                                 tmp_data = xr.open_dataset(url)
-                                logger.info(f"Successfully read URL {url}")
+                                logger.info(f"Successfully read unrestricted URL {url}")
                             else:
                                 logger.info(f"trying to read restricted URL {url}...")
                                 self._state = thredds_auth.ensure_fresh(self._state)
@@ -1226,7 +1226,9 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                                 # logger.info(f"trying to read URL {url} for testing purposes")
                                 if not restricted_url_flag:
                                     tmp_data = xr.open_dataset(url)
-                                    logger.info(f"Successfully read URL {url}")
+                                    logger.info(
+                                        f"Successfully read unrestricted URL {url}"
+                                    )
                                 else:
                                     logger.info(
                                         f"trying to read restricted URL {url}..."

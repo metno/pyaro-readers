@@ -13,6 +13,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             "include": ["Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"]
         },
     }
+    ACTRIS_EBAS_TEST_YEAR = 2023
     AERONETVAR = "od440aer"
     # ACTRISEBASVAR = "concnh4"
     # ACTRISEBASVAR = "concNno2"
@@ -327,7 +328,12 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
                     ]
                 },
                 "time_bounds": {
-                    "startend_include": [("2019-01-01 00:00:00", "2020-12-31 00:00:00")]
+                    "startend_include": [
+                        (
+                            f"{self.ACTRIS_EBAS_TEST_YEAR}-01-01 00:00:00",
+                            f"{self.ACTRIS_EBAS_TEST_YEAR}-12-31 00:00:00",
+                        )
+                    ]
                 },
             }
             obsconfig = PyaroConfig(
@@ -363,7 +369,12 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
                 ]
             },
             "time_bounds": {
-                "startend_include": [("2025-01-01 00:00:00", "2025-12-31 23:59:59")]
+                "startend_include": [
+                    (
+                        f"{self.ACTRIS_EBAS_TEST_YEAR}-01-01 00:00:00",
+                        f"{self.ACTRIS_EBAS_TEST_YEAR}-12-31 23:59:59",
+                    )
+                ]
             },
         }
         # needs to be the variable name for actrisebas
@@ -407,7 +418,12 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
             # },
             "variables": {"include": var_list},
             "time_bounds": {
-                "startend_include": [("2020-01-01 00:00:00", "2023-12-31 00:00:00")]
+                "startend_include": [
+                    (
+                        f"{self.ACTRIS_EBAS_TEST_YEAR}-01-01 00:00:00",
+                        f"{self.ACTRIS_EBAS_TEST_YEAR}-12-31 00:00:00",
+                    )
+                ]
             },
         }
         # needs to be the variable name for actrisebas, but PyaroConfig wants this to a string and not a list
