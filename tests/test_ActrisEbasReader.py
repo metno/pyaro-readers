@@ -5,22 +5,23 @@ import logging
 import pyaro
 import pyaro.timeseries
 
+import pyaerocom
+
 # from pyaro.timeseries.Wrappers import VariableNameChangingReader
 
 logger = logging.getLogger(__name__)
 
+# TEST_URL = "https://prod-actris-md2.nilu.no/"
+TEST_URL = None
 
-TEST_URL = "https://prod-actris-md2.nilu.no/"
 
-
-# skip all tests in this file
-@unittest.skip("Skipping all tests in this file, since actris endpoint changed")
 class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     log_file = os.getenv("PYAEROCOM_LOG_FILE")
     if log_file is not None:
         log_file = f"actrisebas.log"
         # log_file = f"/home/jang/tmp/logging/pyaerocom.log"
     logging.basicConfig(filename=log_file, level=logging.DEBUG)
+    logger = logging.getLogger(__name__)
     logger.info("Started")
 
     engine = "actrisebas"
@@ -32,14 +33,23 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
     # pyaerocom_vars_to_read = ["concso2"]
     # pyaerocom_vars_to_read = ["vmrso2"]
 
-    # pyaerocom_vars_to_read = ["concso4t"]
-    pyaerocom_vars_to_read = ["concso4c"]
+    pyaerocom_vars_to_read = ["concso4t"]
+    # pyaerocom_vars_to_read = ["concso4c"]
     # pyaerocom_vars_to_read = ["concpm10"]
     # pyaerocom_vars_to_read = ["concpm25"]
     # pyaerocom_vars_to_read = ["concpm1"]
 
     station_filter = pyaro.timeseries.Filter.StationFilter(
-        ["Schmucke", "Birkenes II", "Jungfraujoch", "Ispra", "Melpitz", "Westerland"],
+        # ["Sniezka",],
+        [
+            "Sniezka",
+            "Schmucke",
+            "Birkenes II",
+            "Jungfraujoch",
+            "Ispra",
+            "Melpitz",
+            "Westerland",
+        ],
         [],
     )
 
@@ -96,13 +106,15 @@ class TestActrisEbasTimeSeriesReader(unittest.TestCase):
                 {}, [_var], []
             )
             filters = [self.station_filter, variable_filter_pyaerocom, self.time_filter]
+            # filters = [self.station_filter, variable_filter_pyaerocom]
+            # filters = [variable_filter_pyaerocom]
             engine = pyaro.list_timeseries_engines()[self.engine]
             with engine.open(TEST_URL, filters=filters) as ts:
                 self.assertGreaterEqual(len(ts.variables()), 1)
                 self.assertGreaterEqual(len(ts.stations()), 1)
-                self.assertIn("Schmucke", ts.stations())
-                self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
+                self.assertIn("Ispra", ts.stations())
                 self.assertGreaterEqual(len(ts.data(ts.variables()[0])), 1000)
+                self.assertGreaterEqual(len(ts._data[ts.variables()[0]]), 1000)
                 self.assertIn("revision", ts.metadata())
 
     # ACTRIS vocabulary usage has been postponed for the moment
