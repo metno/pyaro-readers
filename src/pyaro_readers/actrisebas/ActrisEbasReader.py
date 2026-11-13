@@ -147,6 +147,9 @@ CF_UNITS["ug /m3"] = "ug m-3"
 CF_UNITS["ug S/m3"] = "ugS/m3"
 CF_UNITS["ug N/m3"] = "ugN/m3"
 CF_UNITS["ug C/m3"] = "ugC/m3"
+CF_UNITS["mg N/l"] = "mg N m-2 d-1"
+CF_UNITS["mg S/l"] = "mg S m-2 d-1"
+CF_UNITS["mg C/l"] = "mg C m-2 d-1"
 # CF_UNITS[""] = ""
 
 # Used to adjust the APIs thredds URL for testing
@@ -314,6 +317,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                 self.actris_netcdf_keys[var] = self.def_data["variables"][var][
                     "actris_netcdf_keys"
                 ]
+                # read the additional info needed for potentially needed other variables
+                # needed for compound variables like wet deposition
+                if "pya_calculation_vars" in self.def_data["variables"][var]:
+                    for _i in self.def_data["variables"][var]["pya_calculation_vars"]:
+                        self.actris_netcdf_keys[_i] = self.def_data["variables"][_i][
+                            "actris_netcdf_keys"
+                        ]
                 _cache_files = []
                 for _cache_file in self.def_data["variables"][var]["actris_variable"]:
                     _cache_files.append(
@@ -704,10 +714,11 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
                         standard_deviation = np.full(ts_no, np.nan)
 
                         # check if the read variable is a composition variable like deposition
-                        if "standard_names_2nd_var" in self.def_data["variables"][_var]:
+                        # if "standard_names_2nd_var" in self.def_data["variables"][_var]:
+                        if "pya_calculation_vars" in self.def_data["variables"][_var]:
                             try:
                                 vals, ebas_flags, self.units = self.calc_var(
-                                    tmp_data, _data_var, _var
+                                    tmp_data, _data_var, _var, thredds_url
                                 )
                             except ActrisEbasStdNameNotFoundException:
                                 logger.info(
@@ -980,24 +991,50 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         ebas_flags = self.get_ebas_var_flags(tmp_data, _data_var)
         return self.get_var_data_flags_applied_from_vars(vals, ebas_flags)
 
-    def calc_var(self, tmp_data, _data_var, _var):
+    def calc_var(self, tmp_data, _data_var, _var, thredds_url):
         """helper method to calculate compound variables like depositions"""
 
         # for the moment this will just multiply 2 variables within the same file
 
-        if "standard_names_2nd_var" in self.def_data["variables"][_var]:
-            var_names_to_check = self.get_ebas_var_names_with_std_names(
-                tmp_data, self.def_data["variables"][_var]["standard_names_2nd_var"]
-            )
+        # if "standard_names_2nd_var" in self.def_data["variables"][_var]:
+        if "pya_calculation_vars" in self.def_data["variables"][_var]:
+            aerocom_var_to_check = self.def_data["variables"][_var][
+                "pya_calculation_vars"
+            ]
+            var_names_to_check = self.def_data["variables"][aerocom_var_to_check[0]][
+                "actris_variable"
+            ]
             if len(var_names_to_check) > 1:
+                # if this triggers, we have to refine the variable search above
                 logger.info(
                     f"calc_var: more than one matching variable name found for std_names {self.def_data['variables'][_var]}. Using the 1st match. "
                 )
+            # read in info for 2nd variable from api
+            if _var not in self.actris_netcdf_keys:
+                # add some metadata from the api response
+                # only needed at the first call
+                self.open_dap_urls_to_dl[var_names_to_check[0]], netcdf_info_dummy = (
+                    self.extract_opendap_info(
+                        self.api_metadata[_var][
+                            self.def_data["variables"][_var]["actris_variable"][0]
+                        ],
+                        sites_to_read=self.sites_to_read,
+                        sites_to_exclude=self.sites_to_exclude,
+                    )
+                )
+                # self.opendap_netcdf_info = self.opendap_netcdf_info | netcdf_info_dummy
+                self.actris_netcdf_keys[_var] = self.def_data["variables"][_var][
+                    "actris_netcdf_keys"
+                ]
+
             vals1, flags1 = self.get_var_data_flags_applied_from_file(
                 tmp_data, _data_var
             )
+            data_var_2nd = self.get_netcdf_var_to_read(
+                var_names_to_check[0], thredds_url, aerocom_var_to_check[0]
+            )
             vals2, flags2 = self.get_var_data_flags_applied_from_file(
-                tmp_data, var_names_to_check[0]
+                tmp_data, data_var_2nd
             )
 
             vals = vals1 * vals2
