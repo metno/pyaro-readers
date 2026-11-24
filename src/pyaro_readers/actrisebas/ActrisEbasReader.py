@@ -997,7 +997,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         # for the moment this will just multiply 2 variables within the same file
 
         # if "standard_names_2nd_var" in self.def_data["variables"][_var]:
-        if "pya_calculation_vars" in self.def_data["variables"][_var]:
+        try:  # "pya_calculation_vars" in self.def_data["variables"][_var]:
+
             aerocom_var_to_check = self.def_data["variables"][_var][
                 "pya_calculation_vars"
             ]
@@ -1043,7 +1044,8 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
             # just return the flags from the precipitation here for now
 
             return vals, flags2, units
-        else:
+        except Exception as e:
+            logger.error(f"Error in deposition calculation: {e}")
             raise ActrisEbasStdNameNotFoundException
 
     def get_ebas_valid_flags(self, url: str = EBAS_FLAG_URL) -> dict:
