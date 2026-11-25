@@ -15,7 +15,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     }
     ACTRIS_EBAS_TEST_YEAR = 2023
     AERONETVAR = "od440aer"
-    # ACTRISEBASVAR = "concnh4"
+    ACTRISEBASVAR = "concnh4"
     # ACTRISEBASVAR = "concNno2"
     # ACTRISEBASVAR = "concNtno3"
     # ACTRISEBASVAR = "concNhno3"
@@ -34,9 +34,9 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "concso4c"
     # ACTRISEBASVAR = "concso4t"
     # ACTRISEBASVAR = "concso4pm25"
+    # ACTRISEBASVAR = "concso4pm1"
     # ACTRISEBASVAR = "concpm25"
     # ACTRISEBASVAR = "concpm10"
-    # ACTRISEBASVAR = "concso4pm1"
     # ACTRISEBASVAR = "concCecpm25"
     # ACTRISEBASVAR = "concCecpm10"
     # ACTRISEBASVAR = "concCocpm25"
@@ -45,7 +45,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "concsspm10"
     # ACTRISEBASVAR = "concsspm25"
     # ACTRISEBASVAR = "wetso4"
-    ACTRISEBASVAR = "wetrdn"
+    # ACTRISEBASVAR = "wetrdn"
     # ACTRISEBASVAR = "wetoxs"
     # ACTRISEBASVAR = "wetoxn"
     # ACTRISEBASVAR = "prmm"
