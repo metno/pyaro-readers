@@ -47,28 +47,34 @@ class Netcdf_RWTimeseriesReader(AutoFilterReaderEngine.AutoFilterReader):
         if os.path.isdir(filename):
             self._directory = filename
         else:
-            if mode != "r":
+            if mode == "w" and os.path.exists(filename):
+                os.makedirs(os.path.dirname(filename))
+            if mode == "r" and not os.path.exists(filename):
                 raise Netcdf_RWTimeseriesException(
                     f"no such file or directory: {filename}"
                 )
-            else:
-                os.makedirs(filename)
+                return
 
-        dataglob = os.path.join(self._directory, f"{self.ncfile_prefix}.????.nc")
-        self._years = set()
-        for file in glob.iglob(dataglob):
-            year = file[-7:-3]
-            if self._is_year_in_filters(year):
-                self._years.add(year)
+            if mode == "r":
+                dataglob = os.path.join(
+                    self._directory, f"{self.ncfile_prefix}.????.nc"
+                )
+                self._years = set()
+                for file in glob.iglob(dataglob):
+                    year = file[-7:-3]
+                    if self._is_year_in_filters(year):
+                        self._years.add(year)
 
-        try:
-            self._variables = self._read_json("variables.json", [])
-            self._metadata = self._read_json("metadata.json", {})
-            self._stations = self._read_stations()
-        except Exception as ex:
-            raise Netcdf_RWTimeseriesException(f"unable to read definition-file: {ex}")
+                try:
+                    self._variables = self._read_json("variables.json", [])
+                    self._metadata = self._read_json("metadata.json", {})
+                    self._stations = self._read_stations()
+                except Exception as ex:
+                    raise Netcdf_RWTimeseriesException(
+                        f"unable to read definition-file: {ex}"
+                    )
 
-        self._metadata = self.metadata()
+                self._metadata = self.metadata()
 
         return
 

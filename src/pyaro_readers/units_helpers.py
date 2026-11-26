@@ -100,4 +100,5 @@ UALIASES = {
     # others
     "/m": "m-1",
     "ng/m3": "ng m-3",
+    "ug /m3": "ug m-3",
 }
