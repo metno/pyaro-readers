@@ -166,7 +166,7 @@ standard_names = ["mass_concentration_of_pm2p5_ambient_aerosol_particles_in_air"
 #Not in current EBAS data set
 [variables.concno3pm10]
 actris_variable = ["aerosol particle nitrate mass concentration"]
-actris_matrix = ["aerosol particle phase", "PM10"]
+actris_matrix = ["PM10", "aerosol particle phase", "PM1-10"]
 ebas_component = ["nitrate"]
 ebas_matrix = ["pm10","aerosol"]
 # The 2nd part might not be what we really want, but the first standard_name doesn't appear in the data files

@@ -15,7 +15,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     }
     ACTRIS_EBAS_TEST_YEAR = 2023
     AERONETVAR = "od440aer"
-    ACTRISEBASVAR = "concnh4"
+    # ACTRISEBASVAR = "concnh4"
     # ACTRISEBASVAR = "concNno2"
     # ACTRISEBASVAR = "concNtno3"
     # ACTRISEBASVAR = "concNhno3"
@@ -28,7 +28,7 @@ class TestPyaroReaderPyaerocom(unittest.TestCase):
     # ACTRISEBASVAR = "concpm25"
     # ACTRISEBASVAR = "concno3pm10"
     # ACTRISEBASVAR = "concno3pm25"
-    # ACTRISEBASVAR = "concno3pm1"
+    ACTRISEBASVAR = "concno3pm1"
     # ACTRISEBASVAR = "concnh4pm25"
     # ACTRISEBASVAR = "concnh4pm1"
     # ACTRISEBASVAR = "concso4c"
