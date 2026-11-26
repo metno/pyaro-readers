@@ -462,12 +462,13 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
         netcdf_var = ""
         if (
             thredds_url
-            == "https://thredds.nilu.no/thredds/dodsC/ebas_doi/7Q/AG/3Q/7QAG-3QVR.nc"
+            == "https://thredds.nilu.no/thredds/dodsC/ebas_doi/5J/NE/63/5JNE-638V.nc"
         ):
             assert thredds_url
 
         for _key in self.actris_netcdf_keys[aerocom_var_to_read]:
             try:
+                blubb = self.constraints[thredds_url]
                 netcdf_var = self.constraints[thredds_url][_key]
                 logger.info(
                     f"found netcdf variable {netcdf_var} for url {thredds_url} and variable {aerocom_var_to_read}"
@@ -491,7 +492,7 @@ class ActrisEbasTimeSeriesReader(AutoFilterReaderEngine.AutoFilterReader):
 
         if not found_flag:
             logger.info(
-                f"no netcdf variable information found in API response for url {thredds_url} and variable {actris_variable}. Skipping that URL..."
+                f"no matrix / contraints matching netcdf variable information found in API response for url {thredds_url} and variable {actris_variable}. Skipping that URL..."
             )
             return None
 

@@ -70,7 +70,7 @@ variable_constraints = ['expressed as nitrogen']
 
 [variables.concnh4]
 actris_variable = ["aerosol particle ammonium mass concentration"]
-actris_matrix = ["aerosol particle phase"]
+actris_matrix = ["PM10","aerosol particle phase","PM2.5"]
 #actris_matrix = ["PM2.5"]
 ebas_component = ["ammonium"]
 ebas_matrix = ["pm10","aerosol","pm25"]
